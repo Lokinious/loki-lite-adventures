@@ -8,9 +8,16 @@
   },
   {
     "id": "forest",
-    "name": "Haunted Forest",
-    "width": 18,
-    "height": 14,
+    "name": "Forest Road",
+    "width": 10,
+    "height": 8,
     "fogOfWar": true
+  },
+  {
+    "id": "goblin_camp",
+    "name": "Goblin Camp",
+    "width": 10,
+    "height": 8,
+    "fogOfWar": false
   }
 ]

@@ -8,8 +8,22 @@
     "attacks": [
       {
         "name": "Rusty Stab",
-        "toHit": 12,
+        "toHit": 2,
         "damage": "1d4+1"
+      }
+    ]
+  },
+  {
+    "id": "goblin_chief",
+    "name": "Goblin Chief",
+    "health": 20,
+    "armorClass": 7,
+    "movement": 4,
+    "attacks": [
+      {
+        "name": "Jagged Cleaver",
+        "toHit": 4,
+        "damage": "1d6+2"
       }
     ]
   },

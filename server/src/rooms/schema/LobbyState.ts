@@ -29,6 +29,8 @@ export class PlayerState extends Schema {
   @type("number") attackBonus = 0;
   @type("string") damageDice = "1d6";
   @type("boolean") alive = true;
+  @type("number") gold = 0;
+  @type(["string"]) inventory = new ArraySchema<string>();
 }
 
 export class EnemyState extends Schema {
@@ -47,12 +49,20 @@ export class EnemyState extends Schema {
 
 export class LobbyState extends Schema {
   @type("string") roomCode = "local-adventure";
+  @type("string") currentSceneId = "tavern";
   @type("number") gridWidth = 10;
   @type("number") gridHeight = 8;
   @type("string") activeTurnType = "none";
   @type("string") activeTurnId = "";
+  @type("number") partyGold = 0;
+  @type("number") totalGoldEarned = 0;
+  @type("number") enemiesDefeated = 0;
+  @type("number") totalTurns = 0;
+  @type("string") adventureStartedAt = "";
+  @type("string") adventureCompletedAt = "";
   @type({ map: PlayerState }) players = new MapSchema<PlayerState>();
   @type({ map: EnemyState }) enemies = new MapSchema<EnemyState>();
   @type(["string"]) turnOrder = new ArraySchema<string>();
+  @type(["string"]) completedEncounters = new ArraySchema<string>();
   @type([CombatLogEntry]) combatLog = new ArraySchema<CombatLogEntry>();
 }

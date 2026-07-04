@@ -1,0 +1,46 @@
+[
+  {
+    "id": "tavern",
+    "title": "Tavern",
+    "description": "The innkeeper asks for help dealing with goblins in the nearby forest.",
+    "mapId": "tavern",
+    "sceneType": "story",
+    "nextSceneId": "forest",
+    "objective": "Accept the quest to begin the adventure."
+  },
+  {
+    "id": "forest",
+    "title": "Forest Road",
+    "description": "Goblin tracks lead into the woods.",
+    "mapId": "forest",
+    "sceneType": "encounter",
+    "nextSceneId": "merchant",
+    "objective": "Defeat the goblin ambusher."
+  },
+  {
+    "id": "merchant",
+    "title": "Traveling Merchant",
+    "description": "A merchant offers supplies before the final battle.",
+    "mapId": "tavern",
+    "sceneType": "shop",
+    "nextSceneId": "boss",
+    "objective": "Spend your gold or continue to the boss."
+  },
+  {
+    "id": "boss",
+    "title": "Goblin Camp",
+    "description": "The Goblin Chief emerges from the shadows.",
+    "mapId": "goblin_camp",
+    "sceneType": "encounter",
+    "nextSceneId": "victory",
+    "objective": "Defeat the Goblin Chief."
+  },
+  {
+    "id": "victory",
+    "title": "Adventure Complete",
+    "description": "The goblin threat is ended and the road is safe again.",
+    "mapId": "tavern",
+    "sceneType": "victory",
+    "objective": "Review the results and return to the lobby."
+  }
+]

@@ -7,6 +7,20 @@
     "effect": "Restore 1d6 health."
   },
   {
+    "id": "healing_potion",
+    "name": "Healing Potion",
+    "rarity": "common",
+    "price": 10,
+    "effect": "A simple restorative tonic."
+  },
+  {
+    "id": "iron_sword",
+    "name": "Iron Sword",
+    "rarity": "common",
+    "price": 25,
+    "effect": "A sturdy blade favored by frontline adventurers."
+  },
+  {
     "id": "ember_staff",
     "name": "Ember Staff",
     "rarity": "uncommon",

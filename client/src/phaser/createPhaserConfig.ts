@@ -14,6 +14,8 @@ export type TacticalToken = {
 };
 
 export type TacticalSnapshot = {
+  mapId: string;
+  sceneTitle: string;
   width: number;
   height: number;
   tokens: TacticalToken[];
@@ -32,15 +34,30 @@ type GameBridge = {
 
 const tileSize = 48;
 
+function getMapBackground(mapId: string) {
+  switch (mapId) {
+    case "forest":
+      return "#163320";
+    case "goblin_camp":
+      return "#2c1a1d";
+    case "tavern":
+    default:
+      return "#332211";
+  }
+}
+
 class TacticalScene extends Phaser.Scene {
   private readonly tokens = new Map<string, TokenSprite>();
   private readonly snapshot: TacticalSnapshot = {
+    mapId: "tavern",
+    sceneTitle: "Tavern",
     width: 10,
     height: 8,
     tokens: []
   };
   private grid?: Phaser.GameObjects.Graphics;
   private isReady = false;
+  private sceneLabel?: Phaser.GameObjects.Text;
 
   constructor(private readonly onTileSelected: (x: number, y: number) => void) {
     super("tactical-scene");
@@ -48,8 +65,14 @@ class TacticalScene extends Phaser.Scene {
 
   create() {
     this.isReady = true;
-    this.cameras.main.setBackgroundColor("#111827");
+    this.cameras.main.setBackgroundColor(getMapBackground(this.snapshot.mapId));
     this.grid = this.add.graphics();
+    this.sceneLabel = this.add.text(10, 10, this.snapshot.sceneTitle, {
+      color: "#e2e8f0",
+      fontFamily: "Arial",
+      fontSize: "14px"
+    });
+    this.sceneLabel.setDepth(5);
     this.input.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
       const x = Math.floor(pointer.x / tileSize);
       const y = Math.floor(pointer.y / tileSize);
@@ -64,6 +87,8 @@ class TacticalScene extends Phaser.Scene {
   }
 
   setSnapshot(snapshot: TacticalSnapshot) {
+    this.snapshot.mapId = snapshot.mapId;
+    this.snapshot.sceneTitle = snapshot.sceneTitle;
     this.snapshot.width = snapshot.width;
     this.snapshot.height = snapshot.height;
     this.snapshot.tokens = snapshot.tokens;
@@ -74,7 +99,9 @@ class TacticalScene extends Phaser.Scene {
   }
 
   private renderSnapshot() {
+    this.cameras.main.setBackgroundColor(getMapBackground(this.snapshot.mapId));
     this.scale.resize(this.snapshot.width * tileSize, this.snapshot.height * tileSize);
+    this.sceneLabel?.setText(this.snapshot.sceneTitle);
     this.drawGrid();
 
     const visibleTokenIds = new Set(this.snapshot.tokens.map((token) => token.id));
