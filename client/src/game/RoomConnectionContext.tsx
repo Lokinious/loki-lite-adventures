@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { Client, Room } from "colyseus.js";
-import type { JoinMode, JoinRole, LobbyView } from "./types";
+import type { JoinMode, JoinRole, LobbyView, SkillCheckType, SkillCheckVisibility, WorldEntityType } from "./types";
 
 type ConnectOptions = {
   mode: JoinMode;
@@ -25,6 +25,58 @@ type DmActionMessage = {
   message?: string;
 };
 
+type DmToolMessage = {
+  tool:
+    | "createNpc"
+    | "placeEntity"
+    | "setEntityVisibility"
+    | "createShop"
+    | "addShopItem"
+    | "createQuest"
+    | "setQuestStatus"
+    | "createSecret"
+    | "revealSecret"
+    | "createSkillCheck"
+    | "giveReward"
+    | "generateNpc"
+    | "generateQuest"
+    | "generateShop"
+    | "generateSecret";
+  entityType?: WorldEntityType;
+  entityId?: string;
+  npcId?: string;
+  shopId?: string;
+  questId?: string;
+  secretId?: string;
+  itemId?: string;
+  playerId?: string;
+  playerName?: string;
+  name?: string;
+  role?: string;
+  description?: string;
+  publicDescription?: string;
+  privateNotes?: string;
+  dialoguePrompt?: string;
+  questHooks?: string;
+  title?: string;
+  objective?: string;
+  rewardGold?: number;
+  rewardItems?: string[];
+  amount?: number;
+  checkType?: SkillCheckType;
+  dc?: number;
+  x?: number;
+  y?: number;
+  visibleToPlayers?: boolean;
+  target?: "party" | "all" | "player";
+  visibility?: SkillCheckVisibility;
+  successMessage?: string;
+  failureMessage?: string;
+  linkedEntityId?: string;
+  stock?: number;
+  price?: number;
+};
+
 type RoomConnectionContextValue = {
   status: string;
   lobby: LobbyView | null;
@@ -44,10 +96,13 @@ type RoomConnectionContextValue = {
   useAbility(abilityId: string, targetId: string): void;
   endTurn(): void;
   purchase(itemId: string): void;
+  purchaseFromShop(shopId: string, itemId: string): void;
   equipItem(itemId: string): void;
   useItem(itemId: string): void;
+  rollSkillCheck(checkId: string): void;
   sceneAction(actionId: string): void;
   runDmAction(message: DmActionMessage): void;
+  runDmTool(message: DmToolMessage): void;
   runDmCommand(command: string): void;
   setStatus(message: string): void;
 };
@@ -196,6 +251,10 @@ export function RoomConnectionProvider({ children }: { children: React.ReactNode
     roomRef.current?.send("requestPurchase", { itemId });
   }
 
+  function purchaseFromShop(shopId: string, itemId: string) {
+    roomRef.current?.send("requestShopPurchase", { shopId, itemId });
+  }
+
   function equipItem(itemId: string) {
     roomRef.current?.send("requestEquipItem", { itemId });
   }
@@ -204,12 +263,20 @@ export function RoomConnectionProvider({ children }: { children: React.ReactNode
     roomRef.current?.send("requestUseItem", { itemId });
   }
 
+  function rollSkillCheck(checkId: string) {
+    roomRef.current?.send("requestRollSkillCheck", { checkId });
+  }
+
   function sceneAction(actionId: string) {
     roomRef.current?.send("requestSceneAction", { actionId });
   }
 
   function runDmAction(message: DmActionMessage) {
     roomRef.current?.send("requestDmAction", message);
+  }
+
+  function runDmTool(message: DmToolMessage) {
+    roomRef.current?.send("requestDmTool", message);
   }
 
   function runDmCommand(command: string) {
@@ -231,9 +298,12 @@ export function RoomConnectionProvider({ children }: { children: React.ReactNode
         useAbility(abilityId: string, targetId: string): void;
         endTurn(): void;
         purchase(itemId: string): void;
+        purchaseFromShop(shopId: string, itemId: string): void;
         equipItem(itemId: string): void;
         useItem(itemId: string): void;
+        rollSkillCheck(checkId: string): void;
         sceneAction(actionId: string): void;
+        runDmTool(message: DmToolMessage): void;
         runDmCommand(command: string): void;
       };
     };
@@ -247,16 +317,19 @@ export function RoomConnectionProvider({ children }: { children: React.ReactNode
       useAbility,
       endTurn,
       purchase,
+      purchaseFromShop,
       equipItem,
       useItem,
+      rollSkillCheck,
       sceneAction,
+      runDmTool,
       runDmCommand
     };
 
     return () => {
       delete debugWindow.__lokiDebug;
     };
-  }, [attack, confirmCharacter, endTurn, equipItem, move, purchase, runDmCommand, sceneAction, selectClass, selectRace, useAbility, useItem]);
+  }, [attack, confirmCharacter, endTurn, equipItem, move, purchase, purchaseFromShop, rollSkillCheck, runDmCommand, runDmTool, sceneAction, selectClass, selectRace, useAbility, useItem]);
 
   const value = useMemo<RoomConnectionContextValue>(
     () => ({
@@ -278,10 +351,13 @@ export function RoomConnectionProvider({ children }: { children: React.ReactNode
       useAbility,
       endTurn,
       purchase,
+      purchaseFromShop,
       equipItem,
       useItem,
+      rollSkillCheck,
       sceneAction,
       runDmAction,
+      runDmTool,
       runDmCommand,
       setStatus
     }),

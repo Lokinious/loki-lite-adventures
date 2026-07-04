@@ -1,6 +1,29 @@
 export type JoinMode = "create" | "join";
 export type JoinRole = "player" | "dm";
 
+export type WorldEntityType =
+  | "npc"
+  | "shopkeeper"
+  | "treasure_chest"
+  | "hidden_object"
+  | "quest_marker"
+  | "trap_marker"
+  | "secret_passage_marker";
+
+export type SkillCheckType =
+  | "intimidation"
+  | "persuasion"
+  | "insight"
+  | "perception"
+  | "investigation"
+  | "strength"
+  | "dexterity"
+  | "arcana"
+  | "stealth";
+
+export type SkillCheckVisibility = "public" | "dm" | "targeted";
+export type QuestStatus = "hidden" | "offered" | "active" | "completed" | "failed";
+
 export type InventoryItemView = {
   entryId: string;
   id: string;
@@ -22,6 +45,114 @@ export type AbilityView = {
   usesAttackRoll: boolean;
   limit: "once_per_turn";
   ready: boolean;
+};
+
+export type WorldEntityView = {
+  id: string;
+  type: WorldEntityType;
+  name: string;
+  description: string;
+  x: number;
+  y: number;
+  visibleToPlayers: boolean;
+  discovered: boolean;
+  linkedQuestId?: string;
+  linkedShopId?: string;
+  linkedItemId?: string;
+  linkedNpcId?: string;
+  linkedSecretId?: string;
+  publicDetails: string;
+};
+
+export type NpcView = {
+  id: string;
+  name: string;
+  role: string;
+  personality: string;
+  publicDescription: string;
+  dialoguePrompt: string;
+  questHooks: string;
+  linkedEntityId?: string;
+  visibleToPlayers: boolean;
+  discovered: boolean;
+};
+
+export type ShopItemView = {
+  itemId: string;
+  name: string;
+  effect: string;
+  price: number;
+  stock: number;
+};
+
+export type ShopView = {
+  id: string;
+  name: string;
+  shopkeeperNpcId?: string;
+  linkedEntityId?: string;
+  visibleToPlayers: boolean;
+  accessible: boolean;
+  discountPercent: number;
+  inventory: ShopItemView[];
+};
+
+export type QuestView = {
+  id: string;
+  title: string;
+  publicObjective: string;
+  rewardGold: number;
+  rewardItems: string[];
+  status: QuestStatus;
+  assignedTo: "party" | string;
+};
+
+export type SecretView = {
+  id: string;
+  checkType: SkillCheckType;
+  dc: number;
+  revealText: string;
+  revealed: boolean;
+  linkedEntityId?: string;
+};
+
+export type SkillCheckView = {
+  id: string;
+  title: string;
+  checkType: SkillCheckType;
+  dc: number;
+  targetPlayerIds: string[];
+  targetNames: string[];
+  visibility: SkillCheckVisibility;
+  successMessage: string;
+  failureMessage: string;
+  status: "pending" | "completed";
+  results: Array<{
+    playerId: string;
+    playerName: string;
+    rolled: boolean;
+    roll: number;
+    total: number;
+    success: boolean;
+    message: string;
+  }>;
+};
+
+export type PlayerSkillCheckView = {
+  id: string;
+  title: string;
+  checkType: SkillCheckType;
+  visibility: SkillCheckVisibility;
+  status: "pending" | "completed";
+  showDc: boolean;
+  dc: number | null;
+  canRoll: boolean;
+  rolled: boolean;
+  resultText: string;
+};
+
+export type RewardHistoryView = {
+  id: string;
+  message: string;
 };
 
 export type PlayerView = {
@@ -162,6 +293,8 @@ export type LobbyView = {
   availableScenes: SceneOptionView[];
   currentScene: SceneView;
   sceneActions: SceneActionView[];
+  availableEntityTypes: Array<{ id: WorldEntityType; label: string }>;
+  availableSkillChecks: SkillCheckType[];
   gridWidth: number;
   gridHeight: number;
   activeTurn: ActiveTurnView;
@@ -172,6 +305,14 @@ export type LobbyView = {
   completedEncounters: string[];
   merchantItems: MerchantItemView[];
   victorySummary: VictorySummaryView | null;
+  worldEntities: WorldEntityView[];
+  npcs: NpcView[];
+  shops: ShopView[];
+  quests: QuestView[];
+  secrets: SecretView[];
+  skillChecks: SkillCheckView[];
+  playerSkillChecks: PlayerSkillCheckView[];
+  rewardHistory: RewardHistoryView[];
   players: PlayerView[];
   enemies: EnemyView[];
   publicLog: LogEntryView[];

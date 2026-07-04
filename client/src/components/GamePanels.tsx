@@ -1,11 +1,24 @@
+import { useMemo, useState } from "react";
 import type {
   EnemyView,
   InventoryItemView,
   JoinRole,
   LobbyView,
   LogEntryView,
+  NpcView,
+  PlayerSkillCheckView,
   PlayerView,
-  SceneOptionView
+  QuestStatus,
+  QuestView,
+  RewardHistoryView,
+  SceneOptionView,
+  SecretView,
+  ShopView,
+  SkillCheckType,
+  SkillCheckVisibility,
+  SkillCheckView,
+  WorldEntityType,
+  WorldEntityView
 } from "../game/types";
 
 type PartyPanelProps = {
@@ -88,6 +101,30 @@ type ActionHotbarProps = {
   canEndTurn: boolean;
 };
 
+type WorldEntityPanelProps = {
+  entities: WorldEntityView[];
+};
+
+type ShopPanelProps = {
+  shops: ShopView[];
+  onBuy(shopId: string, itemId: string): void;
+  canBuy(shop: ShopView, price: number): boolean;
+};
+
+type QuestPanelProps = {
+  quests: QuestView[];
+};
+
+type PlayerSkillChecksPanelProps = {
+  checks: PlayerSkillCheckView[];
+  onRoll(checkId: string): void;
+};
+
+type DmWorldToolsPanelProps = {
+  lobby: LobbyView;
+  onRunTool(message: Record<string, unknown>): void;
+};
+
 export function PartyPanel({ lobby, targetAction = null }: PartyPanelProps) {
   return (
     <section className="panel">
@@ -128,25 +165,15 @@ function PlayerCard({
   targetAction: PartyPanelProps["targetAction"];
 }) {
   return (
-    <article
-      className="player-card"
-      data-testid={`player-card-${player.id}`}
-      data-player-name={player.name}
-    >
+    <article className="player-card" data-testid={`player-card-${player.id}`} data-player-name={player.name}>
       <div>
         <strong data-testid={`player-name-${player.id}`}>{player.name}</strong>
         <p data-testid={`player-class-${player.id}`}>{player.characterIdentity}</p>
       </div>
       <div className="player-stats">
-        <span data-testid={`player-health-${player.id}`}>
-          HP {player.health}/{player.maxHealth}
-        </span>
-        <span data-testid={`player-move-${player.id}`}>
-          Move {player.remainingMovement}/{player.movement}
-        </span>
-        <span data-testid={`player-tile-${player.id}`}>
-          Tile {player.x + 1},{player.y + 1}
-        </span>
+        <span data-testid={`player-health-${player.id}`}>HP {player.health}/{player.maxHealth}</span>
+        <span data-testid={`player-move-${player.id}`}>Move {player.remainingMovement}/{player.movement}</span>
+        <span data-testid={`player-tile-${player.id}`}>Tile {player.x + 1},{player.y + 1}</span>
         <span data-testid={`player-gold-${player.id}`}>Gold {player.gold}</span>
         <span data-testid={`player-level-${player.id}`}>Level {player.level}</span>
         <span data-testid={`player-defense-${player.id}`}>Defense {player.defense}</span>
@@ -189,9 +216,7 @@ export function CharacterSheetPanel({ player }: CharacterSheetPanelProps) {
         <span data-testid="character-identity">{player.characterIdentity}</span>
       </div>
       <div className="player-stats two-column-grid">
-        <span data-testid="character-confirmed">
-          {player.confirmedCharacter ? "Confirmed" : "Awaiting confirmation"}
-        </span>
+        <span data-testid="character-confirmed">{player.confirmedCharacter ? "Confirmed" : "Awaiting confirmation"}</span>
         <span data-testid="character-level">Level {player.level}</span>
         <span data-testid="character-xp">XP {player.xp}</span>
         <span data-testid="character-defense">Defense {player.defense}</span>
@@ -213,13 +238,7 @@ export function CharacterSheetPanel({ player }: CharacterSheetPanelProps) {
   );
 }
 
-export function InventoryPanel({
-  player,
-  onEquip,
-  onUse,
-  canEquip,
-  canUse
-}: InventoryPanelProps) {
+export function InventoryPanel({ player, onEquip, onUse, canEquip, canUse }: InventoryPanelProps) {
   if (!player) {
     return null;
   }
@@ -274,6 +293,162 @@ export function InventoryPanel({
   );
 }
 
+export function WorldEntityPanel({ entities }: WorldEntityPanelProps) {
+  const [selectedEntityId, setSelectedEntityId] = useState<string>("");
+  const selectedEntity = entities.find((entity) => entity.id === selectedEntityId) ?? entities[0] ?? null;
+
+  return (
+    <section className="panel" data-testid="world-entity-panel">
+      <div className="section-header">
+        <h2>Discoveries</h2>
+        <span data-testid="world-entity-count">{entities.length} visible</span>
+      </div>
+      <div className="player-list">
+        {entities.length ? (
+          entities.map((entity) => (
+            <article key={entity.id} className="player-card" data-testid={`entity-card-${entity.id}`}>
+              <div>
+                <strong>{entity.name}</strong>
+                <p>{formatEntityLabel(entity.type)}</p>
+              </div>
+              <div className="button-row">
+                <button
+                  type="button"
+                  data-testid={`entity-view-${entity.id}`}
+                  onClick={() => setSelectedEntityId(entity.id)}
+                >
+                  View
+                </button>
+                <span className="meta-copy">Tile {entity.x + 1},{entity.y + 1}</span>
+              </div>
+            </article>
+          ))
+        ) : (
+          <p className="meta-copy">Nothing new has been revealed in this scene.</p>
+        )}
+      </div>
+      {selectedEntity ? (
+        <article className="player-card top-gap" data-testid="entity-detail-card">
+          <strong data-testid="entity-detail-name">{selectedEntity.name}</strong>
+          <p data-testid="entity-detail-text">{selectedEntity.publicDetails}</p>
+        </article>
+      ) : null}
+    </section>
+  );
+}
+
+export function ShopPanel({ shops, onBuy, canBuy }: ShopPanelProps) {
+  return (
+    <section className="panel" data-testid="dynamic-shop-panel">
+      <div className="section-header">
+        <h2>Visible Shops</h2>
+        <span data-testid="dynamic-shop-count">{shops.length} shop(s)</span>
+      </div>
+      <div className="player-list">
+        {shops.length ? (
+          shops.map((shop) => (
+            <article key={shop.id} className="player-card" data-testid={`dynamic-shop-${shop.id}`}>
+              <div>
+                <strong>{shop.name}</strong>
+                <p>{shop.accessible ? "Accessible" : "Move adjacent to trade"}</p>
+              </div>
+              <div className="player-list">
+                {shop.inventory.map((item) => (
+                  <div key={`${shop.id}-${item.itemId}`} className="player-card compact-card">
+                    <div>
+                      <strong>{item.name}</strong>
+                      <p>{item.effect}</p>
+                    </div>
+                    <div className="button-row">
+                      <span data-testid={`shop-stock-${shop.id}-${item.itemId}`}>Stock {item.stock}</span>
+                      <button
+                        type="button"
+                        data-testid={`shop-buy-${shop.id}-${item.itemId}`}
+                        onClick={() => onBuy(shop.id, item.itemId)}
+                        disabled={!canBuy(shop, item.price) || item.stock <= 0}
+                      >
+                        Buy ({item.price}g)
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </article>
+          ))
+        ) : (
+          <p className="meta-copy">No visible shops are available.</p>
+        )}
+      </div>
+    </section>
+  );
+}
+
+export function QuestPanel({ quests }: QuestPanelProps) {
+  return (
+    <section className="panel" data-testid="quest-panel">
+      <div className="section-header">
+        <h2>Quests</h2>
+        <span data-testid="quest-count">{quests.length} tracked</span>
+      </div>
+      <div className="player-list">
+        {quests.length ? (
+          quests.map((quest) => (
+            <article key={quest.id} className="player-card" data-testid={`quest-card-${quest.id}`}>
+              <div>
+                <strong>{quest.title}</strong>
+                <p>{quest.publicObjective}</p>
+              </div>
+              <div className="player-stats">
+                <span data-testid={`quest-status-${quest.id}`}>Status: {quest.status}</span>
+                <span>Gold {quest.rewardGold}</span>
+                <span>{quest.rewardItems.length ? `Items: ${quest.rewardItems.join(", ")}` : "No item reward"}</span>
+              </div>
+            </article>
+          ))
+        ) : (
+          <p className="meta-copy">No quests are visible yet.</p>
+        )}
+      </div>
+    </section>
+  );
+}
+
+export function PlayerSkillChecksPanel({ checks, onRoll }: PlayerSkillChecksPanelProps) {
+  return (
+    <section className="panel" data-testid="player-skill-checks-panel">
+      <div className="section-header">
+        <h2>Skill Checks</h2>
+        <span data-testid="player-skill-check-count">{checks.length} card(s)</span>
+      </div>
+      <div className="player-list">
+        {checks.length ? (
+          checks.map((check) => (
+            <article key={check.id} className="player-card" data-testid={`player-check-${check.id}`}>
+              <div>
+                <strong>{check.title}</strong>
+                <p>{capitalizeCheck(check.checkType)}{check.showDc && check.dc ? ` DC ${check.dc}` : ""}</p>
+              </div>
+              <div className="button-row">
+                <button
+                  type="button"
+                  data-testid={`roll-check-${check.id}`}
+                  onClick={() => onRoll(check.id)}
+                  disabled={!check.canRoll}
+                >
+                  {check.rolled ? "Rolled" : "Roll"}
+                </button>
+                <span className="meta-copy">{check.resultText || "Awaiting roll."}</span>
+              </div>
+            </article>
+          ))
+        ) : (
+          <p className="meta-copy">No pending or completed checks target you right now.</p>
+        )}
+      </div>
+    </section>
+  );
+}
+
 export function ActionHotbar({
   currentPlayer,
   activeMode,
@@ -314,20 +489,10 @@ export function ActionHotbar({
         >
           {currentPlayer?.ability?.name ?? "Class Ability"}
         </button>
-        <button
-          type="button"
-          data-testid="hotbar-potion"
-          onClick={onUsePotion}
-          disabled={!canUsePotion}
-        >
+        <button type="button" data-testid="hotbar-potion" onClick={onUsePotion} disabled={!canUsePotion}>
           Healing Potion
         </button>
-        <button
-          type="button"
-          data-testid="hotbar-end-turn"
-          onClick={onEndTurn}
-          disabled={!canEndTurn}
-        >
+        <button type="button" data-testid="hotbar-end-turn" onClick={onEndTurn} disabled={!canEndTurn}>
           End Turn
         </button>
       </div>
@@ -356,28 +521,15 @@ export function EnemyPanel({
       <div className="player-list" data-testid="enemy-list">
         {enemies.length ? (
           enemies.map((enemy) => (
-            <article
-              key={enemy.id}
-              className="player-card enemy-card"
-              data-testid={`enemy-card-${enemy.id}`}
-              data-enemy-name={enemy.name}
-            >
+            <article key={enemy.id} className="player-card enemy-card" data-testid={`enemy-card-${enemy.id}`} data-enemy-name={enemy.name}>
               <div>
                 <strong data-testid={`enemy-name-${enemy.id}`}>{enemy.name}</strong>
-                <p data-testid={`enemy-status-${enemy.id}`}>
-                  {enemy.alive ? "Alive" : "Defeated"}
-                </p>
+                <p data-testid={`enemy-status-${enemy.id}`}>{enemy.alive ? "Alive" : "Defeated"}</p>
               </div>
               <div className="player-stats">
-                <span data-testid={`enemy-health-${enemy.id}`}>
-                  HP {enemy.hp}/{enemy.maxHp}
-                </span>
-                <span data-testid={`enemy-defense-${enemy.id}`}>
-                  Defense {enemy.defense}
-                </span>
-                <span data-testid={`enemy-tile-${enemy.id}`}>
-                  Tile {enemy.x + 1},{enemy.y + 1}
-                </span>
+                <span data-testid={`enemy-health-${enemy.id}`}>HP {enemy.hp}/{enemy.maxHp}</span>
+                <span data-testid={`enemy-defense-${enemy.id}`}>Defense {enemy.defense}</span>
+                <span data-testid={`enemy-tile-${enemy.id}`}>Tile {enemy.x + 1},{enemy.y + 1}</span>
               </div>
               <div className="button-row">
                 <button
@@ -407,9 +559,7 @@ export function TurnOrderPanel({ lobby }: { lobby: LobbyView }) {
     <section className="panel">
       <div className="section-header">
         <h2>Turn order</h2>
-        <span data-testid="turn-order-status">
-          {lobby.activeTurn.type === "none" ? "Idle" : "Live"}
-        </span>
+        <span data-testid="turn-order-status">{lobby.activeTurn.type === "none" ? "Idle" : "Live"}</span>
       </div>
       <ol className="turn-order" data-testid="turn-order-list">
         {lobby.turnOrder.length ? (
@@ -433,6 +583,20 @@ export function TurnOrderPanel({ lobby }: { lobby: LobbyView }) {
   );
 }
 
+export function RewardHistoryPanel({ rewards }: { rewards: RewardHistoryView[] }) {
+  return (
+    <section className="panel" data-testid="reward-history-panel">
+      <div className="section-header">
+        <h2>Rewards</h2>
+        <span data-testid="reward-history-count">{rewards.length} entries</span>
+      </div>
+      <div className="combat-log">
+        {rewards.length ? rewards.map((entry) => <p key={entry.id}>{entry.message}</p>) : <p className="meta-copy">No rewards logged yet.</p>}
+      </div>
+    </section>
+  );
+}
+
 export function LogPanel({ title, logs, testId, countTestId, entryPrefix }: LogPanelProps) {
   return (
     <section className="panel">
@@ -441,26 +605,13 @@ export function LogPanel({ title, logs, testId, countTestId, entryPrefix }: LogP
         <span data-testid={countTestId}>{logs.length} entries</span>
       </div>
       <div className="combat-log" data-testid={testId}>
-        {logs.length ? (
-          logs.map((entry) => (
-            <p key={entry.id} data-testid={`${entryPrefix}${entry.id}`}>
-              {entry.message}
-            </p>
-          ))
-        ) : (
-          <p className="meta-copy">No messages yet.</p>
-        )}
+        {logs.length ? logs.map((entry) => <p key={entry.id} data-testid={`${entryPrefix}${entry.id}`}>{entry.message}</p>) : <p className="meta-copy">No messages yet.</p>}
       </div>
     </section>
   );
 }
 
-export function DmLogTabsPanel({
-  publicLogs,
-  dmLogs,
-  activeTab,
-  onTabChange
-}: DmLogTabsPanelProps) {
+export function DmLogTabsPanel({ publicLogs, dmLogs, activeTab, onTabChange }: DmLogTabsPanelProps) {
   const showingPublic = activeTab === "public";
   const activeLogs = showingPublic ? publicLogs : dmLogs;
   const panelTestId = showingPublic ? "combat-log" : "dm-log";
@@ -474,33 +625,15 @@ export function DmLogTabsPanel({
         <span data-testid={countTestId}>{activeLogs.length} entries</span>
       </div>
       <div className="tab-row">
-        <button
-          type="button"
-          className={showingPublic ? "tab-button tab-button--active" : "tab-button"}
-          data-testid="log-tab-public"
-          onClick={() => onTabChange("public")}
-        >
+        <button type="button" className={showingPublic ? "tab-button tab-button--active" : "tab-button"} data-testid="log-tab-public" onClick={() => onTabChange("public")}>
           Public Log
         </button>
-        <button
-          type="button"
-          className={!showingPublic ? "tab-button tab-button--active" : "tab-button"}
-          data-testid="log-tab-dm"
-          onClick={() => onTabChange("dm")}
-        >
+        <button type="button" className={!showingPublic ? "tab-button tab-button--active" : "tab-button"} data-testid="log-tab-dm" onClick={() => onTabChange("dm")}>
           DM Log
         </button>
       </div>
       <div className="combat-log" data-testid={panelTestId}>
-        {activeLogs.length ? (
-          activeLogs.map((entry) => (
-            <p key={entry.id} data-testid={`${entryPrefix}${entry.id}`}>
-              {entry.message}
-            </p>
-          ))
-        ) : (
-          <p className="meta-copy">No messages yet.</p>
-        )}
+        {activeLogs.length ? activeLogs.map((entry) => <p key={entry.id} data-testid={`${entryPrefix}${entry.id}`}>{entry.message}</p>) : <p className="meta-copy">No messages yet.</p>}
       </div>
     </section>
   );
@@ -538,122 +671,459 @@ export function DmPanel({
         <h2>Dungeon Master Controls</h2>
         <span data-testid="dm-current-scene">{lobby.currentScene.title}</span>
       </div>
-
       <div className="dm-panel__body">
         <div className="dm-compact-grid" data-testid="dm-command-shortcuts">
-          <button type="button" className="secondary-button" data-testid="dm-start-adventure" onClick={onStartAdventure}>
-            Scene
-          </button>
-          <button type="button" className="secondary-button" data-testid="dm-spawn-goblin" onClick={onSpawnGoblin}>
-            Spawn
-          </button>
-          <button type="button" className="secondary-button" data-testid="dm-award-gold" onClick={() => onAwardPartyGold(Number(goldAmount))}>
-            Gold
-          </button>
-          <button type="button" className="secondary-button" data-testid="dm-add-public-message" onClick={() => onAddPublicMessage(commandDraft)}>
-            Narrate
-          </button>
-          <button type="button" className="secondary-button" data-testid="dm-note-shortcut" onClick={() => onRunCommand(`/note ${commandDraft}`)}>
-            Note
-          </button>
-          <button type="button" className="secondary-button" data-testid="dm-victory-shortcut" onClick={() => onRunCommand("/victory")}>
-            Victory
-          </button>
+          <button type="button" className="secondary-button" data-testid="dm-start-adventure" onClick={onStartAdventure}>Scene</button>
+          <button type="button" className="secondary-button" data-testid="dm-spawn-goblin" onClick={onSpawnGoblin}>Spawn</button>
+          <button type="button" className="secondary-button" data-testid="dm-award-gold" onClick={() => onAwardPartyGold(Number(goldAmount))}>Gold</button>
+          <button type="button" className="secondary-button" data-testid="dm-add-public-message" onClick={() => onAddPublicMessage(commandDraft)}>Narrate</button>
+          <button type="button" className="secondary-button" data-testid="dm-note-shortcut" onClick={() => onRunCommand(`/note ${commandDraft}`)}>Note</button>
+          <button type="button" className="secondary-button" data-testid="dm-victory-shortcut" onClick={() => onRunCommand("/victory")}>Victory</button>
         </div>
 
         <div className="dm-control-group">
           <h3>Scene</h3>
           <div className="button-row">
-            <button type="button" className="secondary-button" data-testid="dm-previous-scene" onClick={onPreviousScene}>
-              Prev
-            </button>
-            <button type="button" className="secondary-button" data-testid="dm-advance-scene" onClick={onAdvanceScene}>
-              Next
-            </button>
-            <button type="button" className="secondary-button" data-testid="dm-restart-scene" onClick={onRestartScene}>
-              Restart
-            </button>
+            <button type="button" className="secondary-button" data-testid="dm-previous-scene" onClick={onPreviousScene}>Prev</button>
+            <button type="button" className="secondary-button" data-testid="dm-advance-scene" onClick={onAdvanceScene}>Next</button>
+            <button type="button" className="secondary-button" data-testid="dm-restart-scene" onClick={onRestartScene}>Restart</button>
           </div>
           <label className="field">
             <span>Move to scene</span>
-            <select
-              data-testid="dm-scene-select"
-              value={sceneTarget}
-              onChange={(event) => onSceneTargetChange(event.target.value)}
-            >
-              {lobby.availableScenes.map((scene) => (
-                <SceneOption key={scene.id} scene={scene} />
-              ))}
+            <select data-testid="dm-scene-select" value={sceneTarget} onChange={(event) => onSceneTargetChange(event.target.value)}>
+              {lobby.availableScenes.map((scene) => <SceneOption key={scene.id} scene={scene} />)}
             </select>
           </label>
-          <button type="button" data-testid="dm-set-scene" onClick={() => onSetScene(sceneTarget)}>
-            Go To Scene
-          </button>
+          <button type="button" data-testid="dm-set-scene" onClick={() => onSetScene(sceneTarget)}>Go To Scene</button>
         </div>
 
         <div className="dm-control-group">
           <h3>Spawn</h3>
           <div className="button-row">
-            <button type="button" data-testid="dm-spawn-goblin-chief" onClick={onSpawnGoblinChief}>
-              Goblin Chief
-            </button>
+            <button type="button" data-testid="dm-spawn-goblin-chief" onClick={onSpawnGoblinChief}>Goblin Chief</button>
           </div>
         </div>
 
         <div className="dm-control-group">
           <h3>Gold</h3>
           <div className="button-row">
-            <input
-              data-testid="dm-gold-input"
-              type="number"
-              min="1"
-              value={goldAmount}
-              onChange={(event) => onGoldAmountChange(event.target.value)}
-            />
-            <button type="button" className="secondary-button" data-testid="dm-gold-plus-five" onClick={() => onAwardPartyGold(5)}>
-              +5
-            </button>
+            <input data-testid="dm-gold-input" type="number" min="1" value={goldAmount} onChange={(event) => onGoldAmountChange(event.target.value)} />
+            <button type="button" className="secondary-button" data-testid="dm-gold-plus-five" onClick={() => onAwardPartyGold(5)}>+5</button>
           </div>
         </div>
 
         <div className="dm-control-group">
           <h3>Narrate / Note</h3>
           <div className="field">
-            <textarea
-              data-testid="dm-public-message-input"
-              value={commandDraft}
-              onChange={(event) => onCommandDraftChange(event.target.value)}
-              rows={3}
-            />
+            <textarea data-testid="dm-public-message-input" value={commandDraft} onChange={(event) => onCommandDraftChange(event.target.value)} rows={3} />
           </div>
         </div>
 
         <div className="dm-panel__footer">
           <div className="field">
-            <input
-              data-testid="dm-command-input"
-              value={dmCommand}
-              onChange={(event) => onDmCommandChange(event.target.value)}
-              placeholder="/narrate The forest goes silent."
-            />
+            <input data-testid="dm-command-input" value={dmCommand} onChange={(event) => onDmCommandChange(event.target.value)} placeholder="/narrate The forest goes silent." />
           </div>
-          <button
-            type="button"
-            data-testid="dm-run-command"
-            onClick={() => onRunCommand(dmCommand)}
-          >
-            Run Hidden Command
-          </button>
+          <button type="button" data-testid="dm-run-command" onClick={() => onRunCommand(dmCommand)}>Run Hidden Command</button>
         </div>
       </div>
     </section>
   );
 }
 
-function SceneOption({ scene }: { scene: SceneOptionView }) {
+export function DmWorldToolsPanel({ lobby, onRunTool }: DmWorldToolsPanelProps) {
+  const [activeTab, setActiveTab] = useState<"npcs" | "shops" | "quests" | "secrets" | "rewards" | "notes">("npcs");
+  const [npcName, setNpcName] = useState("Gatekeeper");
+  const [npcRole, setNpcRole] = useState("guard");
+  const [placeNpcId, setPlaceNpcId] = useState("");
+  const [entityType, setEntityType] = useState<WorldEntityType>("npc");
+  const [entityX, setEntityX] = useState("1");
+  const [entityY, setEntityY] = useState("1");
+  const [shopName, setShopName] = useState("Camp Supply");
+  const [shopNpcId, setShopNpcId] = useState("");
+  const [shopItemId, setShopItemId] = useState("healing_potion");
+  const [shopPrice, setShopPrice] = useState("10");
+  const [shopStock, setShopStock] = useState("2");
+  const [questTitle, setQuestTitle] = useState("Find the missing scout");
+  const [questObjective, setQuestObjective] = useState("Search the tree line for signs of the missing scout.");
+  const [questRewardGold, setQuestRewardGold] = useState("10");
+  const [secretCheckType, setSecretCheckType] = useState<SkillCheckType>("perception");
+  const [secretDc, setSecretDc] = useState("14");
+  const [secretText, setSecretText] = useState("A cracked wall hides a narrow passage.");
+  const [secretEntityId, setSecretEntityId] = useState("");
+  const [rewardType, setRewardType] = useState<"gold" | "item" | "xp" | "healing" | "quest_progress">("gold");
+  const [rewardAmount, setRewardAmount] = useState("5");
+  const [rewardPlayerId, setRewardPlayerId] = useState("party");
+  const [rewardItemId, setRewardItemId] = useState("healing_potion");
+  const [checkType, setCheckType] = useState<SkillCheckType>("insight");
+  const [checkDc, setCheckDc] = useState("14");
+  const [checkTarget, setCheckTarget] = useState("party");
+  const [checkVisibility, setCheckVisibility] = useState<SkillCheckVisibility>("targeted");
+  const [checkTitle, setCheckTitle] = useState("Read the room");
+  const [checkSuccess, setCheckSuccess] = useState("A hidden clue is revealed.");
+  const [checkFailure, setCheckFailure] = useState("Nothing useful is uncovered.");
+
+  const latestShop = lobby.shops.at(-1) ?? null;
+  const latestQuest = lobby.quests.at(-1) ?? null;
+  const latestSecret = lobby.secrets.at(-1) ?? null;
+
+  const npcOptions = useMemo(() => lobby.npcs, [lobby.npcs]);
+  const entityOptions = useMemo(() => lobby.worldEntities, [lobby.worldEntities]);
+
   return (
-    <option value={scene.id}>
-      {scene.title} ({scene.sceneType})
-    </option>
+    <section className="panel" data-testid="dm-world-tools-panel">
+      <div className="section-header">
+        <h2>DM World Tools</h2>
+        <span data-testid="dm-world-summary">
+          {lobby.npcs.length} NPCs · {lobby.shops.length} shops · {lobby.quests.length} quests
+        </span>
+      </div>
+
+      <section className="dm-control-group" data-testid="dm-skill-check-panel">
+        <h3>Skill Check Panel</h3>
+        <div className="two-column-grid">
+          <label className="field">
+            <span>Skill</span>
+            <select data-testid="dm-check-type" value={checkType} onChange={(event) => setCheckType(event.target.value as SkillCheckType)}>
+              {lobby.availableSkillChecks.map((skill) => <option key={skill} value={skill}>{capitalizeCheck(skill)}</option>)}
+            </select>
+          </label>
+          <label className="field">
+            <span>DC</span>
+            <input data-testid="dm-check-dc" value={checkDc} onChange={(event) => setCheckDc(event.target.value)} />
+          </label>
+          <label className="field">
+            <span>Target</span>
+            <select data-testid="dm-check-target" value={checkTarget} onChange={(event) => setCheckTarget(event.target.value)}>
+              <option value="party">Party</option>
+              <option value="all">All</option>
+              {lobby.players.map((player) => <option key={player.id} value={player.name}>{player.name}</option>)}
+            </select>
+          </label>
+          <label className="field">
+            <span>Visibility</span>
+            <select data-testid="dm-check-visibility" value={checkVisibility} onChange={(event) => setCheckVisibility(event.target.value as SkillCheckVisibility)}>
+              <option value="public">Public result</option>
+              <option value="dm">DM-only result</option>
+              <option value="targeted">Player + DM only</option>
+            </select>
+          </label>
+        </div>
+        <label className="field">
+          <span>Title</span>
+          <input data-testid="dm-check-title" value={checkTitle} onChange={(event) => setCheckTitle(event.target.value)} />
+        </label>
+        <label className="field">
+          <span>Success message</span>
+          <input data-testid="dm-check-success" value={checkSuccess} onChange={(event) => setCheckSuccess(event.target.value)} />
+        </label>
+        <label className="field">
+          <span>Failure message</span>
+          <input data-testid="dm-check-failure" value={checkFailure} onChange={(event) => setCheckFailure(event.target.value)} />
+        </label>
+        <div className="button-row">
+          <button
+            type="button"
+            data-testid="dm-create-check"
+            onClick={() =>
+              onRunTool({
+                tool: "createSkillCheck",
+                checkType,
+                dc: Number(checkDc),
+                title: checkTitle,
+                target: checkTarget === "party" || checkTarget === "all" ? checkTarget : "player",
+                playerName: checkTarget,
+                visibility: checkVisibility,
+                successMessage: checkSuccess,
+                failureMessage: checkFailure,
+                linkedSecretId: latestSecret?.id
+              })
+            }
+          >
+            Create Check
+          </button>
+        </div>
+      </section>
+
+      <div className="tab-row">
+        {(["npcs", "shops", "quests", "secrets", "rewards", "notes"] as const).map((tab) => (
+          <button
+            key={tab}
+            type="button"
+            className={activeTab === tab ? "tab-button tab-button--active" : "tab-button"}
+            data-testid={`dm-world-tab-${tab}`}
+            onClick={() => setActiveTab(tab)}
+          >
+            {tab.toUpperCase()}
+          </button>
+        ))}
+      </div>
+
+      {activeTab === "npcs" ? (
+        <div className="player-list">
+          <label className="field">
+            <span>Name</span>
+            <input data-testid="dm-npc-name" value={npcName} onChange={(event) => setNpcName(event.target.value)} />
+          </label>
+          <label className="field">
+            <span>Role</span>
+            <input data-testid="dm-npc-role" value={npcRole} onChange={(event) => setNpcRole(event.target.value)} />
+          </label>
+          <div className="button-row">
+            <button type="button" data-testid="dm-create-npc" onClick={() => onRunTool({ tool: "createNpc", name: npcName, role: npcRole })}>Create NPC</button>
+            <button type="button" data-testid="dm-generate-npc" onClick={() => onRunTool({ tool: "generateNpc" })}>Generate NPC</button>
+          </div>
+          <div className="two-column-grid">
+            <label className="field">
+              <span>NPC to place</span>
+              <select data-testid="dm-place-npc-select" value={placeNpcId} onChange={(event) => setPlaceNpcId(event.target.value)}>
+                <option value="">Choose NPC</option>
+                {npcOptions.map((npc) => <option key={npc.id} value={npc.id}>{npc.name}</option>)}
+              </select>
+            </label>
+            <label className="field">
+              <span>Marker type</span>
+              <select data-testid="dm-entity-type" value={entityType} onChange={(event) => setEntityType(event.target.value as WorldEntityType)}>
+                {lobby.availableEntityTypes.map((type) => <option key={type.id} value={type.id}>{type.label}</option>)}
+              </select>
+            </label>
+            <label className="field">
+              <span>X</span>
+              <input data-testid="dm-entity-x" value={entityX} onChange={(event) => setEntityX(event.target.value)} />
+            </label>
+            <label className="field">
+              <span>Y</span>
+              <input data-testid="dm-entity-y" value={entityY} onChange={(event) => setEntityY(event.target.value)} />
+            </label>
+          </div>
+          <div className="button-row">
+            <button
+              type="button"
+              data-testid="dm-place-entity"
+              onClick={() =>
+                onRunTool({
+                  tool: "placeEntity",
+                  entityType,
+                  npcId: placeNpcId,
+                  x: Number(entityX),
+                  y: Number(entityY),
+                  visibleToPlayers: false
+                })
+              }
+            >
+              Place Entity
+            </button>
+          </div>
+          {lobby.worldEntities.map((entity) => (
+            <article key={entity.id} className="player-card" data-testid={`dm-entity-row-${entity.id}`}>
+              <div>
+                <strong>{entity.name}</strong>
+                <p>{formatEntityLabel(entity.type)}</p>
+              </div>
+              <div className="button-row">
+                <button type="button" data-testid={`dm-reveal-entity-${entity.id}`} onClick={() => onRunTool({ tool: "setEntityVisibility", entityId: entity.id, visibleToPlayers: true })}>Reveal</button>
+                <button type="button" data-testid={`dm-hide-entity-${entity.id}`} onClick={() => onRunTool({ tool: "setEntityVisibility", entityId: entity.id, visibleToPlayers: false })}>Hide</button>
+              </div>
+            </article>
+          ))}
+        </div>
+      ) : null}
+
+      {activeTab === "shops" ? (
+        <div className="player-list">
+          <label className="field">
+            <span>Shop name</span>
+            <input data-testid="dm-shop-name" value={shopName} onChange={(event) => setShopName(event.target.value)} />
+          </label>
+          <label className="field">
+            <span>Shopkeeper NPC</span>
+            <select data-testid="dm-shop-npc" value={shopNpcId} onChange={(event) => setShopNpcId(event.target.value)}>
+              <option value="">Latest NPC</option>
+              {npcOptions.map((npc) => <option key={npc.id} value={npc.id}>{npc.name}</option>)}
+            </select>
+          </label>
+          <div className="button-row">
+            <button type="button" data-testid="dm-create-shop" onClick={() => onRunTool({ tool: "createShop", name: shopName, npcId: shopNpcId || undefined })}>Create Shop</button>
+            <button type="button" data-testid="dm-generate-shop" onClick={() => onRunTool({ tool: "generateShop" })}>Generate Shop</button>
+          </div>
+          <div className="two-column-grid">
+            <label className="field">
+              <span>Item</span>
+              <select data-testid="dm-shop-item" value={shopItemId} onChange={(event) => setShopItemId(event.target.value)}>
+                {["healing_potion", "iron_sword", "leather_armor"].map((itemId) => <option key={itemId} value={itemId}>{itemId}</option>)}
+              </select>
+            </label>
+            <label className="field">
+              <span>Price</span>
+              <input data-testid="dm-shop-price" value={shopPrice} onChange={(event) => setShopPrice(event.target.value)} />
+            </label>
+            <label className="field">
+              <span>Stock</span>
+              <input data-testid="dm-shop-stock" value={shopStock} onChange={(event) => setShopStock(event.target.value)} />
+            </label>
+          </div>
+          <button
+            type="button"
+            data-testid="dm-shop-add-item"
+            onClick={() => latestShop && onRunTool({ tool: "addShopItem", shopId: latestShop.id, itemId: shopItemId, price: Number(shopPrice), stock: Number(shopStock) })}
+            disabled={!latestShop}
+          >
+            Add Item To Latest Shop
+          </button>
+        </div>
+      ) : null}
+
+      {activeTab === "quests" ? (
+        <div className="player-list">
+          <label className="field">
+            <span>Quest title</span>
+            <input data-testid="dm-quest-title" value={questTitle} onChange={(event) => setQuestTitle(event.target.value)} />
+          </label>
+          <label className="field">
+            <span>Objective</span>
+            <textarea data-testid="dm-quest-objective" value={questObjective} onChange={(event) => setQuestObjective(event.target.value)} rows={3} />
+          </label>
+          <label className="field">
+            <span>Reward gold</span>
+            <input data-testid="dm-quest-reward-gold" value={questRewardGold} onChange={(event) => setQuestRewardGold(event.target.value)} />
+          </label>
+          <div className="button-row">
+            <button type="button" data-testid="dm-create-quest" onClick={() => onRunTool({ tool: "createQuest", title: questTitle, objective: questObjective, rewardGold: Number(questRewardGold) })}>Create Quest</button>
+            <button type="button" data-testid="dm-generate-quest" onClick={() => onRunTool({ tool: "generateQuest" })}>Generate Quest</button>
+            <button type="button" data-testid="dm-offer-latest-quest" onClick={() => latestQuest && onRunTool({ tool: "setQuestStatus", questId: latestQuest.id, name: "offered" })} disabled={!latestQuest}>Offer Latest</button>
+            <button type="button" data-testid="dm-complete-latest-quest" onClick={() => latestQuest && onRunTool({ tool: "setQuestStatus", questId: latestQuest.id, name: "completed" })} disabled={!latestQuest}>Complete Latest</button>
+          </div>
+        </div>
+      ) : null}
+
+      {activeTab === "secrets" ? (
+        <div className="player-list">
+          <label className="field">
+            <span>Check type</span>
+            <select data-testid="dm-secret-check-type" value={secretCheckType} onChange={(event) => setSecretCheckType(event.target.value as SkillCheckType)}>
+              {lobby.availableSkillChecks.map((skill) => <option key={skill} value={skill}>{capitalizeCheck(skill)}</option>)}
+            </select>
+          </label>
+          <label className="field">
+            <span>DC</span>
+            <input data-testid="dm-secret-dc" value={secretDc} onChange={(event) => setSecretDc(event.target.value)} />
+          </label>
+          <label className="field">
+            <span>Reveal text</span>
+            <textarea data-testid="dm-secret-text" value={secretText} onChange={(event) => setSecretText(event.target.value)} rows={3} />
+          </label>
+          <label className="field">
+            <span>Linked entity</span>
+            <select data-testid="dm-secret-entity" value={secretEntityId} onChange={(event) => setSecretEntityId(event.target.value)}>
+              <option value="">No linked marker</option>
+              {entityOptions.map((entity) => <option key={entity.id} value={entity.id}>{entity.name}</option>)}
+            </select>
+          </label>
+          <div className="button-row">
+            <button type="button" data-testid="dm-create-secret" onClick={() => onRunTool({ tool: "createSecret", checkType: secretCheckType, dc: Number(secretDc), description: secretText, linkedEntityId: secretEntityId || undefined })}>Create Secret</button>
+            <button type="button" data-testid="dm-generate-secret" onClick={() => onRunTool({ tool: "generateSecret" })}>Generate Secret</button>
+            <button type="button" data-testid="dm-reveal-latest-secret" onClick={() => latestSecret && onRunTool({ tool: "revealSecret", secretId: latestSecret.id })} disabled={!latestSecret}>Reveal Latest</button>
+          </div>
+        </div>
+      ) : null}
+
+      {activeTab === "rewards" ? (
+        <div className="player-list">
+          <div className="two-column-grid">
+            <label className="field">
+              <span>Reward type</span>
+              <select data-testid="dm-reward-type" value={rewardType} onChange={(event) => setRewardType(event.target.value as typeof rewardType)}>
+                <option value="gold">Gold</option>
+                <option value="item">Item</option>
+                <option value="xp">XP</option>
+                <option value="healing">Healing</option>
+                <option value="quest_progress">Quest Progress</option>
+              </select>
+            </label>
+            <label className="field">
+              <span>Target</span>
+              <select data-testid="dm-reward-target" value={rewardPlayerId} onChange={(event) => setRewardPlayerId(event.target.value)}>
+                <option value="party">Party</option>
+                {lobby.players.map((player) => <option key={player.id} value={player.name}>{player.name}</option>)}
+              </select>
+            </label>
+            <label className="field">
+              <span>Amount</span>
+              <input data-testid="dm-reward-amount" value={rewardAmount} onChange={(event) => setRewardAmount(event.target.value)} />
+            </label>
+            <label className="field">
+              <span>Item</span>
+              <select data-testid="dm-reward-item" value={rewardItemId} onChange={(event) => setRewardItemId(event.target.value)}>
+                {["healing_potion", "iron_sword", "leather_armor"].map((itemId) => <option key={itemId} value={itemId}>{itemId}</option>)}
+              </select>
+            </label>
+          </div>
+          <button
+            type="button"
+            data-testid="dm-give-reward"
+            onClick={() =>
+              onRunTool({
+                tool: "giveReward",
+                name: rewardType,
+                target: rewardPlayerId === "party" ? "party" : "player",
+                playerName: rewardPlayerId,
+                amount: Number(rewardAmount),
+                itemId: rewardItemId,
+                questId: latestQuest?.id
+              })
+            }
+          >
+            Give Reward
+          </button>
+          <RewardHistoryPanel rewards={lobby.rewardHistory} />
+        </div>
+      ) : null}
+
+      {activeTab === "notes" ? (
+        <div className="player-list">
+          <LogPanel title="DM Notes" logs={lobby.dmLog} testId="dm-notes-log" countTestId="dm-notes-count" entryPrefix="dm-note-entry-" />
+        </div>
+      ) : null}
+
+      <section className="panel" data-testid="dm-tracker-checks">
+        <div className="section-header">
+          <h2>Tracked Checks</h2>
+          <span data-testid="dm-tracker-check-count">{lobby.skillChecks.length}</span>
+        </div>
+        <div className="player-list">
+          {lobby.skillChecks.length ? (
+            lobby.skillChecks.map((check) => (
+              <article key={check.id} className="player-card" data-testid={`dm-check-row-${check.id}`}>
+                <div>
+                  <strong>{check.title}</strong>
+                  <p>{capitalizeCheck(check.checkType)} DC {check.dc} · {check.visibility}</p>
+                </div>
+                <div className="player-stats">
+                  <span>Status: {check.status}</span>
+                  <span>Targets: {check.targetNames.join(", ")}</span>
+                </div>
+              </article>
+            ))
+          ) : (
+            <p className="meta-copy">No DM-created checks yet.</p>
+          )}
+        </div>
+      </section>
+    </section>
   );
+}
+
+function SceneOption({ scene }: { scene: SceneOptionView }) {
+  return <option value={scene.id}>{scene.title} ({scene.sceneType})</option>;
+}
+
+function formatEntityLabel(type: WorldEntityType) {
+  return type.replace(/_/g, " ").replace(/\b\w/g, (character) => character.toUpperCase());
+}
+
+function capitalizeCheck(value: SkillCheckType) {
+  return value.slice(0, 1).toUpperCase() + value.slice(1);
+}
+
+export function QuestStatusBadge({ status }: { status: QuestStatus }) {
+  return <span>{status}</span>;
 }

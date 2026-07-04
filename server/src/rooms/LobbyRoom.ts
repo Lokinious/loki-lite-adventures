@@ -44,6 +44,11 @@ type PurchaseMessage = {
   itemId: string;
 };
 
+type ShopPurchaseMessage = {
+  shopId: string;
+  itemId: string;
+};
+
 type UseAbilityMessage = {
   abilityId: string;
   targetId: string;
@@ -57,8 +62,73 @@ type UseItemMessage = {
   itemId: string;
 };
 
+type RollSkillCheckMessage = {
+  checkId: string;
+};
+
 type DmCommandMessage = {
   command: string;
+};
+
+type DmToolMessage = {
+  tool:
+    | "createNpc"
+    | "placeEntity"
+    | "setEntityVisibility"
+    | "createShop"
+    | "addShopItem"
+    | "createQuest"
+    | "setQuestStatus"
+    | "createSecret"
+    | "revealSecret"
+    | "createSkillCheck"
+    | "giveReward"
+    | "generateNpc"
+    | "generateQuest"
+    | "generateShop"
+    | "generateSecret";
+  entityType?: WorldEntityType;
+  entityId?: string;
+  npcId?: string;
+  shopId?: string;
+  questId?: string;
+  secretId?: string;
+  checkId?: string;
+  itemId?: string;
+  playerId?: string;
+  playerName?: string;
+  name?: string;
+  role?: string;
+  description?: string;
+  publicDescription?: string;
+  privateNotes?: string;
+  dialoguePrompt?: string;
+  questHooks?: string;
+  title?: string;
+  objective?: string;
+  rewardItemId?: string;
+  rewardItems?: string[];
+  rewardGold?: number;
+  amount?: number;
+  checkType?: SkillCheckType;
+  dc?: number;
+  x?: number;
+  y?: number;
+  visibleToPlayers?: boolean;
+  discovered?: boolean;
+  target?: "party" | "all" | "player";
+  visibility?: SkillCheckVisibility;
+  successMessage?: string;
+  failureMessage?: string;
+  linkedEntityId?: string;
+  linkedQuestId?: string;
+  linkedShopId?: string;
+  linkedItemId?: string;
+  linkedSecretId?: string;
+  stock?: number;
+  price?: number;
+  targetPlayerIds?: string[];
+  assignTo?: "party" | string;
 };
 
 type DmActionMessage = {
@@ -180,6 +250,30 @@ type SceneDefinition = {
   objective?: string;
 };
 
+type WorldEntityType =
+  | "npc"
+  | "shopkeeper"
+  | "treasure_chest"
+  | "hidden_object"
+  | "quest_marker"
+  | "trap_marker"
+  | "secret_passage_marker";
+
+type QuestStatus = "hidden" | "offered" | "active" | "completed" | "failed";
+type SkillCheckVisibility = "public" | "dm" | "targeted";
+type SkillCheckType =
+  | "intimidation"
+  | "persuasion"
+  | "insight"
+  | "perception"
+  | "investigation"
+  | "strength"
+  | "dexterity"
+  | "arcana"
+  | "stealth";
+
+type RewardType = "gold" | "item" | "xp" | "healing" | "quest_progress";
+
 type Point = {
   x: number;
   y: number;
@@ -252,6 +346,114 @@ type InventoryItemView = {
   equippable: boolean;
 };
 
+type WorldEntityView = {
+  id: string;
+  type: WorldEntityType;
+  name: string;
+  description: string;
+  x: number;
+  y: number;
+  visibleToPlayers: boolean;
+  discovered: boolean;
+  linkedQuestId: string | undefined;
+  linkedShopId: string | undefined;
+  linkedItemId: string | undefined;
+  linkedNpcId: string | undefined;
+  linkedSecretId: string | undefined;
+  publicDetails: string;
+};
+
+type NpcView = {
+  id: string;
+  name: string;
+  role: string;
+  personality: string;
+  publicDescription: string;
+  dialoguePrompt: string;
+  questHooks: string;
+  linkedEntityId: string | undefined;
+  visibleToPlayers: boolean;
+  discovered: boolean;
+};
+
+type ShopItemView = {
+  itemId: string;
+  name: string;
+  effect: string;
+  price: number;
+  stock: number;
+};
+
+type ShopView = {
+  id: string;
+  name: string;
+  shopkeeperNpcId: string | undefined;
+  linkedEntityId: string | undefined;
+  visibleToPlayers: boolean;
+  accessible: boolean;
+  discountPercent: number;
+  inventory: ShopItemView[];
+};
+
+type QuestView = {
+  id: string;
+  title: string;
+  publicObjective: string;
+  rewardGold: number;
+  rewardItems: string[];
+  status: QuestStatus;
+  assignedTo: "party" | string;
+};
+
+type SecretView = {
+  id: string;
+  checkType: SkillCheckType;
+  dc: number;
+  revealText: string;
+  revealed: boolean;
+  linkedEntityId: string | undefined;
+};
+
+type SkillCheckView = {
+  id: string;
+  title: string;
+  checkType: SkillCheckType;
+  dc: number;
+  targetPlayerIds: string[];
+  targetNames: string[];
+  visibility: SkillCheckVisibility;
+  successMessage: string;
+  failureMessage: string;
+  status: "pending" | "completed";
+  results: Array<{
+    playerId: string;
+    playerName: string;
+    rolled: boolean;
+    roll: number;
+    total: number;
+    success: boolean;
+    message: string;
+  }>;
+};
+
+type PlayerSkillCheckView = {
+  id: string;
+  title: string;
+  checkType: SkillCheckType;
+  visibility: SkillCheckVisibility;
+  status: "pending" | "completed";
+  showDc: boolean;
+  dc: number | null;
+  canRoll: boolean;
+  rolled: boolean;
+  resultText: string;
+};
+
+type RewardHistoryView = {
+  id: string;
+  message: string;
+};
+
 type RaceOptionView = {
   id: string;
   name: string;
@@ -285,6 +487,106 @@ type AbilityView = {
   ready: boolean;
 };
 
+type WorldEntityRecord = {
+  id: string;
+  sceneId: string;
+  type: WorldEntityType;
+  name: string;
+  description: string;
+  x: number;
+  y: number;
+  visibleToPlayers: boolean;
+  discovered: boolean;
+  linkedQuestId: string | undefined;
+  linkedShopId: string | undefined;
+  linkedItemId: string | undefined;
+  linkedNpcId: string | undefined;
+  linkedSecretId: string | undefined;
+};
+
+type NpcRecord = {
+  id: string;
+  name: string;
+  role: string;
+  personality: string;
+  publicDescription: string;
+  privateNotes: string;
+  dialoguePrompt: string;
+  questHooks: string;
+  linkedEntityId: string | undefined;
+};
+
+type ShopInventoryEntry = {
+  itemId: string;
+  price: number;
+  stock: number;
+};
+
+type ShopRecord = {
+  id: string;
+  name: string;
+  shopkeeperNpcId: string | undefined;
+  linkedEntityId: string | undefined;
+  inventory: ShopInventoryEntry[];
+  discountPercent: number;
+};
+
+type QuestRecord = {
+  id: string;
+  title: string;
+  publicObjective: string;
+  privateNotes: string;
+  rewardGold: number;
+  rewardItems: string[];
+  completionCondition: string;
+  status: QuestStatus;
+  assignedTo: "party" | string;
+};
+
+type SecretRecord = {
+  id: string;
+  sceneId: string;
+  checkType: SkillCheckType;
+  dc: number;
+  revealText: string;
+  privateNotes: string;
+  revealed: boolean;
+  linkedEntityId: string | undefined;
+  unlockSceneId: string | undefined;
+};
+
+type SkillCheckResult = {
+  rolled: boolean;
+  roll: number;
+  total: number;
+  success: boolean;
+  message: string;
+};
+
+type RewardGrant = {
+  type: RewardType;
+  amount: number | undefined;
+  itemId: string | undefined;
+  questId: string | undefined;
+  targetPlayerIds: string[] | undefined;
+};
+
+type SkillCheckRecord = {
+  id: string;
+  title: string;
+  checkType: SkillCheckType;
+  dc: number;
+  targetPlayerIds: string[];
+  visibility: SkillCheckVisibility;
+  successMessage: string;
+  failureMessage: string;
+  status: "pending" | "completed";
+  results: Record<string, SkillCheckResult>;
+  linkedSecretId: string | undefined;
+  successReward: RewardGrant | undefined;
+  failureReward: RewardGrant | undefined;
+};
+
 type RoomSnapshot = {
   roomCode: string;
   selfRole: JoinRole;
@@ -296,6 +598,8 @@ type RoomSnapshot = {
   availableScenes: SceneOptionView[];
   currentScene: SceneView;
   sceneActions: SceneActionView[];
+  availableEntityTypes: Array<{ id: WorldEntityType; label: string }>;
+  availableSkillChecks: SkillCheckType[];
   gridWidth: number;
   gridHeight: number;
   activeTurn: ActiveTurnView;
@@ -306,6 +610,14 @@ type RoomSnapshot = {
   completedEncounters: string[];
   merchantItems: MerchantItemView[];
   victorySummary: VictorySummaryView | null;
+  worldEntities: WorldEntityView[];
+  npcs: NpcView[];
+  shops: ShopView[];
+  quests: QuestView[];
+  secrets: SecretView[];
+  skillChecks: SkillCheckView[];
+  playerSkillChecks: PlayerSkillCheckView[];
+  rewardHistory: RewardHistoryView[];
   players: Array<{
     id: string;
     name: string;
@@ -437,9 +749,40 @@ const encounterSpawnBySceneId: Record<string, Array<{ enemyId: string; position:
   boss: [{ enemyId: "goblin_chief", position: { x: 5, y: 1 } }]
 };
 
+const availableEntityTypes: Array<{ id: WorldEntityType; label: string }> = [
+  { id: "npc", label: "NPC" },
+  { id: "shopkeeper", label: "Shopkeeper" },
+  { id: "treasure_chest", label: "Treasure Chest" },
+  { id: "hidden_object", label: "Hidden Object" },
+  { id: "quest_marker", label: "Quest Marker" },
+  { id: "trap_marker", label: "Trap Marker" },
+  { id: "secret_passage_marker", label: "Secret Passage" }
+];
+
+const availableSkillChecks: SkillCheckType[] = [
+  "intimidation",
+  "persuasion",
+  "insight",
+  "perception",
+  "investigation",
+  "strength",
+  "dexterity",
+  "arcana",
+  "stealth"
+];
+
 export class LobbyRoom extends Room<LobbyState> {
   override maxClients = maxClients;
   private logIndex = 0;
+  private rewardHistory: RewardHistoryView[] = [];
+  private dmNotes: RewardHistoryView[] = [];
+  private worldEntities = new Map<string, WorldEntityRecord>();
+  private npcs = new Map<string, NpcRecord>();
+  private shops = new Map<string, ShopRecord>();
+  private quests = new Map<string, QuestRecord>();
+  private secrets = new Map<string, SecretRecord>();
+  private skillChecks = new Map<string, SkillCheckRecord>();
+  private generatorIndex = 0;
 
   override onCreate(options: JoinOptions) {
     const state = new LobbyState();
@@ -493,8 +836,20 @@ export class LobbyRoom extends Room<LobbyState> {
       this.handlePurchaseRequest(client, message);
     });
 
+    this.onMessage("requestShopPurchase", (client, message: ShopPurchaseMessage) => {
+      this.handleDynamicShopPurchase(client, message);
+    });
+
+    this.onMessage("requestRollSkillCheck", (client, message: RollSkillCheckMessage) => {
+      this.handleSkillCheckRoll(client, message);
+    });
+
     this.onMessage("requestDmAction", (client, message: DmActionMessage) => {
       this.handleDmAction(client, message);
+    });
+
+    this.onMessage("requestDmTool", (client, message: DmToolMessage) => {
+      this.handleDmTool(client, message);
     });
 
     this.onMessage("requestDmCommand", (client, message: DmCommandMessage) => {
@@ -584,6 +939,14 @@ export class LobbyRoom extends Room<LobbyState> {
     clearStringArray(this.state.completedEncounters);
     clearLogArray(this.state.publicLog);
     clearLogArray(this.state.dmLog);
+    this.worldEntities.clear();
+    this.npcs.clear();
+    this.shops.clear();
+    this.quests.clear();
+    this.secrets.clear();
+    this.skillChecks.clear();
+    this.rewardHistory = [];
+    this.dmNotes = [];
   }
 
   private handleCharacterSelection(client: Client, message: SelectCharacterMessage) {
@@ -1176,6 +1539,130 @@ export class LobbyRoom extends Room<LobbyState> {
     this.publishSnapshots();
   }
 
+  private handleDynamicShopPurchase(client: Client, message: ShopPurchaseMessage) {
+    if (this.isDmSession(client.sessionId)) {
+      this.rejectAction(client, "Dungeon Masters do not shop as player characters.");
+      return;
+    }
+
+    const player = this.state.players.get(client.sessionId);
+    const shop = this.shops.get(message.shopId);
+
+    if (!player) {
+      return;
+    }
+
+    if (!shop) {
+      this.rejectAction(client, "That shop does not exist.");
+      return;
+    }
+
+    const entity = shop.linkedEntityId ? this.worldEntities.get(shop.linkedEntityId) : undefined;
+
+    if (!entity || entity.sceneId !== this.state.currentSceneId || !entity.visibleToPlayers) {
+      this.rejectAction(client, "That shop is not available here.");
+      return;
+    }
+
+    if (calculateDistance(player.x, player.y, entity.x, entity.y) > 1) {
+      this.rejectAction(client, "Move next to the shopkeeper to buy from this shop.");
+      return;
+    }
+
+    const stockEntry = shop.inventory.find((entry) => entry.itemId === message.itemId);
+
+    if (!stockEntry || stockEntry.stock <= 0) {
+      this.rejectAction(client, "That item is not available.");
+      return;
+    }
+
+    const item = itemsById.get(stockEntry.itemId);
+
+    if (!item) {
+      this.rejectAction(client, "That item definition is missing.");
+      return;
+    }
+
+    const price = Math.max(0, stockEntry.price - Math.floor(stockEntry.price * (shop.discountPercent / 100)));
+
+    if (player.gold < price) {
+      this.rejectAction(client, "You do not have enough gold.");
+      return;
+    }
+
+    player.gold -= price;
+    player.inventory.push(item.id);
+    stockEntry.stock -= 1;
+    this.recalculatePartyGold();
+    this.addPublicLog(`${player.name} buys ${item.name} from ${shop.name} for ${price} gold.`);
+    this.addRewardHistory(`${player.name} purchased ${item.name} from ${shop.name}.`);
+    this.syncState();
+    this.publishSnapshots();
+  }
+
+  private handleSkillCheckRoll(client: Client, message: RollSkillCheckMessage) {
+    if (this.isDmSession(client.sessionId)) {
+      this.rejectAction(client, "Dungeon Masters do not roll player skill checks.");
+      return;
+    }
+
+    const player = this.state.players.get(client.sessionId);
+    const skillCheck = this.skillChecks.get(message.checkId);
+
+    if (!player) {
+      return;
+    }
+
+    if (!skillCheck) {
+      this.rejectAction(client, "That skill check no longer exists.");
+      return;
+    }
+
+    if (!skillCheck.targetPlayerIds.includes(client.sessionId)) {
+      this.rejectAction(client, "That skill check is not assigned to you.");
+      return;
+    }
+
+    if (skillCheck.results[client.sessionId]?.rolled) {
+      this.rejectAction(client, "You have already rolled for that check.");
+      return;
+    }
+
+    const roll = rollDie(20);
+    const modifier = getSkillModifier(player, skillCheck.checkType);
+    const total = roll + modifier;
+    const success = total >= skillCheck.dc;
+    const messageText = success ? skillCheck.successMessage : skillCheck.failureMessage;
+
+    skillCheck.results[client.sessionId] = {
+      rolled: true,
+      roll,
+      total,
+      success,
+      message: messageText
+    };
+
+    if (Object.values(skillCheck.results).every((result) => result.rolled)) {
+      skillCheck.status = "completed";
+    }
+
+    const resultMessage = `${player.name} rolled ${capitalizeCheckType(skillCheck.checkType)}: d20 (${roll}) + ${modifier} = ${total} vs DC ${skillCheck.dc}. ${messageText}`;
+    this.publishSkillCheckResult(skillCheck, player, resultMessage, success);
+
+    if (success && skillCheck.linkedSecretId) {
+      this.revealSecretRecord(skillCheck.linkedSecretId, `${player.name} uncovers a hidden clue.`);
+    }
+
+    if (success && skillCheck.successReward) {
+      this.applyRewardGrant(skillCheck.successReward, `${player.name} succeeds on ${skillCheck.title}.`);
+    } else if (!success && skillCheck.failureReward) {
+      this.applyRewardGrant(skillCheck.failureReward, `${player.name} fails ${skillCheck.title}.`);
+    }
+
+    this.syncState();
+    this.publishSnapshots();
+  }
+
   private handleDmAction(client: Client, message: DmActionMessage) {
     if (!this.requireDm(client)) {
       return;
@@ -1226,6 +1713,66 @@ export class LobbyRoom extends Room<LobbyState> {
     }
   }
 
+  private handleDmTool(client: Client, message: DmToolMessage) {
+    if (!this.requireDm(client)) {
+        return;
+    }
+
+    switch (message.tool) {
+        case "createNpc":
+          this.createNpcFromDm(message);
+          return;
+        case "placeEntity":
+          this.placeEntityFromDm(message);
+          return;
+        case "setEntityVisibility":
+          this.setEntityVisibilityFromDm(message.entityId, Boolean(message.visibleToPlayers));
+          return;
+        case "createShop":
+          this.createShopFromDm(message);
+          return;
+        case "addShopItem":
+          this.addShopItemFromDm(message);
+          return;
+        case "createQuest":
+          this.createQuestFromDm(message);
+          return;
+        case "setQuestStatus":
+          this.setQuestStatusFromDm(message.questId, normalizeQuestStatus(message.name));
+          return;
+        case "createSecret":
+          this.createSecretFromDm(message);
+          return;
+        case "revealSecret":
+          this.revealSecretRecord(message.secretId);
+          this.syncState();
+          this.publishSnapshots();
+          return;
+        case "createSkillCheck":
+          this.createSkillCheckFromDm(message);
+          return;
+        case "giveReward":
+          this.giveRewardFromDm(message);
+          return;
+        case "generateNpc":
+          this.generateNpcTemplate();
+          return;
+        case "generateQuest":
+          this.generateQuestTemplate();
+          return;
+        case "generateShop":
+          this.generateShopTemplate();
+          return;
+        case "generateSecret":
+          this.generateSecretTemplate();
+          return;
+        default:
+          this.addDmLog("Unknown DM world tool.");
+          this.syncState();
+          this.publishSnapshots();
+    }
+  }
+
   private handleDmCommand(client: Client, message: DmCommandMessage) {
     if (!this.requireDm(client)) {
       return;
@@ -1240,10 +1787,10 @@ export class LobbyRoom extends Room<LobbyState> {
       return;
     }
 
-    const commandBody = rawCommand.slice(1).trim();
-    const spaceIndex = commandBody.indexOf(" ");
-    const commandName = (spaceIndex === -1 ? commandBody : commandBody.slice(0, spaceIndex)).toLowerCase();
-    const argumentText = spaceIndex === -1 ? "" : commandBody.slice(spaceIndex + 1).trim();
+    const commandParts = tokenizeCommand(rawCommand.slice(1).trim());
+    const commandName = (commandParts[0] ?? "").toLowerCase();
+    const subcommand = (commandParts[1] ?? "").toLowerCase();
+    const argumentText = commandParts.slice(1).join(" ");
 
     switch (commandName) {
       case "scene":
@@ -1267,12 +1814,29 @@ export class LobbyRoom extends Room<LobbyState> {
           this.addDmLog("Usage: /note <private note>");
         } else {
           this.addDmLog(`Note: ${argumentText}`);
+          this.dmNotes.push({ id: buildRecordId("note", this.dmNotes.length + 1), message: argumentText });
         }
         this.syncState();
         this.publishSnapshots();
         return;
 
       case "shop":
+        if (subcommand === "create") {
+          this.createShopFromDm({ tool: "createShop", name: commandParts.slice(2).join(" ") });
+          return;
+        }
+
+        if (subcommand === "additem") {
+          this.addShopItemFromDm({
+            tool: "addShopItem",
+            ...(commandParts[2] ? { shopId: commandParts[2] } : {}),
+            ...(commandParts[3] ? { itemId: commandParts[3] } : {}),
+            price: Number(commandParts[4] ?? 0),
+            stock: Number(commandParts[5] ?? 1)
+          });
+          return;
+        }
+
         this.setShopFromDm(argumentText);
         return;
 
@@ -1280,11 +1844,122 @@ export class LobbyRoom extends Room<LobbyState> {
         this.setSceneFromDm("victory", true);
         return;
 
-      default:
-        this.addDmLog(`Unknown command: ${rawCommand}`);
-        this.syncState();
-        this.publishSnapshots();
+      case "npc":
+        if (subcommand === "create") {
+          this.createNpcFromDm({
+            tool: "createNpc",
+            ...(commandParts[2] ? { name: commandParts[2] } : {}),
+            role: commandParts.slice(3).join(" ") || "wanderer"
+          });
+          return;
+        }
+
+        if (subcommand === "place") {
+          this.placeEntityFromDm({
+            tool: "placeEntity",
+            ...(commandParts[2] ? { npcId: commandParts[2] } : {}),
+            entityType: "npc",
+            x: Number(commandParts[3]),
+            y: Number(commandParts[4]),
+            visibleToPlayers: false
+          });
+          return;
+        }
+        break;
+
+      case "quest":
+        if (subcommand === "create") {
+          this.createQuestFromDm({
+            tool: "createQuest",
+            title: commandParts.slice(2).join(" "),
+            objective: commandParts.slice(2).join(" "),
+            rewardGold: 5
+          });
+          return;
+        }
+
+        if (subcommand === "offer") {
+          this.setQuestStatusFromDm(commandParts[2], "offered");
+          return;
+        }
+
+        if (subcommand === "complete") {
+          this.setQuestStatusFromDm(commandParts[2], "completed");
+          return;
+        }
+        break;
+
+      case "secret":
+        if (subcommand === "create") {
+          this.createSecretFromDm({
+            tool: "createSecret",
+            checkType: normalizeSkillCheckType(commandParts[2]),
+            dc: Number(commandParts[3]),
+            description: commandParts.slice(4).join(" ")
+          });
+          return;
+        }
+
+        if (subcommand === "reveal") {
+          this.revealSecretRecord(commandParts[2]);
+          this.syncState();
+          this.publishSnapshots();
+          return;
+        }
+        break;
+
+      case "check": {
+        const checkType = normalizeSkillCheckType(commandParts[1]);
+        const dc = Number(commandParts[2]);
+        const targetToken = commandParts[3] ?? "party";
+        const title = commandParts.slice(4).join(" ") || `${capitalizeCheckType(checkType)} check`;
+        this.createSkillCheckFromDm({
+          tool: "createSkillCheck",
+          checkType,
+          dc,
+          title,
+          target: targetToken === "all" || targetToken === "party" ? targetToken : "player",
+          playerName: targetToken,
+          visibility: "targeted"
+        });
+        return;
+      }
+
+      case "give":
+        if (subcommand === "gold") {
+          this.giveRewardFromDm({
+            tool: "giveReward",
+            name: "gold",
+            target: "party",
+            amount: Number(commandParts[2])
+          });
+          return;
+        }
+
+        if (subcommand === "item") {
+          this.giveRewardFromDm({
+            tool: "giveReward",
+            name: "item",
+            ...(commandParts[2] ? { playerName: commandParts[2] } : {}),
+            ...(commandParts[3] ? { itemId: commandParts[3] } : {})
+          });
+          return;
+        }
+        break;
+
+      case "reveal":
+        this.setEntityVisibilityFromDm(commandParts[1], true);
+        return;
+
+      case "hide":
+        this.setEntityVisibilityFromDm(commandParts[1], false);
+        return;
+
     }
+
+    this.addDmLog(`Unknown command: ${rawCommand}`);
+    this.syncState();
+    this.publishSnapshots();
   }
 
   private handleEncounterCompletion(attacker: PlayerState, defeatedEnemy: EnemyState) {
@@ -1329,6 +2004,434 @@ export class LobbyRoom extends Room<LobbyState> {
 
     this.syncState();
     this.publishSnapshots();
+  }
+
+  private createNpcFromDm(message: DmToolMessage) {
+    const name = sanitizeWorldName(message.name, "Mysterious Figure");
+    const npcId = buildRecordId("npc", this.npcs.size + 1);
+    const npc: NpcRecord = {
+      id: npcId,
+      name,
+      role: sanitizeWorldName(message.role, "wanderer"),
+      personality: sanitizeWorldText(message.description, "Calm and observant."),
+      publicDescription: sanitizeWorldText(message.publicDescription, `${name} watches the party carefully.`),
+      privateNotes: sanitizeWorldText(message.privateNotes, "No hidden notes yet."),
+      dialoguePrompt: sanitizeWorldText(message.dialoguePrompt, `Ask ${name} about the area.`),
+      questHooks: sanitizeWorldText(message.questHooks, "No quest hook assigned yet."),
+      linkedEntityId: undefined
+    };
+
+    this.npcs.set(npcId, npc);
+    this.addDmLog(`Created NPC ${npc.name} (${npc.id}).`);
+    this.syncState();
+    this.publishSnapshots();
+  }
+
+  private placeEntityFromDm(message: DmToolMessage) {
+    const entityType = message.entityType ?? "npc";
+    const x = Number(message.x);
+    const y = Number(message.y);
+
+    if (!isWholeNumber(x) || !isWholeNumber(y)) {
+      this.addDmLog("Choose valid map coordinates to place an entity.");
+      this.syncState();
+      this.publishSnapshots();
+      return;
+    }
+
+    if (x < 0 || y < 0 || x >= this.state.gridWidth || y >= this.state.gridHeight) {
+      this.addDmLog("That entity position is outside the current map.");
+      this.syncState();
+      this.publishSnapshots();
+      return;
+    }
+
+    let name = sanitizeWorldName(message.name, formatEntityTypeLabel(entityType));
+    let description = sanitizeWorldText(message.description, `${name} stands here.`);
+    let linkedNpcId = message.npcId;
+    let linkedShopId = message.shopId;
+
+    if ((entityType === "npc" || entityType === "shopkeeper") && linkedNpcId) {
+      const npc = this.npcs.get(linkedNpcId);
+
+      if (!npc) {
+        this.addDmLog(`Unknown NPC: ${linkedNpcId}`);
+        this.syncState();
+        this.publishSnapshots();
+        return;
+      }
+
+      name = npc.name;
+      description = npc.publicDescription;
+    }
+
+    const entityId = buildRecordId("entity", this.worldEntities.size + 1);
+    const entity: WorldEntityRecord = {
+      id: entityId,
+      sceneId: this.state.currentSceneId,
+      type: entityType,
+      name,
+      description,
+      x,
+      y,
+      visibleToPlayers: Boolean(message.visibleToPlayers),
+      discovered: Boolean(message.discovered),
+      linkedQuestId: message.linkedQuestId,
+      linkedShopId,
+      linkedItemId: message.linkedItemId,
+      linkedNpcId,
+      linkedSecretId: message.linkedSecretId
+    };
+
+    this.worldEntities.set(entityId, entity);
+
+    if (linkedNpcId) {
+      const npc = this.npcs.get(linkedNpcId);
+
+      if (npc) {
+        npc.linkedEntityId = entityId;
+      }
+    }
+
+    if (linkedShopId) {
+      const shop = this.shops.get(linkedShopId);
+
+      if (shop) {
+        shop.linkedEntityId = entityId;
+      }
+    }
+
+    this.addDmLog(`Placed ${entity.name} at (${x + 1}, ${y + 1}) as ${entity.id}.`);
+    this.syncState();
+    this.publishSnapshots();
+  }
+
+  private setEntityVisibilityFromDm(entityId: string | undefined, visibleToPlayers: boolean) {
+    const entity = entityId ? this.worldEntities.get(entityId) : undefined;
+
+    if (!entity) {
+      this.addDmLog(`Unknown entity: ${entityId ?? ""}`);
+      this.syncState();
+      this.publishSnapshots();
+      return;
+    }
+
+    entity.visibleToPlayers = visibleToPlayers;
+    if (visibleToPlayers) {
+      entity.discovered = true;
+    }
+
+    this.addDmLog(`${visibleToPlayers ? "Revealed" : "Hid"} ${entity.name}.`);
+    this.syncState();
+    this.publishSnapshots();
+  }
+
+  private createShopFromDm(message: DmToolMessage) {
+    const name = sanitizeWorldName(message.name, "Traveling Trader");
+    const shopId = buildRecordId("shop", this.shops.size + 1);
+    const npc = message.npcId ? this.npcs.get(message.npcId) : this.getLatestNpc();
+    const shop: ShopRecord = {
+      id: shopId,
+      name,
+      shopkeeperNpcId: npc?.id,
+      linkedEntityId: undefined,
+      inventory: [],
+      discountPercent: 0
+    };
+
+    this.shops.set(shopId, shop);
+
+    if (npc) {
+      const existingEntity = npc.linkedEntityId ? this.worldEntities.get(npc.linkedEntityId) : undefined;
+
+      if (existingEntity) {
+        existingEntity.type = "shopkeeper";
+        existingEntity.linkedShopId = shopId;
+        shop.linkedEntityId = existingEntity.id;
+      }
+    }
+
+    this.addDmLog(`Created shop ${shop.name} (${shop.id}).`);
+    this.syncState();
+    this.publishSnapshots();
+  }
+
+  private addShopItemFromDm(message: DmToolMessage) {
+    const shop = message.shopId ? this.shops.get(message.shopId) : undefined;
+    const item = message.itemId ? itemsById.get(message.itemId) : undefined;
+
+    if (!shop) {
+      this.addDmLog(`Unknown shop: ${message.shopId ?? ""}`);
+      this.syncState();
+      this.publishSnapshots();
+      return;
+    }
+
+    if (!item) {
+      this.addDmLog(`Unknown item: ${message.itemId ?? ""}`);
+      this.syncState();
+      this.publishSnapshots();
+      return;
+    }
+
+    const stock = Math.max(1, Math.floor(message.stock ?? 1));
+    const price = Math.max(1, Math.floor(message.price ?? item.price));
+    const existing = shop.inventory.find((entry) => entry.itemId === item.id);
+
+    if (existing) {
+      existing.price = price;
+      existing.stock += stock;
+    } else {
+      shop.inventory.push({ itemId: item.id, price, stock });
+    }
+
+    this.addDmLog(`Added ${item.name} to ${shop.name} for ${price} gold (${stock} stock).`);
+    this.syncState();
+    this.publishSnapshots();
+  }
+
+  private createQuestFromDm(message: DmToolMessage) {
+    const title = sanitizeWorldName(message.title, "Unfinished Business");
+    const questId = buildRecordId("quest", this.quests.size + 1);
+    const quest: QuestRecord = {
+      id: questId,
+      title,
+      publicObjective: sanitizeWorldText(message.objective, title),
+      privateNotes: sanitizeWorldText(message.privateNotes, "No private quest notes yet."),
+      rewardGold: Math.max(0, Math.floor(message.rewardGold ?? 0)),
+      rewardItems: (message.rewardItems ?? []).filter(Boolean),
+      completionCondition: sanitizeWorldText(message.description, "Resolve this task in play."),
+      status: "hidden",
+      assignedTo: message.assignTo ?? "party"
+    };
+
+    this.quests.set(questId, quest);
+    this.addDmLog(`Created quest ${quest.title} (${quest.id}).`);
+    this.syncState();
+    this.publishSnapshots();
+  }
+
+  private setQuestStatusFromDm(questId: string | undefined, status: QuestStatus) {
+    const quest = questId ? this.quests.get(questId) : undefined;
+
+    if (!quest) {
+      this.addDmLog(`Unknown quest: ${questId ?? ""}`);
+      this.syncState();
+      this.publishSnapshots();
+      return;
+    }
+
+    quest.status = status;
+
+    if (status === "offered") {
+      this.addPublicLog(`New quest offered: ${quest.title}. ${quest.publicObjective}`);
+    } else if (status === "completed") {
+      this.addPublicLog(`Quest complete: ${quest.title}.`);
+      if (quest.rewardGold > 0) {
+        this.rewardGold(quest.rewardGold, `${quest.title} rewards ${quest.rewardGold} gold.`);
+      }
+
+      for (const rewardItemId of quest.rewardItems) {
+        this.grantItemToTargets(rewardItemId, quest.assignedTo === "party" ? undefined : [quest.assignedTo]);
+      }
+    }
+
+    this.addDmLog(`Quest ${quest.title} is now ${status}.`);
+    this.syncState();
+    this.publishSnapshots();
+  }
+
+  private createSecretFromDm(message: DmToolMessage) {
+    const checkType = normalizeSkillCheckType(message.checkType);
+    const dc = Math.max(1, Math.floor(message.dc ?? 10));
+    const revealText = sanitizeWorldText(message.description, "A hidden detail is revealed.");
+    const secretId = buildRecordId("secret", this.secrets.size + 1);
+    const secret: SecretRecord = {
+      id: secretId,
+      sceneId: this.state.currentSceneId,
+      checkType,
+      dc,
+      revealText,
+      privateNotes: sanitizeWorldText(message.privateNotes, "No extra secret notes."),
+      revealed: false,
+      linkedEntityId: message.linkedEntityId,
+      unlockSceneId: undefined
+    };
+
+    this.secrets.set(secretId, secret);
+
+    if (message.linkedEntityId) {
+      const entity = this.worldEntities.get(message.linkedEntityId);
+
+      if (entity) {
+        entity.linkedSecretId = secretId;
+      }
+    }
+
+    this.addDmLog(`Created secret ${secret.id} (${capitalizeCheckType(checkType)} DC ${dc}).`);
+    this.syncState();
+    this.publishSnapshots();
+  }
+
+  private revealSecretRecord(secretId: string | undefined, sourceMessage?: string) {
+    const secret = secretId ? this.secrets.get(secretId) : undefined;
+
+    if (!secret) {
+      this.addDmLog(`Unknown secret: ${secretId ?? ""}`);
+      return;
+    }
+
+    if (secret.revealed) {
+      this.addDmLog(`${secret.id} is already revealed.`);
+      return;
+    }
+
+    secret.revealed = true;
+    this.addPublicLog(secret.revealText);
+    this.addRewardHistory(secret.revealText);
+
+    if (sourceMessage) {
+      this.addDmLog(sourceMessage);
+    }
+
+    if (secret.linkedEntityId) {
+      const entity = this.worldEntities.get(secret.linkedEntityId);
+
+      if (entity) {
+        entity.visibleToPlayers = true;
+        entity.discovered = true;
+      }
+    }
+  }
+
+  private createSkillCheckFromDm(message: DmToolMessage) {
+    const checkType = normalizeSkillCheckType(message.checkType);
+    const dc = Math.max(1, Math.floor(message.dc ?? 10));
+    const targetPlayerIds = resolveTargetPlayerIds(
+      this.state.players,
+      message.target ?? "party",
+      message.playerId,
+      message.playerName,
+      message.targetPlayerIds
+    );
+
+    if (!targetPlayerIds.length) {
+      this.addDmLog("Choose at least one player for the skill check.");
+      this.syncState();
+      this.publishSnapshots();
+      return;
+    }
+
+    const checkId = buildRecordId("check", this.skillChecks.size + 1);
+    const results = Object.fromEntries(
+      targetPlayerIds.map((playerId) => [
+        playerId,
+        { rolled: false, roll: 0, total: 0, success: false, message: "" }
+      ])
+    ) as Record<string, SkillCheckResult>;
+
+    const skillCheck: SkillCheckRecord = {
+      id: checkId,
+      title: sanitizeWorldText(message.title, `${capitalizeCheckType(checkType)} check`),
+      checkType,
+      dc,
+      targetPlayerIds,
+      visibility: message.visibility ?? "targeted",
+      successMessage: sanitizeWorldText(message.successMessage, "Success."),
+      failureMessage: sanitizeWorldText(message.failureMessage, "Failure."),
+      status: "pending",
+      results,
+      linkedSecretId: message.linkedSecretId,
+      successReward: undefined,
+      failureReward: undefined
+    };
+
+    this.skillChecks.set(checkId, skillCheck);
+    this.addDmLog(`Created ${skillCheck.title} (${skillCheck.id}).`);
+    this.syncState();
+    this.publishSnapshots();
+  }
+
+  private giveRewardFromDm(message: DmToolMessage) {
+    const rewardType = normalizeRewardType(message.name);
+
+    if (!rewardType) {
+      this.addDmLog("Choose a valid reward type.");
+      this.syncState();
+      this.publishSnapshots();
+      return;
+    }
+
+    const targetPlayerIds = resolveTargetPlayerIds(
+      this.state.players,
+      message.target ?? "party",
+      message.playerId,
+      message.playerName
+    );
+
+    this.applyRewardGrant(
+      {
+        type: rewardType,
+        amount: message.amount,
+        itemId: message.itemId,
+        questId: message.questId,
+        targetPlayerIds
+      },
+      "The Dungeon Master grants a reward."
+    );
+    this.syncState();
+    this.publishSnapshots();
+  }
+
+  private generateNpcTemplate() {
+    const index = this.generatorIndex++;
+    const templates = [
+      ["Tamsin", "scout", "Quick, bright, and suspicious."],
+      ["Bram", "merchant", "Friendly until money is involved."],
+      ["Sera", "guide", "Patient, practical, and watchful."]
+    ] as const;
+    const [name, role, personality] = templates[index % templates.length] ?? templates[0];
+    this.createNpcFromDm({
+      tool: "createNpc",
+      name,
+      role,
+      description: personality,
+      publicDescription: `${name} the ${role} seems ready to talk.`,
+      privateNotes: `${name} is hiding something useful from the party.`,
+      dialoguePrompt: `Ask ${name} what they know about the road ahead.`,
+      questHooks: `${name} points toward trouble deeper in the woods.`
+    });
+  }
+
+  private generateQuestTemplate() {
+    const index = this.generatorIndex++;
+    const title = ["Lost Caravan", "Missing Scout", "Sealed Cellar"][index % 3] ?? "Lost Caravan";
+    this.createQuestFromDm({
+      tool: "createQuest",
+      title,
+      objective: `Resolve the ${title.toLowerCase()} problem.`,
+      privateNotes: "Use this as a lightweight side objective.",
+      rewardGold: 8
+    });
+  }
+
+  private generateShopTemplate() {
+    const index = this.generatorIndex++;
+    const latestNpcId = this.getLatestNpc()?.id;
+    this.createShopFromDm({
+      tool: "createShop",
+      name: `Camp Supply ${index + 1}`,
+      ...(latestNpcId ? { npcId: latestNpcId } : {})
+    });
+  }
+
+  private generateSecretTemplate() {
+    this.createSecretFromDm({
+      tool: "createSecret",
+      checkType: "perception",
+      dc: 14,
+      description: "A scuffed stone slides aside to reveal a narrow hidden passage."
+    });
   }
 
   private setSceneFromDm(sceneId: string | undefined, fromCommand = false) {
@@ -1621,6 +2724,123 @@ export class LobbyRoom extends Room<LobbyState> {
     }
   }
 
+  private grantItemToTargets(itemId: string, targetPlayerIds?: string[]) {
+    const item = itemsById.get(itemId);
+
+    if (!item) {
+      return;
+    }
+
+    const targets = targetPlayerIds?.length
+      ? targetPlayerIds.map((playerId) => this.state.players.get(playerId)).filter((player): player is PlayerState => player !== undefined)
+      : [...this.state.players.values()];
+
+    for (const player of targets) {
+      player.inventory.push(item.id);
+    }
+
+    if (targets.length) {
+      this.addPublicLog(`${targets.map((player) => player.name).join(", ")} receive ${item.name}.`);
+      this.addRewardHistory(`${item.name} granted to ${targets.map((player) => player.name).join(", ")}.`);
+    }
+  }
+
+  private applyRewardGrant(reward: RewardGrant, sourceMessage: string) {
+    const targetPlayerIds = reward.targetPlayerIds?.length ? reward.targetPlayerIds : [...this.state.players.keys()];
+    const targets = targetPlayerIds
+      .map((playerId) => this.state.players.get(playerId))
+      .filter((player): player is PlayerState => player !== undefined);
+
+    if (!targets.length) {
+      return;
+    }
+
+    switch (reward.type) {
+      case "gold": {
+        const amount = Math.max(0, Math.floor(reward.amount ?? 0));
+
+        for (const player of targets) {
+          player.gold += amount;
+        }
+
+        this.recalculatePartyGold();
+        this.addPublicLog(`${sourceMessage} ${targets.map((player) => player.name).join(", ")} gain ${amount} gold.`);
+        this.addRewardHistory(`${amount} gold granted to ${targets.map((player) => player.name).join(", ")}.`);
+        return;
+      }
+
+      case "item":
+        if (reward.itemId) {
+          this.grantItemToTargets(reward.itemId, targetPlayerIds);
+        }
+        return;
+
+      case "xp": {
+        const amount = Math.max(0, Math.floor(reward.amount ?? 0));
+
+        for (const player of targets) {
+          player.xp += amount;
+          player.level = 1 + Math.floor(player.xp / 20);
+        }
+
+        this.addPublicLog(`${sourceMessage} ${targets.map((player) => player.name).join(", ")} gain ${amount} XP.`);
+        this.addRewardHistory(`${amount} XP granted to ${targets.map((player) => player.name).join(", ")}.`);
+        return;
+      }
+
+      case "healing": {
+        const amount = Math.max(0, Math.floor(reward.amount ?? 0));
+
+        for (const player of targets) {
+          player.health = Math.min(player.maxHealth, player.health + amount);
+          player.alive = player.health > 0;
+        }
+
+        this.addPublicLog(`${sourceMessage} ${targets.map((player) => player.name).join(", ")} recover ${amount} HP.`);
+        this.addRewardHistory(`${amount} healing granted to ${targets.map((player) => player.name).join(", ")}.`);
+        return;
+      }
+
+      case "quest_progress":
+        if (reward.questId) {
+          this.setQuestStatusFromDm(reward.questId, "active");
+        }
+        return;
+    }
+  }
+
+  private publishSkillCheckResult(
+    skillCheck: SkillCheckRecord,
+    player: PlayerState,
+    resultMessage: string,
+    success: boolean
+  ) {
+    if (skillCheck.visibility === "public") {
+      this.addPublicLog(resultMessage);
+    } else if (skillCheck.visibility === "targeted") {
+      this.addPublicLog(`${player.name} resolves ${skillCheck.title}.`);
+      this.addDmLog(resultMessage);
+    } else {
+      this.addDmLog(resultMessage);
+    }
+
+    if (success && skillCheck.linkedSecretId) {
+      this.addDmLog(`${player.name} succeeded and can reveal ${skillCheck.linkedSecretId}.`);
+    }
+  }
+
+  private addRewardHistory(message: string) {
+    this.rewardHistory.push({ id: buildRecordId("reward", this.rewardHistory.length + 1), message });
+
+    if (this.rewardHistory.length > maxLogEntries) {
+      this.rewardHistory.shift();
+    }
+  }
+
+  private getLatestNpc() {
+    return [...this.npcs.values()].at(-1);
+  }
+
   private resetAdventure() {
     clearStringArray(this.state.completedEncounters);
     clearLogArray(this.state.publicLog);
@@ -1631,6 +2851,14 @@ export class LobbyRoom extends Room<LobbyState> {
     this.state.adventureStartedAt = "";
     this.state.adventureCompletedAt = "";
     this.logIndex = 0;
+    this.worldEntities.clear();
+    this.npcs.clear();
+    this.shops.clear();
+    this.quests.clear();
+    this.secrets.clear();
+    this.skillChecks.clear();
+    this.rewardHistory = [];
+    this.dmNotes = [];
 
     for (const player of this.state.players.values()) {
       const classDefinition = classesById.get(player.classId) ?? defaultClass;
@@ -2103,6 +3331,212 @@ export class LobbyRoom extends Room<LobbyState> {
     };
   }
 
+  private buildWorldEntityViews(sessionId: string): WorldEntityView[] {
+    const isDm = this.isDmSession(sessionId);
+
+    return [...this.worldEntities.values()]
+      .filter((entity) => entity.sceneId === this.state.currentSceneId)
+      .filter((entity) => isDm || entity.visibleToPlayers)
+      .map((entity) => ({
+        id: entity.id,
+        type: entity.type,
+        name: entity.name,
+        description: entity.description,
+        x: entity.x,
+        y: entity.y,
+        visibleToPlayers: entity.visibleToPlayers,
+        discovered: entity.discovered,
+        linkedQuestId: entity.linkedQuestId,
+        linkedShopId: entity.linkedShopId,
+        linkedItemId: entity.linkedItemId,
+        linkedNpcId: entity.linkedNpcId,
+        linkedSecretId: entity.linkedSecretId,
+        publicDetails: this.buildEntityPublicDetails(entity)
+      }));
+  }
+
+  private buildNpcViews(sessionId: string): NpcView[] {
+    const isDm = this.isDmSession(sessionId);
+
+    return [...this.npcs.values()]
+      .filter((npc) => {
+        const entity = npc.linkedEntityId ? this.worldEntities.get(npc.linkedEntityId) : undefined;
+        if (isDm) {
+          return !entity || entity.sceneId === this.state.currentSceneId;
+        }
+
+        return entity?.sceneId === this.state.currentSceneId && entity.visibleToPlayers;
+      })
+      .map((npc) => {
+        const entity = npc.linkedEntityId ? this.worldEntities.get(npc.linkedEntityId) : undefined;
+        return {
+          id: npc.id,
+          name: npc.name,
+          role: npc.role,
+          personality: npc.personality,
+          publicDescription: npc.publicDescription,
+          dialoguePrompt: npc.dialoguePrompt,
+          questHooks: npc.questHooks,
+          linkedEntityId: npc.linkedEntityId,
+          visibleToPlayers: entity?.visibleToPlayers ?? false,
+          discovered: entity?.discovered ?? false
+        };
+      });
+  }
+
+  private buildShopViews(sessionId: string): ShopView[] {
+    const isDm = this.isDmSession(sessionId);
+    const player = this.state.players.get(sessionId);
+
+    return [...this.shops.values()]
+      .filter((shop) => {
+        const entity = shop.linkedEntityId ? this.worldEntities.get(shop.linkedEntityId) : undefined;
+        if (isDm) {
+          return !entity || entity.sceneId === this.state.currentSceneId;
+        }
+
+        return entity?.sceneId === this.state.currentSceneId && entity.visibleToPlayers;
+      })
+      .map((shop) => {
+        const entity = shop.linkedEntityId ? this.worldEntities.get(shop.linkedEntityId) : undefined;
+        const accessible = Boolean(
+          isDm ||
+            (player && entity && calculateDistance(player.x, player.y, entity.x, entity.y) <= 1)
+        );
+
+        return {
+          id: shop.id,
+          name: shop.name,
+          shopkeeperNpcId: shop.shopkeeperNpcId,
+          linkedEntityId: shop.linkedEntityId,
+          visibleToPlayers: entity?.visibleToPlayers ?? false,
+          accessible,
+          discountPercent: shop.discountPercent,
+          inventory: shop.inventory
+            .map((entry) => {
+              const item = itemsById.get(entry.itemId);
+
+              if (!item) {
+                return undefined;
+              }
+
+              return {
+                itemId: item.id,
+                name: item.name,
+                effect: item.effect,
+                price: Math.max(0, entry.price - Math.floor(entry.price * (shop.discountPercent / 100))),
+                stock: entry.stock
+              };
+            })
+            .filter((entry): entry is ShopItemView => entry !== undefined)
+        };
+      });
+  }
+
+  private buildQuestViews(sessionId: string): QuestView[] {
+    const isDm = this.isDmSession(sessionId);
+
+    return [...this.quests.values()]
+      .filter((quest) => isDm || quest.status !== "hidden")
+      .filter((quest) => quest.assignedTo === "party" || isDm || quest.assignedTo === sessionId)
+      .map((quest) => ({
+        id: quest.id,
+        title: quest.title,
+        publicObjective: quest.publicObjective,
+        rewardGold: quest.rewardGold,
+        rewardItems: quest.rewardItems,
+        status: quest.status,
+        assignedTo: quest.assignedTo
+      }));
+  }
+
+  private buildSecretViews(sessionId: string): SecretView[] {
+    const isDm = this.isDmSession(sessionId);
+
+    return [...this.secrets.values()]
+      .filter((secret) => secret.sceneId === this.state.currentSceneId)
+      .filter((secret) => isDm || secret.revealed)
+      .map((secret) => ({
+        id: secret.id,
+        checkType: secret.checkType,
+        dc: secret.dc,
+        revealText: secret.revealText,
+        revealed: secret.revealed,
+        linkedEntityId: secret.linkedEntityId
+      }));
+  }
+
+  private buildSkillCheckViews(sessionId: string): SkillCheckView[] {
+    if (!this.isDmSession(sessionId)) {
+      return [];
+    }
+
+    return [...this.skillChecks.values()].map((check) => ({
+      id: check.id,
+      title: check.title,
+      checkType: check.checkType,
+      dc: check.dc,
+      targetPlayerIds: check.targetPlayerIds,
+      targetNames: check.targetPlayerIds.map((playerId) => this.state.players.get(playerId)?.name ?? playerId),
+      visibility: check.visibility,
+      successMessage: check.successMessage,
+      failureMessage: check.failureMessage,
+      status: check.status,
+      results: check.targetPlayerIds.map((playerId) => ({
+        playerId,
+        playerName: this.state.players.get(playerId)?.name ?? playerId,
+        rolled: check.results[playerId]?.rolled ?? false,
+        roll: check.results[playerId]?.roll ?? 0,
+        total: check.results[playerId]?.total ?? 0,
+        success: check.results[playerId]?.success ?? false,
+        message: check.results[playerId]?.message ?? ""
+      }))
+    }));
+  }
+
+  private buildPlayerSkillCheckViews(sessionId: string): PlayerSkillCheckView[] {
+    return [...this.skillChecks.values()]
+      .filter((check) => check.targetPlayerIds.includes(sessionId))
+      .map((check) => {
+        const result = check.results[sessionId];
+        const showDc = check.visibility === "public" || check.visibility === "targeted";
+        const visibleResult =
+          !result?.rolled
+            ? ""
+            : check.visibility === "dm"
+              ? "The DM has recorded your result."
+              : result.message;
+
+        return {
+          id: check.id,
+          title: check.title,
+          checkType: check.checkType,
+          visibility: check.visibility,
+          status: check.status,
+          showDc,
+          dc: showDc ? check.dc : null,
+          canRoll: !result?.rolled,
+          rolled: result?.rolled ?? false,
+          resultText: visibleResult
+        };
+      });
+  }
+
+  private buildEntityPublicDetails(entity: WorldEntityRecord) {
+    const npc = entity.linkedNpcId ? this.npcs.get(entity.linkedNpcId) : undefined;
+    const shop = entity.linkedShopId ? this.shops.get(entity.linkedShopId) : undefined;
+
+    if (npc) {
+      return `${npc.publicDescription} ${npc.dialoguePrompt}`;
+    }
+
+    if (shop) {
+      return `${entity.description} ${shop.name} offers ${shop.inventory.length} item(s).`;
+    }
+
+    return entity.description;
+  }
+
   private syncState() {
     const nextState = new LobbyState();
     nextState.roomCode = this.state.roomCode;
@@ -2187,6 +3621,8 @@ export class LobbyRoom extends Room<LobbyState> {
         title: scene.title,
         sceneType: scene.sceneType
       })),
+      availableEntityTypes,
+      availableSkillChecks,
       currentScene: {
         id: currentScene.id,
         title: currentScene.title,
@@ -2227,6 +3663,14 @@ export class LobbyRoom extends Room<LobbyState> {
       completedEncounters: [...this.state.completedEncounters].filter(isString),
       merchantItems: this.buildMerchantItems(),
       victorySummary: this.buildVictorySummary(),
+      worldEntities: this.buildWorldEntityViews(sessionId),
+      npcs: this.buildNpcViews(sessionId),
+      shops: this.buildShopViews(sessionId),
+      quests: this.buildQuestViews(sessionId),
+      secrets: this.buildSecretViews(sessionId),
+      skillChecks: this.buildSkillCheckViews(sessionId),
+      playerSkillChecks: this.buildPlayerSkillCheckViews(sessionId),
+      rewardHistory: this.rewardHistory,
       players: [...this.state.players.values()].map((player) => ({
         id: player.id,
         name: player.name,
@@ -2637,6 +4081,133 @@ function rollDiceExpression(expression: string) {
 function isWholeNumber(value: number) {
   return Number.isInteger(value);
 }
+
+function buildRecordId(prefix: string, index: number) {
+  return `${prefix}-${index}`;
+}
+
+function sanitizeWorldName(value: string | undefined, fallback: string) {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed.slice(0, 40) : fallback;
+}
+
+function sanitizeWorldText(value: string | undefined, fallback: string) {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed.slice(0, 220) : fallback;
+}
+
+function normalizeSkillCheckType(value: SkillCheckType | string | undefined): SkillCheckType {
+  const normalized = value?.trim().toLowerCase();
+
+  if (availableSkillChecks.includes(normalized as SkillCheckType)) {
+    return normalized as SkillCheckType;
+  }
+
+  return "insight";
+}
+
+function normalizeRewardType(value: string | undefined): RewardType | null {
+  const normalized = value?.trim().toLowerCase();
+
+  switch (normalized) {
+    case "gold":
+    case "item":
+    case "xp":
+    case "healing":
+    case "quest_progress":
+    case "quest-progress":
+      return normalized === "quest-progress" ? "quest_progress" : normalized;
+    default:
+      return null;
+  }
+}
+
+function normalizeQuestStatus(value: string | undefined): QuestStatus {
+  const normalized = value?.trim().toLowerCase();
+
+  switch (normalized) {
+    case "offered":
+    case "active":
+    case "completed":
+    case "failed":
+    case "hidden":
+      return normalized;
+    default:
+      return "hidden";
+  }
+}
+
+function capitalizeCheckType(value: string) {
+  return value.slice(0, 1).toUpperCase() + value.slice(1);
+}
+
+function formatEntityTypeLabel(type: WorldEntityType) {
+  return type.replace(/_/g, " ").replace(/\b\w/g, (character) => character.toUpperCase());
+}
+
+function tokenizeCommand(commandBody: string) {
+  const tokens: string[] = [];
+  const matcher = /"([^"]+)"|(\S+)/g;
+  let match: RegExpExecArray | null;
+
+  while ((match = matcher.exec(commandBody))) {
+    tokens.push(match[1] ?? match[2] ?? "");
+  }
+
+  return tokens;
+}
+
+function resolveTargetPlayerIds(
+  players: Map<string, PlayerState> | ColyseusMapLike<PlayerState>,
+  target: "party" | "all" | "player",
+  playerId?: string,
+  playerName?: string,
+  targetPlayerIds?: string[]
+) {
+  const allPlayers = [...players.values()];
+
+  if (target === "party" || target === "all") {
+    return allPlayers.map((player) => player.id);
+  }
+
+  if (targetPlayerIds?.length) {
+    return targetPlayerIds.filter((id) => allPlayers.some((player) => player.id === id));
+  }
+
+  if (playerId && allPlayers.some((player) => player.id === playerId)) {
+    return [playerId];
+  }
+
+  const matchedPlayer = playerName
+    ? allPlayers.find((player) => player.name.toLowerCase() === playerName.toLowerCase())
+    : undefined;
+
+  return matchedPlayer ? [matchedPlayer.id] : [];
+}
+
+function getSkillModifier(player: PlayerState, checkType: SkillCheckType) {
+  switch (checkType) {
+    case "strength":
+      return player.might;
+    case "dexterity":
+    case "stealth":
+      return player.agility;
+    case "arcana":
+    case "perception":
+    case "investigation":
+      return player.focus;
+    case "intimidation":
+      return player.might;
+    case "persuasion":
+    case "insight":
+    default:
+      return player.spirit;
+  }
+}
+
+type ColyseusMapLike<T> = {
+  values(): IterableIterator<T>;
+};
 
 function normalizeRoomCode(roomCode?: string) {
   const normalized = roomCode?.trim().toLowerCase();

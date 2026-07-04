@@ -5,11 +5,18 @@ import {
   CharacterSheetPanel,
   DmLogTabsPanel,
   DmPanel,
+  DmWorldToolsPanel,
   EnemyPanel,
   InventoryPanel,
   LogPanel,
   PartyPanel,
+  PlayerSkillChecksPanel,
+  QuestPanel,
+  RewardHistoryPanel,
+  ShopPanel,
   TurnOrderPanel
+  ,
+  WorldEntityPanel
 } from "../components/GamePanels";
 import { useRoomConnection } from "../game/RoomConnectionContext";
 import type { EnemyView } from "../game/types";
@@ -34,10 +41,13 @@ export function PlayPage() {
     useAbility,
     endTurn,
     purchase,
+    purchaseFromShop,
     equipItem,
     useItem,
+    rollSkillCheck,
     sceneAction,
     runDmAction,
+    runDmTool,
     runDmCommand
   } = useRoomConnection();
   const [sceneTarget, setSceneTarget] = useState("forest");
@@ -100,6 +110,17 @@ export function PlayPage() {
             x: enemy.x,
             y: enemy.y,
             isActiveTurn: activeTurn.type === "enemy" && activeTurn.id === enemy.id,
+            isSelf: false
+          })),
+        ...lobby.worldEntities.map((entity) => ({
+            id: entity.id,
+            name: entity.name,
+            classId: `entity-${entity.type}`,
+            className: entity.name,
+            tokenKind: "entity" as const,
+            x: entity.x,
+            y: entity.y,
+            isActiveTurn: false,
             isSelf: false
           }))
       ]
@@ -278,6 +299,11 @@ export function PlayPage() {
     }
   }
 
+  function canBuyFromShop(shopId: string, price: number) {
+    const shop = activeLobby.shops.find((entry) => entry.id === shopId);
+    return Boolean(role === "player" && currentPlayer && shop?.accessible && currentPlayer.gold >= price);
+  }
+
   return (
     <main className="play-shell">
       <section className="play-header">
@@ -378,6 +404,18 @@ export function PlayPage() {
             </section>
           ) : null}
 
+          <WorldEntityPanel entities={lobby.worldEntities} />
+
+          <QuestPanel quests={lobby.quests} />
+
+          <PlayerSkillChecksPanel checks={lobby.playerSkillChecks} onRoll={rollSkillCheck} />
+
+          <ShopPanel
+            shops={lobby.shops}
+            onBuy={purchaseFromShop}
+            canBuy={(shop, price) => canBuyFromShop(shop.id, price)}
+          />
+
           {currentScene.sceneType === "shop" ? (
             <section className="panel">
               <h2>Merchant inventory</h2>
@@ -462,34 +500,37 @@ export function PlayPage() {
 
         <div className="play-side">
           {role === "dm" ? (
-            <DmPanel
-              lobby={lobby}
-              role={role}
-              sceneTarget={sceneTarget}
-              onSceneTargetChange={setSceneTarget}
-              goldAmount={goldAmount}
-              onGoldAmountChange={setGoldAmount}
-              commandDraft={commandDraft}
-              onCommandDraftChange={setCommandDraft}
-              dmCommand={dmCommand}
-              onDmCommandChange={setDmCommand}
-              onStartAdventure={() => runDmAction({ actionId: "startAdventure" })}
-              onAdvanceScene={() => runDmAction({ actionId: "advanceScene" })}
-              onPreviousScene={() => runDmAction({ actionId: "previousScene" })}
-              onRestartScene={() => runDmAction({ actionId: "restartScene" })}
-              onSetScene={(sceneId) => runDmAction({ actionId: "setScene", sceneId })}
-              onSpawnGoblin={() => runDmAction({ actionId: "spawnGoblin" })}
-              onSpawnGoblinChief={() => runDmAction({ actionId: "spawnGoblinChief" })}
-              onAwardPartyGold={(amount) => runDmAction({ actionId: "awardPartyGold", amount })}
-              onAddPublicMessage={(message) => {
-                runDmAction({ actionId: "addPublicLogMessage", message });
-                setCommandDraft("");
-              }}
-              onRunCommand={(command) => {
-                runDmCommand(command);
-                setDmCommand("");
-              }}
-            />
+            <>
+              <DmPanel
+                lobby={lobby}
+                role={role}
+                sceneTarget={sceneTarget}
+                onSceneTargetChange={setSceneTarget}
+                goldAmount={goldAmount}
+                onGoldAmountChange={setGoldAmount}
+                commandDraft={commandDraft}
+                onCommandDraftChange={setCommandDraft}
+                dmCommand={dmCommand}
+                onDmCommandChange={setDmCommand}
+                onStartAdventure={() => runDmAction({ actionId: "startAdventure" })}
+                onAdvanceScene={() => runDmAction({ actionId: "advanceScene" })}
+                onPreviousScene={() => runDmAction({ actionId: "previousScene" })}
+                onRestartScene={() => runDmAction({ actionId: "restartScene" })}
+                onSetScene={(sceneId) => runDmAction({ actionId: "setScene", sceneId })}
+                onSpawnGoblin={() => runDmAction({ actionId: "spawnGoblin" })}
+                onSpawnGoblinChief={() => runDmAction({ actionId: "spawnGoblinChief" })}
+                onAwardPartyGold={(amount) => runDmAction({ actionId: "awardPartyGold", amount })}
+                onAddPublicMessage={(message) => {
+                  runDmAction({ actionId: "addPublicLogMessage", message });
+                  setCommandDraft("");
+                }}
+                onRunCommand={(command) => {
+                  runDmCommand(command);
+                  setDmCommand("");
+                }}
+              />
+              <DmWorldToolsPanel lobby={lobby} onRunTool={runDmTool} />
+            </>
           ) : null}
           <CharacterSheetPanel player={currentPlayer} />
           <InventoryPanel
@@ -521,6 +562,7 @@ export function PlayPage() {
             }
           />
           <TurnOrderPanel lobby={lobby} />
+          <RewardHistoryPanel rewards={lobby.rewardHistory} />
           <EnemyPanel
             enemies={lobby.enemies}
             actionLabel={activeTargetMode === "ability" && currentAbility?.targetType === "enemy" ? currentAbility.name : "Attack"}

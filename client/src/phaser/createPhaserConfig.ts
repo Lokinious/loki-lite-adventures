@@ -6,7 +6,7 @@ export type TacticalToken = {
   name: string;
   classId: string;
   className: string;
-  tokenKind: "player" | "enemy";
+  tokenKind: "player" | "enemy" | "entity";
   x: number;
   y: number;
   isActiveTurn: boolean;
@@ -125,11 +125,11 @@ class TacticalScene extends Phaser.Scene {
         const body =
           token.tokenKind === "enemy"
             ? this.add.ellipse(centerX, centerY, 28, 28, tint)
-            : this.add.rectangle(centerX, centerY, 28, 28, tint);
+            : this.add.rectangle(centerX, centerY, token.tokenKind === "entity" ? 22 : 28, token.tokenKind === "entity" ? 22 : 28, tint);
         const border =
           token.tokenKind === "enemy"
             ? this.add.ellipse(centerX, centerY, 34, 34)
-            : this.add.rectangle(centerX, centerY, 34, 34);
+            : this.add.rectangle(centerX, centerY, token.tokenKind === "entity" ? 28 : 34, token.tokenKind === "entity" ? 28 : 34);
 
         sprite = {
           body,
@@ -150,7 +150,7 @@ class TacticalScene extends Phaser.Scene {
         .setPosition(centerX, centerY)
         .setStrokeStyle(
           token.isActiveTurn ? 3 : 2,
-          token.tokenKind === "enemy" ? 0xf97316 : token.isSelf ? 0xfacc15 : 0xffffff
+          token.tokenKind === "enemy" ? 0xf97316 : token.tokenKind === "entity" ? 0x38bdf8 : token.isSelf ? 0xfacc15 : 0xffffff
         );
       sprite.label.setPosition(centerX, centerY + 22).setText(token.name);
     }
