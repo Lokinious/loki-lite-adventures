@@ -9,7 +9,7 @@ const {
   type
 } = require("@colyseus/schema") as typeof ColyseusSchema;
 
-export class CombatLogEntry extends Schema {
+export class LogEntryState extends Schema {
   @type("number") id = 0;
   @type("string") message = "";
 }
@@ -17,6 +17,7 @@ export class CombatLogEntry extends Schema {
 export class PlayerState extends Schema {
   @type("string") id = "";
   @type("string") name = "";
+  @type("string") role = "player";
   @type("string") classId = "guardian";
   @type("string") className = "";
   @type("number") x = 0;
@@ -49,6 +50,8 @@ export class EnemyState extends Schema {
 
 export class LobbyState extends Schema {
   @type("string") roomCode = "local-adventure";
+  @type("string") dmSessionId = "";
+  @type("string") dmName = "";
   @type("string") currentSceneId = "tavern";
   @type("number") gridWidth = 10;
   @type("number") gridHeight = 8;
@@ -64,5 +67,6 @@ export class LobbyState extends Schema {
   @type({ map: EnemyState }) enemies = new MapSchema<EnemyState>();
   @type(["string"]) turnOrder = new ArraySchema<string>();
   @type(["string"]) completedEncounters = new ArraySchema<string>();
-  @type([CombatLogEntry]) combatLog = new ArraySchema<CombatLogEntry>();
+  @type([LogEntryState]) publicLog = new ArraySchema<LogEntryState>();
+  @type([LogEntryState]) dmLog = new ArraySchema<LogEntryState>();
 }

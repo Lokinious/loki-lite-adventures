@@ -5,13 +5,16 @@ import enemyDefinitions from "../../../content/enemies.json" with { type: "json"
 import itemDefinitions from "../../../content/items.json" with { type: "json" };
 import mapDefinitions from "../../../content/maps.json" with { type: "json" };
 import sceneDefinitions from "../../../content/scenes.json" with { type: "json" };
-import { CombatLogEntry, EnemyState, LobbyState, PlayerState } from "./schema/LobbyState.js";
+import { EnemyState, LobbyState, LogEntryState, PlayerState } from "./schema/LobbyState.js";
 
 const { Room } = colyseus;
+
+type JoinRole = "player" | "dm";
 
 type JoinOptions = {
   roomCode?: string;
   playerName?: string;
+  role?: JoinRole;
 };
 
 type SelectCharacterMessage = {
@@ -33,6 +36,26 @@ type SceneActionMessage = {
 
 type PurchaseMessage = {
   itemId: string;
+};
+
+type DmCommandMessage = {
+  command: string;
+};
+
+type DmActionMessage = {
+  actionId:
+    | "startAdventure"
+    | "advanceScene"
+    | "previousScene"
+    | "restartScene"
+    | "setScene"
+    | "spawnGoblin"
+    | "spawnGoblinChief"
+    | "awardPartyGold"
+    | "addPublicLogMessage";
+  sceneId?: string;
+  amount?: number;
+  message?: string;
 };
 
 type CharacterDefinition = {
@@ -114,6 +137,12 @@ type SceneView = {
   sceneType: "story" | "encounter" | "shop" | "victory";
 };
 
+type SceneOptionView = {
+  id: string;
+  title: string;
+  sceneType: "story" | "encounter" | "shop" | "victory";
+};
+
 type SceneActionView = {
   id: string;
   label: string;
@@ -134,8 +163,18 @@ type VictorySummaryView = {
   adventureDuration: string;
 };
 
+type LogEntryView = {
+  id: number;
+  message: string;
+};
+
 type RoomSnapshot = {
   roomCode: string;
+  selfRole: JoinRole;
+  dmSessionId: string;
+  dmName: string;
+  adventureStarted: boolean;
+  availableScenes: SceneOptionView[];
   currentScene: SceneView;
   sceneActions: SceneActionView[];
   gridWidth: number;
@@ -151,6 +190,7 @@ type RoomSnapshot = {
   players: Array<{
     id: string;
     name: string;
+    role: "player";
     classId: string;
     className: string;
     x: number;
@@ -179,14 +219,12 @@ type RoomSnapshot = {
     damageDice: string;
     alive: boolean;
   }>;
-  combatLog: Array<{
-    id: number;
-    message: string;
-  }>;
+  publicLog: LogEntryView[];
+  dmLog: LogEntryView[];
 };
 
-const maxClients = 6;
-const maxCombatLogEntries = 40;
+const maxClients = 7;
+const maxLogEntries = 60;
 const startingPlayerGold = 10;
 
 const availableClasses = classDefinitions as CharacterDefinition[];
@@ -208,6 +246,7 @@ const enemiesById = new Map(availableEnemies.map((enemyDefinition) => [enemyDefi
 const itemsById = new Map(availableItems.map((itemDefinition) => [itemDefinition.id, itemDefinition]));
 const mapsById = new Map(availableMaps.map((mapDefinition) => [mapDefinition.id, mapDefinition]));
 const scenesById = new Map(availableScenes.map((sceneDefinition) => [sceneDefinition.id, sceneDefinition]));
+const orderedSceneIds = availableScenes.map((sceneDefinition) => sceneDefinition.id);
 
 const combatStatsByClassId: Record<string, CombatStats> = {
   guardian: { attackBonus: 5, damageDice: "1d8+3", defense: 14 },
@@ -234,7 +273,7 @@ const encounterSpawnBySceneId: Record<string, Array<{ enemyId: string; position:
 
 export class LobbyRoom extends Room<LobbyState> {
   override maxClients = maxClients;
-  private combatLogIndex = 0;
+  private logIndex = 0;
 
   override onCreate(options: JoinOptions) {
     const state = new LobbyState();
@@ -268,15 +307,37 @@ export class LobbyRoom extends Room<LobbyState> {
       this.handlePurchaseRequest(client, message);
     });
 
+    this.onMessage("requestDmAction", (client, message: DmActionMessage) => {
+      this.handleDmAction(client, message);
+    });
+
+    this.onMessage("requestDmCommand", (client, message: DmCommandMessage) => {
+      this.handleDmCommand(client, message);
+    });
+
     this.onMessage("requestState", (client) => {
-      this.send(client, "roomState", this.buildSnapshot());
+      this.sendSnapshot(client);
     });
   }
 
   override onJoin(client: Client, options: JoinOptions) {
-    const character = defaultClass;
-    const player = this.createPlayerState(client.sessionId, sanitizePlayerName(options.playerName), character);
+    const role = normalizeJoinRole(options.role);
+    const playerName = sanitizePlayerName(options.playerName);
 
+    if (role === "dm") {
+      if (this.state.dmSessionId && this.state.dmSessionId !== client.sessionId) {
+        throw new Error("This room already has a Dungeon Master.");
+      }
+
+      this.state.dmSessionId = client.sessionId;
+      this.state.dmName = playerName;
+      this.addPublicLog(`${playerName} joined as the Dungeon Master.`);
+      this.syncState();
+      this.publishSnapshots();
+      return;
+    }
+
+    const player = this.createPlayerState(client.sessionId, playerName, defaultClass);
     this.state.players.set(client.sessionId, player);
     this.state.turnOrder.push(client.sessionId);
     this.repositionPlayers();
@@ -286,12 +347,22 @@ export class LobbyRoom extends Room<LobbyState> {
       this.startNextPlayerTurn(this.getLivingPlayerOrder()[0] ?? "");
     }
 
-    this.addCombatLog(`${player.name} joined room ${this.state.roomCode}.`);
+    this.addPublicLog(`${player.name} joined room ${this.state.roomCode}.`);
     this.syncState();
-    this.publishSnapshot();
+    this.publishSnapshots();
   }
 
   override onLeave(client: Client) {
+    if (this.isDmSession(client.sessionId)) {
+      const dmName = this.state.dmName || "The Dungeon Master";
+      this.state.dmSessionId = "";
+      this.state.dmName = "";
+      this.addPublicLog(`${dmName} left the room.`);
+      this.syncState();
+      this.publishSnapshots();
+      return;
+    }
+
     const player = this.state.players.get(client.sessionId);
 
     if (!player) {
@@ -306,6 +377,7 @@ export class LobbyRoom extends Room<LobbyState> {
     this.recalculatePartyGold();
 
     if (wasActiveTurn) {
+      this.addPublicLog(`${playerName} left the room.`);
       this.advanceTurn();
       return;
     }
@@ -314,23 +386,26 @@ export class LobbyRoom extends Room<LobbyState> {
       this.clearActiveTurn();
     }
 
-    this.addCombatLog(`${playerName} left the room.`);
+    this.addPublicLog(`${playerName} left the room.`);
     this.syncState();
-    this.publishSnapshot();
+    this.publishSnapshots();
   }
 
   override onDispose() {
     this.state.players.clear();
     this.state.enemies.clear();
-    while (this.state.turnOrder.length > 0) {
-      this.state.turnOrder.pop();
-    }
-    while (this.state.completedEncounters.length > 0) {
-      this.state.completedEncounters.pop();
-    }
+    clearStringArray(this.state.turnOrder);
+    clearStringArray(this.state.completedEncounters);
+    clearLogArray(this.state.publicLog);
+    clearLogArray(this.state.dmLog);
   }
 
   private handleCharacterSelection(client: Client, message: SelectCharacterMessage) {
+    if (this.isDmSession(client.sessionId)) {
+      this.rejectAction(client, "Dungeon Masters do not select adventurer classes.");
+      return;
+    }
+
     const player = this.state.players.get(client.sessionId);
     const currentScene = this.getCurrentScene();
 
@@ -338,8 +413,8 @@ export class LobbyRoom extends Room<LobbyState> {
       return;
     }
 
-    if (currentScene.id !== "tavern") {
-      this.rejectAction(client, "Classes can only be changed in the tavern.");
+    if (currentScene.id !== "tavern" || this.isAdventureStarted()) {
+      this.rejectAction(client, "Classes can only be changed in the room lobby.");
       return;
     }
 
@@ -360,12 +435,17 @@ export class LobbyRoom extends Room<LobbyState> {
     resetStringArray(player.inventory, selectedClass.startingInventory ?? []);
     applyCombatStatsToPlayer(player, getCombatStatsForClass(selectedClass.id));
 
-    this.addCombatLog(`${player.name} selected ${player.className}.`);
+    this.addPublicLog(`${player.name} selected ${player.className}.`);
     this.syncState();
-    this.publishSnapshot();
+    this.publishSnapshots();
   }
 
   private handleMoveRequest(client: Client, message: MoveMessage) {
+    if (this.isDmSession(client.sessionId)) {
+      this.rejectAction(client, "Dungeon Masters observe the battlefield but do not move player tokens.");
+      return;
+    }
+
     const player = this.state.players.get(client.sessionId);
 
     if (!player) {
@@ -422,14 +502,19 @@ export class LobbyRoom extends Room<LobbyState> {
     player.y = message.y;
     player.remainingMovement -= distance;
 
-    this.addCombatLog(
+    this.addPublicLog(
       `${player.name} moved to (${message.x + 1}, ${message.y + 1}) with ${player.remainingMovement} movement left.`
     );
     this.syncState();
-    this.publishSnapshot();
+    this.publishSnapshots();
   }
 
   private handleAttackRequest(client: Client, message: AttackMessage) {
+    if (this.isDmSession(client.sessionId)) {
+      this.rejectAction(client, "Dungeon Masters do not take player attack actions.");
+      return;
+    }
+
     const player = this.state.players.get(client.sessionId);
 
     if (!player) {
@@ -463,33 +548,33 @@ export class LobbyRoom extends Room<LobbyState> {
       return;
     }
 
-    this.addCombatLog(`${player.name} attacks ${enemy.name}.`);
+    this.addPublicLog(`${player.name} attacks ${enemy.name}.`);
 
     const attackRoll = rollDie(20);
     const attackTotal = attackRoll + player.attackBonus;
-    this.addCombatLog(
+    this.addPublicLog(
       `Attack roll: d20 (${attackRoll}) + ${player.attackBonus} = ${attackTotal} vs ${enemy.defense}.`
     );
 
     if (attackTotal < enemy.defense) {
-      this.addCombatLog(`${player.name} misses ${enemy.name}.`);
+      this.addPublicLog(`${player.name} misses ${enemy.name}.`);
       this.syncState();
-      this.publishSnapshot();
+      this.publishSnapshots();
       return;
     }
 
     const damageResult = rollDiceExpression(player.damageDice);
     enemy.hp = Math.max(0, enemy.hp - damageResult.total);
 
-    this.addCombatLog(`${player.name} hits ${enemy.name}.`);
-    this.addCombatLog(
+    this.addPublicLog(`${player.name} hits ${enemy.name}.`);
+    this.addPublicLog(
       `Damage dealt: ${damageResult.total}. ${enemy.name} is now at ${enemy.hp}/${enemy.maxHp} HP.`
     );
 
     if (enemy.hp === 0) {
       enemy.alive = false;
       this.state.enemiesDefeated += 1;
-      this.addCombatLog(`${enemy.name} is defeated.`);
+      this.addPublicLog(`${enemy.name} is defeated.`);
 
       if (!this.getLivingEnemies().length) {
         this.handleEncounterCompletion(player, enemy);
@@ -498,10 +583,15 @@ export class LobbyRoom extends Room<LobbyState> {
     }
 
     this.syncState();
-    this.publishSnapshot();
+    this.publishSnapshots();
   }
 
   private handleEndTurn(client: Client) {
+    if (this.isDmSession(client.sessionId)) {
+      this.rejectAction(client, "Dungeon Masters do not participate in turn order.");
+      return;
+    }
+
     if (!this.isPlayerTurn(client.sessionId)) {
       this.rejectAction(client, "Only the active player can end the turn.");
       return;
@@ -510,32 +600,40 @@ export class LobbyRoom extends Room<LobbyState> {
     const player = this.state.players.get(client.sessionId);
 
     if (player) {
-      this.addCombatLog(`${player.name} ended their turn.`);
+      this.addPublicLog(`${player.name} ended their turn.`);
     }
 
     this.advanceTurn();
   }
 
   private handleSceneAction(client: Client, message: SceneActionMessage) {
+    if (this.isDmSession(client.sessionId)) {
+      this.rejectAction(client, "Use the Dungeon Master controls for story flow.");
+      return;
+    }
+
     if (!this.state.players.has(client.sessionId)) {
+      return;
+    }
+
+    if (this.hasDungeonMaster()) {
+      this.rejectAction(client, "The Dungeon Master controls story scenes in this room.");
       return;
     }
 
     switch (this.getCurrentScene().id) {
       case "tavern":
         if (message.actionId === "accept_quest") {
-          this.addCombatLog("The party accepts the goblin quest.");
-          if (!this.state.adventureStartedAt) {
-            this.state.adventureStartedAt = new Date().toISOString();
-          }
+          this.ensureAdventureStarted();
+          this.addPublicLog("The party accepts the goblin quest.");
           this.transitionToScene("forest", "The party leaves the tavern for the forest road.");
           return;
         }
 
         if (message.actionId === "leave") {
-          this.addCombatLog("The party decides to stay at the tavern for now.");
+          this.addPublicLog("The party decides to stay at the tavern for now.");
           this.syncState();
-          this.publishSnapshot();
+          this.publishSnapshots();
         }
         return;
 
@@ -557,6 +655,11 @@ export class LobbyRoom extends Room<LobbyState> {
   }
 
   private handlePurchaseRequest(client: Client, message: PurchaseMessage) {
+    if (this.isDmSession(client.sessionId)) {
+      this.rejectAction(client, "Dungeon Masters do not shop as player characters.");
+      return;
+    }
+
     const player = this.state.players.get(client.sessionId);
     const currentScene = this.getCurrentScene();
 
@@ -585,15 +688,145 @@ export class LobbyRoom extends Room<LobbyState> {
     player.inventory.push(item.id);
     this.recalculatePartyGold();
 
-    this.addCombatLog(`${player.name} buys ${item.name} for ${item.price} gold.`);
+    this.addPublicLog(`${player.name} buys ${item.name} for ${item.price} gold.`);
     this.syncState();
-    this.publishSnapshot();
+    this.publishSnapshots();
+  }
+
+  private handleDmAction(client: Client, message: DmActionMessage) {
+    if (!this.requireDm(client)) {
+      return;
+    }
+
+    switch (message.actionId) {
+      case "startAdventure":
+        this.ensureAdventureStarted();
+        this.transitionToScene("forest", "The Dungeon Master begins the adventure.");
+        return;
+
+      case "advanceScene":
+        this.advanceSceneFromDm();
+        return;
+
+      case "previousScene":
+        this.previousSceneFromDm();
+        return;
+
+      case "restartScene":
+        this.restartCurrentSceneFromDm();
+        return;
+
+      case "setScene":
+        this.setSceneFromDm(message.sceneId);
+        return;
+
+      case "spawnGoblin":
+        this.spawnEnemyFromDm("goblin");
+        return;
+
+      case "spawnGoblinChief":
+        this.spawnEnemyFromDm("goblin_chief");
+        return;
+
+      case "awardPartyGold":
+        this.awardPartyGoldFromDm(message.amount);
+        return;
+
+      case "addPublicLogMessage":
+        this.addNarrationFromDm(message.message);
+        return;
+
+      default:
+        this.addDmLog("Unknown Dungeon Master action.");
+        this.syncState();
+        this.publishSnapshots();
+    }
+  }
+
+  private handleDmCommand(client: Client, message: DmCommandMessage) {
+    if (!this.requireDm(client)) {
+      return;
+    }
+
+    const rawCommand = message.command?.trim() ?? "";
+
+    if (!rawCommand.startsWith("/")) {
+      this.addDmLog("Use slash commands like /scene forest or /narrate The woods fall silent.");
+      this.syncState();
+      this.publishSnapshots();
+      return;
+    }
+
+    const commandBody = rawCommand.slice(1).trim();
+    const spaceIndex = commandBody.indexOf(" ");
+    const commandName = (spaceIndex === -1 ? commandBody : commandBody.slice(0, spaceIndex)).toLowerCase();
+    const argumentText = spaceIndex === -1 ? "" : commandBody.slice(spaceIndex + 1).trim();
+
+    switch (commandName) {
+      case "scene":
+        this.setSceneFromDm(argumentText, true);
+        return;
+
+      case "spawn":
+        this.spawnEnemyFromDm(argumentText, true);
+        return;
+
+      case "gold":
+        this.awardPartyGoldFromDm(Number(argumentText), true);
+        return;
+
+      case "narrate":
+        this.addNarrationFromDm(argumentText, true);
+        return;
+
+      case "note":
+        if (!argumentText) {
+          this.addDmLog("Usage: /note <private note>");
+        } else {
+          this.addDmLog(`Note: ${argumentText}`);
+        }
+        this.syncState();
+        this.publishSnapshots();
+        return;
+
+      case "shop":
+        this.setShopFromDm(argumentText);
+        return;
+
+      case "victory":
+        this.setSceneFromDm("victory", true);
+        return;
+
+      default:
+        this.addDmLog(`Unknown command: ${rawCommand}`);
+        this.syncState();
+        this.publishSnapshots();
+    }
   }
 
   private handleEncounterCompletion(attacker: PlayerState, defeatedEnemy: EnemyState) {
     const currentScene = this.getCurrentScene();
-    appendUnique(this.state.completedEncounters, currentScene.id);
-    this.addCombatLog(`${currentScene.title} encounter complete.`);
+    appendUniqueString(this.state.completedEncounters, currentScene.id);
+    this.addPublicLog(`${currentScene.title} encounter complete.`);
+
+    if (this.hasDungeonMaster()) {
+      if (currentScene.id === "forest") {
+        this.rewardGold(5, "Goblin defeated. Party gains 5 gold.");
+        this.addDmLog("Forest encounter complete. Use Advance Scene or /scene merchant when ready.");
+      } else if (currentScene.id === "boss") {
+        this.rewardGold(20, "Goblin Chief defeated. Party gains 20 gold.");
+        attacker.inventory.push("iron_sword");
+        this.addPublicLog(`${attacker.name} receives an Iron Sword.`);
+        this.addDmLog("Boss encounter complete. Use /victory or move to the victory scene when ready.");
+      }
+
+      if (!this.isPlayerTurn(attacker.id)) {
+        this.startNextPlayerTurn(this.getLivingPlayerOrder()[0] ?? attacker.id);
+      }
+      this.syncState();
+      this.publishSnapshots();
+      return;
+    }
 
     if (currentScene.id === "forest") {
       this.rewardGold(5, "Goblin defeated. Party gains 5 gold.");
@@ -604,30 +837,178 @@ export class LobbyRoom extends Room<LobbyState> {
     if (currentScene.id === "boss") {
       this.rewardGold(20, "Goblin Chief defeated. Party gains 20 gold.");
       attacker.inventory.push("iron_sword");
-      this.addCombatLog(`${attacker.name} receives an Iron Sword.`);
+      this.addPublicLog(`${attacker.name} receives an Iron Sword.`);
       this.state.adventureCompletedAt = new Date().toISOString();
-      this.addCombatLog("Adventure complete. The goblin threat is broken.");
+      this.addPublicLog("Adventure complete. The goblin threat is broken.");
       this.transitionToScene("victory", `${defeatedEnemy.name} falls and the adventure is won.`);
       return;
     }
 
     this.syncState();
-    this.publishSnapshot();
+    this.publishSnapshots();
   }
 
-  private transitionToScene(sceneId: string, transitionMessage: string) {
+  private setSceneFromDm(sceneId: string | undefined, fromCommand = false) {
+    const normalizedSceneId = sceneId?.trim().toLowerCase() ?? "";
+    const nextScene = scenesById.get(normalizedSceneId);
+
+    if (!nextScene) {
+      this.addDmLog(fromCommand ? `Unknown scene: ${sceneId ?? ""}` : "Choose a valid scene.");
+      this.syncState();
+      this.publishSnapshots();
+      return;
+    }
+
+    if (nextScene.id !== "tavern") {
+      this.ensureAdventureStarted();
+    }
+
+    if (nextScene.id === "victory") {
+      this.state.adventureCompletedAt = new Date().toISOString();
+    }
+
+    const narration =
+      nextScene.id === "forest" && this.getCurrentScene().id === "tavern"
+        ? "The Dungeon Master leads the party from the tavern to the forest road."
+        : `The Dungeon Master shifts the story to ${nextScene.title}.`;
+
+    this.transitionToScene(nextScene.id, narration);
+  }
+
+  private advanceSceneFromDm() {
+    const currentIndex = orderedSceneIds.indexOf(this.state.currentSceneId);
+    const nextSceneId =
+      currentIndex === -1
+        ? orderedSceneIds[0]
+        : orderedSceneIds[Math.min(currentIndex + 1, orderedSceneIds.length - 1)];
+
+    if (!nextSceneId) {
+      this.addDmLog("No later scene is available.");
+      this.syncState();
+      this.publishSnapshots();
+      return;
+    }
+
+    this.setSceneFromDm(nextSceneId);
+  }
+
+  private previousSceneFromDm() {
+    const currentIndex = orderedSceneIds.indexOf(this.state.currentSceneId);
+    const previousSceneId =
+      currentIndex <= 0 ? orderedSceneIds[0] : orderedSceneIds[currentIndex - 1];
+
+    if (!previousSceneId) {
+      this.addDmLog("No earlier scene is available.");
+      this.syncState();
+      this.publishSnapshots();
+      return;
+    }
+
+    this.setSceneFromDm(previousSceneId);
+  }
+
+  private restartCurrentSceneFromDm() {
+    const currentScene = this.getCurrentScene();
+    this.transitionToScene(currentScene.id, `${currentScene.title} is reset by the Dungeon Master.`);
+  }
+
+  private setShopFromDm(shopId: string) {
+    const normalizedShopId = shopId.trim().toLowerCase();
+
+    if (normalizedShopId !== "merchant" && normalizedShopId !== "traveling_merchant") {
+      this.addDmLog(`Unknown shop: ${shopId}`);
+      this.syncState();
+      this.publishSnapshots();
+      return;
+    }
+
+    this.setSceneFromDm("merchant", true);
+  }
+
+  private addNarrationFromDm(message: string | undefined, fromCommand = false) {
+    const narration = message?.trim() ?? "";
+
+    if (!narration) {
+      this.addDmLog(fromCommand ? "Usage: /narrate <message>" : "Enter a public message to add to the log.");
+      this.syncState();
+      this.publishSnapshots();
+      return;
+    }
+
+    this.addPublicLog(narration);
+    this.syncState();
+    this.publishSnapshots();
+  }
+
+  private awardPartyGoldFromDm(amount: number | undefined, fromCommand = false) {
+    if (!Number.isFinite(amount) || amount === undefined || amount <= 0) {
+      this.addDmLog(fromCommand ? "Usage: /gold <positive amount>" : "Enter a positive gold amount.");
+      this.syncState();
+      this.publishSnapshots();
+      return;
+    }
+
+    this.rewardGold(Math.floor(amount), `The party gains ${Math.floor(amount)} gold.`);
+    this.addDmLog(`Awarded ${Math.floor(amount)} gold to the party.`);
+    this.syncState();
+    this.publishSnapshots();
+  }
+
+  private spawnEnemyFromDm(enemyId: string | undefined, fromCommand = false) {
+    const normalizedEnemyId = enemyId?.trim().toLowerCase() ?? "";
+
+    if (!normalizedEnemyId) {
+      this.addDmLog(fromCommand ? "Usage: /spawn <enemyId>" : "Choose an enemy to spawn.");
+      this.syncState();
+      this.publishSnapshots();
+      return;
+    }
+
+    if (this.getCurrentScene().sceneType !== "encounter") {
+      this.addDmLog("Enemies can only be spawned during encounter scenes.");
+      this.syncState();
+      this.publishSnapshots();
+      return;
+    }
+
+    const definition = enemiesById.get(normalizedEnemyId);
+
+    if (!definition) {
+      this.addDmLog(`Unknown enemy: ${enemyId}`);
+      this.syncState();
+      this.publishSnapshots();
+      return;
+    }
+
+    const enemy = this.createEnemyState(definition, this.getNextEnemySpawnPoint());
+    this.state.enemies.set(enemy.id, enemy);
+    this.addDmLog(`Spawned ${enemy.name} as ${enemy.id}.`);
+    this.ensureEncounterTurnStarted();
+    this.syncState();
+    this.publishSnapshots();
+  }
+
+  private transitionToScene(sceneId: string, transitionMessage?: string) {
     const nextScene = scenesById.get(sceneId);
 
     if (!nextScene) {
       return;
     }
 
-    this.addCombatLog(transitionMessage);
+    if (transitionMessage) {
+      this.addPublicLog(transitionMessage);
+    }
+
+    if (sceneId === "victory" && !this.state.adventureCompletedAt) {
+      this.state.adventureCompletedAt = new Date().toISOString();
+    }
+
     this.applySceneState(sceneId);
-    this.addCombatLog(`Scene transition: ${nextScene.title}.`);
+    this.addPublicLog(`Scene transition: ${nextScene.title}.`);
     this.syncState();
-    this.publishSnapshot();
+    this.publishSnapshots();
   }
+
 
   private applySceneState(sceneId: string) {
     const scene = scenesById.get(sceneId);
@@ -638,18 +1019,15 @@ export class LobbyRoom extends Room<LobbyState> {
     this.state.gridHeight = map.height;
     this.clearEnemies();
     this.clearActiveTurn();
+    this.repositionPlayers();
 
     if (scene?.sceneType === "encounter") {
-      this.repositionPlayers();
-      this.spawnEncounter(sceneId);
-      this.startNextPlayerTurn(this.getLivingPlayerOrder()[0] ?? "");
-      return;
+      this.spawnConfiguredEncounter(sceneId);
+      this.ensureEncounterTurnStarted();
     }
-
-    this.repositionPlayers();
   }
 
-  private spawnEncounter(sceneId: string) {
+  private spawnConfiguredEncounter(sceneId: string) {
     const spawns = encounterSpawnBySceneId[sceneId] ?? [];
 
     for (const spawn of spawns) {
@@ -659,24 +1037,72 @@ export class LobbyRoom extends Room<LobbyState> {
         continue;
       }
 
-      const enemy = new EnemyState();
-      enemy.id = `${definition.id}-1`;
-      enemy.name = definition.name;
-      enemy.hp = definition.health;
-      enemy.maxHp = definition.health;
-      enemy.defense = definition.armorClass;
-      enemy.x = spawn.position.x;
-      enemy.y = spawn.position.y;
-      enemy.movement = definition.movement;
-      enemy.attackBonus = definition.attacks[0]?.toHit ?? 2;
-      enemy.damageDice = definition.attacks[0]?.damage ?? "1d4+1";
-      enemy.alive = true;
+      const enemy = this.createEnemyState(definition, spawn.position);
       this.state.enemies.set(enemy.id, enemy);
     }
   }
 
+  private createEnemyState(definition: EnemyDefinition, position: Point) {
+    const enemy = new EnemyState();
+    enemy.id = this.buildEnemyInstanceId(definition.id);
+    enemy.name = definition.name;
+    enemy.hp = definition.health;
+    enemy.maxHp = definition.health;
+    enemy.defense = definition.armorClass;
+    enemy.x = position.x;
+    enemy.y = position.y;
+    enemy.movement = definition.movement;
+    enemy.attackBonus = definition.attacks[0]?.toHit ?? 2;
+    enemy.damageDice = definition.attacks[0]?.damage ?? "1d4+1";
+    enemy.alive = true;
+    return enemy;
+  }
+
+  private buildEnemyInstanceId(enemyId: string) {
+    let nextIndex = 1;
+
+    while (this.state.enemies.has(`${enemyId}-${nextIndex}`)) {
+      nextIndex += 1;
+    }
+
+    return `${enemyId}-${nextIndex}`;
+  }
+
+  private getNextEnemySpawnPoint() {
+    const livingPlayers = this.getLivingPlayers();
+
+    if (livingPlayers.length && livingPlayers[0]) {
+      const anchor = livingPlayers[0];
+      const candidates: Point[] = [
+        { x: Math.min(this.state.gridWidth - 1, anchor.x + 1), y: anchor.y },
+        { x: anchor.x, y: Math.max(0, anchor.y - 1) },
+        { x: Math.min(this.state.gridWidth - 1, anchor.x + 2), y: anchor.y },
+        { x: anchor.x, y: Math.min(this.state.gridHeight - 1, anchor.y + 1) }
+      ];
+
+      for (const candidate of candidates) {
+        if (!this.isOccupiedByLivingUnit(candidate.x, candidate.y)) {
+          return candidate;
+        }
+      }
+    }
+
+    for (let y = 0; y < this.state.gridHeight; y += 1) {
+      for (let x = 0; x < this.state.gridWidth; x += 1) {
+        if (!this.isOccupiedByLivingUnit(x, y)) {
+          return { x, y };
+        }
+      }
+    }
+
+    return {
+      x: Math.max(0, this.state.gridWidth - 1),
+      y: 0
+    };
+  }
+
   private rewardGold(amount: number, message: string) {
-    const recipients = this.getLivingPlayers().length ? this.getLivingPlayers() : [...this.state.players.values()];
+    const recipients = [...this.state.players.values()];
 
     if (!recipients.length) {
       return;
@@ -695,23 +1121,19 @@ export class LobbyRoom extends Room<LobbyState> {
 
     this.state.totalGoldEarned += amount;
     this.recalculatePartyGold();
-    this.addCombatLog(message);
+    this.addPublicLog(message);
   }
 
   private resetAdventure() {
-    while (this.state.completedEncounters.length > 0) {
-      this.state.completedEncounters.pop();
-    }
-
+    clearStringArray(this.state.completedEncounters);
+    clearLogArray(this.state.publicLog);
+    clearLogArray(this.state.dmLog);
     this.state.totalGoldEarned = 0;
     this.state.enemiesDefeated = 0;
     this.state.totalTurns = 0;
     this.state.adventureStartedAt = "";
     this.state.adventureCompletedAt = "";
-    this.combatLogIndex = 0;
-    while (this.state.combatLog.length > 0) {
-      this.state.combatLog.pop();
-    }
+    this.logIndex = 0;
 
     for (const player of this.state.players.values()) {
       const classDefinition = classesById.get(player.classId) ?? defaultClass;
@@ -728,9 +1150,30 @@ export class LobbyRoom extends Room<LobbyState> {
     this.repositionPlayers();
     this.recalculatePartyGold();
     this.applySceneState("tavern");
-    this.addCombatLog("The party returns to the tavern, ready for another adventure.");
+    this.addPublicLog("The party returns to the tavern, ready for another adventure.");
     this.syncState();
-    this.publishSnapshot();
+    this.publishSnapshots();
+  }
+
+  private ensureAdventureStarted() {
+    if (!this.state.adventureStartedAt) {
+      this.state.adventureStartedAt = new Date().toISOString();
+    }
+  }
+
+  private ensureEncounterTurnStarted() {
+    if (this.getCurrentScene().sceneType !== "encounter") {
+      return;
+    }
+
+    if (!this.getLivingPlayerOrder().length) {
+      this.clearActiveTurn();
+      return;
+    }
+
+    if (!this.hasActiveTurn()) {
+      this.startNextPlayerTurn(this.getLivingPlayerOrder()[0] ?? "");
+    }
   }
 
   private startNextPlayerTurn(sessionId: string) {
@@ -745,14 +1188,14 @@ export class LobbyRoom extends Room<LobbyState> {
     this.state.activeTurnId = sessionId;
     player.remainingMovement = player.movement;
     this.state.totalTurns += 1;
-    this.addCombatLog(`${player.name}'s turn begins.`);
+    this.addPublicLog(`${player.name}'s turn begins.`);
   }
 
   private advanceTurn() {
     if (this.getCurrentScene().sceneType !== "encounter") {
       this.clearActiveTurn();
       this.syncState();
-      this.publishSnapshot();
+      this.publishSnapshots();
       return;
     }
 
@@ -761,14 +1204,14 @@ export class LobbyRoom extends Room<LobbyState> {
     if (!order.length) {
       this.clearActiveTurn();
       this.syncState();
-      this.publishSnapshot();
+      this.publishSnapshots();
       return;
     }
 
     const currentIndex = order.indexOf(this.state.activeTurnId);
 
     if (this.getLivingEnemies().length > 0 && currentIndex === order.length - 1) {
-      this.executeEnemyTurn();
+      this.executeEnemyRound();
     } else {
       const nextSessionId =
         currentIndex === -1
@@ -783,39 +1226,47 @@ export class LobbyRoom extends Room<LobbyState> {
     }
 
     this.syncState();
-    this.publishSnapshot();
+    this.publishSnapshots();
   }
 
-  private executeEnemyTurn() {
-    const enemy = this.getLivingEnemies()[0];
+  private executeEnemyRound() {
+    const livingEnemies = this.getLivingEnemies();
 
-    if (!enemy) {
+    if (!livingEnemies.length) {
       this.startNextPlayerTurn(this.getLivingPlayerOrder()[0] ?? "");
       return;
     }
 
-    this.state.activeTurnType = "enemy";
-    this.state.activeTurnId = enemy.id;
-    this.state.totalTurns += 1;
-    this.addCombatLog(`${enemy.name}'s turn begins.`);
+    for (const enemy of livingEnemies) {
+      if (!enemy.alive) {
+        continue;
+      }
 
-    const target = this.findNearestLivingPlayer(enemy);
+      this.state.activeTurnType = "enemy";
+      this.state.activeTurnId = enemy.id;
+      this.state.totalTurns += 1;
+      this.addPublicLog(`${enemy.name}'s turn begins.`);
 
-    if (!target) {
-      this.addCombatLog(`${enemy.name} has no living targets.`);
-    } else if (calculateDistance(enemy.x, enemy.y, target.x, target.y) === 1) {
-      this.performEnemyAttack(enemy, target);
-    } else {
+      const target = this.findNearestLivingPlayer(enemy);
+
+      if (!target) {
+        this.addPublicLog(`${enemy.name} has no living targets.`);
+        continue;
+      }
+
+      if (calculateDistance(enemy.x, enemy.y, target.x, target.y) === 1) {
+        this.performEnemyAttack(enemy, target);
+        continue;
+      }
+
       const nextPoint = this.getEnemyStep(enemy, target);
 
       if (nextPoint) {
         enemy.x = nextPoint.x;
         enemy.y = nextPoint.y;
-        this.addCombatLog(
-          `${enemy.name} moves to (${enemy.x + 1}, ${enemy.y + 1}) toward ${target.name}.`
-        );
+        this.addPublicLog(`${enemy.name} moves to (${enemy.x + 1}, ${enemy.y + 1}) toward ${target.name}.`);
       } else {
-        this.addCombatLog(`${enemy.name} holds position.`);
+        this.addPublicLog(`${enemy.name} holds position.`);
       }
     }
 
@@ -823,16 +1274,14 @@ export class LobbyRoom extends Room<LobbyState> {
   }
 
   private performEnemyAttack(enemy: EnemyState, target: PlayerState) {
-    this.addCombatLog(`${enemy.name} attacks ${target.name}.`);
+    this.addPublicLog(`${enemy.name} attacks ${target.name}.`);
 
     const attackRoll = rollDie(20);
     const attackTotal = attackRoll + enemy.attackBonus;
-    this.addCombatLog(
-      `Enemy roll: d20 (${attackRoll}) + ${enemy.attackBonus} = ${attackTotal} vs ${target.defense}.`
-    );
+    this.addPublicLog(`Enemy roll: d20 (${attackRoll}) + ${enemy.attackBonus} = ${attackTotal} vs ${target.defense}.`);
 
     if (attackTotal < target.defense) {
-      this.addCombatLog(`${enemy.name} misses ${target.name}.`);
+      this.addPublicLog(`${enemy.name} misses ${target.name}.`);
       return;
     }
 
@@ -840,14 +1289,12 @@ export class LobbyRoom extends Room<LobbyState> {
     target.health = Math.max(0, target.health - damageResult.total);
     target.alive = target.health > 0;
 
-    this.addCombatLog(`${enemy.name} hits ${target.name}.`);
-    this.addCombatLog(
-      `Enemy damage: ${damageResult.total}. ${target.name} is now at ${target.health}/${target.maxHealth} HP.`
-    );
+    this.addPublicLog(`${enemy.name} hits ${target.name}.`);
+    this.addPublicLog(`Enemy damage: ${damageResult.total}. ${target.name} is now at ${target.health}/${target.maxHealth} HP.`);
 
     if (!target.alive) {
       target.remainingMovement = 0;
-      this.addCombatLog(`${target.name} is knocked out.`);
+      this.addPublicLog(`${target.name} is knocked out.`);
     }
   }
 
@@ -899,6 +1346,7 @@ export class LobbyRoom extends Room<LobbyState> {
     const player = new PlayerState();
     player.id = sessionId;
     player.name = playerName;
+    player.role = "player";
     player.classId = character.id;
     player.className = character.name;
     player.health = character.health;
@@ -936,6 +1384,18 @@ export class LobbyRoom extends Room<LobbyState> {
     return scenesById.get(this.state.currentSceneId) ?? defaultSceneDefinition();
   }
 
+  private isAdventureStarted() {
+    return Boolean(this.state.adventureStartedAt);
+  }
+
+  private hasDungeonMaster() {
+    return Boolean(this.state.dmSessionId);
+  }
+
+  private isDmSession(sessionId: string) {
+    return this.state.dmSessionId === sessionId;
+  }
+
   private getLivingPlayers() {
     return [...this.state.players.values()].filter((player) => player.alive);
   }
@@ -969,20 +1429,41 @@ export class LobbyRoom extends Room<LobbyState> {
     resetStringArray(this.state.turnOrder, remainingOrder);
   }
 
-  private addCombatLog(message: string) {
-    const entry = new CombatLogEntry();
-    entry.id = this.combatLogIndex;
+  private addPublicLog(message: string) {
+    const entry = new LogEntryState();
+    entry.id = this.logIndex;
     entry.message = message;
-    this.combatLogIndex += 1;
-    this.state.combatLog.push(entry);
+    this.logIndex += 1;
+    this.state.publicLog.push(entry);
 
-    while (this.state.combatLog.length > maxCombatLogEntries) {
-      this.state.combatLog.shift();
+    while (this.state.publicLog.length > maxLogEntries) {
+      this.state.publicLog.shift();
+    }
+  }
+
+  private addDmLog(message: string) {
+    const entry = new LogEntryState();
+    entry.id = this.logIndex;
+    entry.message = message;
+    this.logIndex += 1;
+    this.state.dmLog.push(entry);
+
+    while (this.state.dmLog.length > maxLogEntries) {
+      this.state.dmLog.shift();
     }
   }
 
   private rejectAction(client: Client, message: string) {
     this.send(client, "actionRejected", { message });
+  }
+
+  private requireDm(client: Client) {
+    if (this.isDmSession(client.sessionId)) {
+      return true;
+    }
+
+    this.rejectAction(client, "Only the Dungeon Master can use that control.");
+    return false;
   }
 
   private recalculatePartyGold() {
@@ -1025,6 +1506,7 @@ export class LobbyRoom extends Room<LobbyState> {
   private buildActiveTurnView(): ActiveTurnView {
     if (this.state.activeTurnType === "player") {
       const player = this.state.players.get(this.state.activeTurnId);
+
       if (player) {
         return { type: "player", id: player.id, name: player.name };
       }
@@ -1032,6 +1514,7 @@ export class LobbyRoom extends Room<LobbyState> {
 
     if (this.state.activeTurnType === "enemy") {
       const enemy = this.state.enemies.get(this.state.activeTurnId);
+
       if (enemy) {
         return { type: "enemy", id: enemy.id, name: enemy.name };
       }
@@ -1040,7 +1523,11 @@ export class LobbyRoom extends Room<LobbyState> {
     return { type: "none", id: "", name: "No active turn" };
   }
 
-  private buildSceneActions(): SceneActionView[] {
+  private buildSceneActionsFor(sessionId: string): SceneActionView[] {
+    if (this.hasDungeonMaster() || this.isDmSession(sessionId)) {
+      return [];
+    }
+
     switch (this.getCurrentScene().id) {
       case "tavern":
         return [
@@ -1092,6 +1579,8 @@ export class LobbyRoom extends Room<LobbyState> {
   private syncState() {
     const nextState = new LobbyState();
     nextState.roomCode = this.state.roomCode;
+    nextState.dmSessionId = this.state.dmSessionId;
+    nextState.dmName = this.state.dmName;
     nextState.currentSceneId = this.state.currentSceneId;
     nextState.gridWidth = this.state.gridWidth;
     nextState.gridHeight = this.state.gridHeight;
@@ -1115,25 +1604,42 @@ export class LobbyRoom extends Room<LobbyState> {
     resetStringArray(nextState.turnOrder, [...this.state.turnOrder].filter(isString));
     resetStringArray(nextState.completedEncounters, [...this.state.completedEncounters].filter(isString));
 
-    for (const entry of this.state.combatLog) {
-      if (entry) {
-        nextState.combatLog.push(cloneCombatLogEntry(entry));
-      }
+    for (const entry of this.state.publicLog) {
+      nextState.publicLog.push(cloneLogEntry(entry));
+    }
+
+    for (const entry of this.state.dmLog) {
+      nextState.dmLog.push(cloneLogEntry(entry));
     }
 
     this.setState(nextState);
   }
 
-  private publishSnapshot() {
-    this.broadcast("roomState", this.buildSnapshot());
+  private sendSnapshot(client: Client) {
+    this.send(client, "roomState", this.buildSnapshotFor(client.sessionId));
   }
 
-  private buildSnapshot(): RoomSnapshot {
+  private publishSnapshots() {
+    for (const client of this.clients) {
+      this.sendSnapshot(client);
+    }
+  }
+
+  private buildSnapshotFor(sessionId: string): RoomSnapshot {
     const currentScene = this.getCurrentScene();
     const activeTurn = this.buildActiveTurnView();
 
     return {
       roomCode: this.state.roomCode,
+      selfRole: this.isDmSession(sessionId) ? "dm" : "player",
+      dmSessionId: this.state.dmSessionId,
+      dmName: this.state.dmName,
+      adventureStarted: this.isAdventureStarted(),
+      availableScenes: availableScenes.map((scene) => ({
+        id: scene.id,
+        title: scene.title,
+        sceneType: scene.sceneType
+      })),
       currentScene: {
         id: currentScene.id,
         title: currentScene.title,
@@ -1142,13 +1648,14 @@ export class LobbyRoom extends Room<LobbyState> {
         mapId: currentScene.mapId,
         sceneType: currentScene.sceneType
       },
-      sceneActions: this.buildSceneActions(),
+      sceneActions: this.buildSceneActionsFor(sessionId),
       gridWidth: this.state.gridWidth,
       gridHeight: this.state.gridHeight,
       activeTurn,
       turnOrder: [
         ...this.getLivingPlayerOrder().map((playerId) => {
           const player = this.state.players.get(playerId);
+
           return player
             ? {
                 id: player.id,
@@ -1176,6 +1683,7 @@ export class LobbyRoom extends Room<LobbyState> {
       players: [...this.state.players.values()].map((player) => ({
         id: player.id,
         name: player.name,
+        role: "player" as const,
         classId: player.classId,
         className: player.className,
         x: player.x,
@@ -1204,12 +1712,16 @@ export class LobbyRoom extends Room<LobbyState> {
         damageDice: enemy.damageDice,
         alive: enemy.alive
       })),
-      combatLog: [...this.state.combatLog]
-        .filter((entry): entry is CombatLogEntry => entry !== undefined)
-        .map((entry) => ({
-          id: entry.id,
-          message: entry.message
-        }))
+      publicLog: [...this.state.publicLog].filter(isLogEntry).map((entry) => ({
+        id: entry.id,
+        message: entry.message
+      })),
+      dmLog: this.isDmSession(sessionId)
+        ? [...this.state.dmLog].filter(isLogEntry).map((entry) => ({
+            id: entry.id,
+            message: entry.message
+          }))
+        : []
     };
   }
 }
@@ -1228,6 +1740,7 @@ function clonePlayerState(player: PlayerState) {
   const nextPlayer = new PlayerState();
   nextPlayer.id = player.id;
   nextPlayer.name = player.name;
+  nextPlayer.role = player.role;
   nextPlayer.classId = player.classId;
   nextPlayer.className = player.className;
   nextPlayer.x = player.x;
@@ -1261,27 +1774,38 @@ function cloneEnemyState(enemy: EnemyState) {
   return nextEnemy;
 }
 
-function cloneCombatLogEntry(entry: CombatLogEntry) {
-  const nextEntry = new CombatLogEntry();
+function cloneLogEntry(entry: LogEntryState) {
+  const nextEntry = new LogEntryState();
   nextEntry.id = entry.id;
   nextEntry.message = entry.message;
   return nextEntry;
 }
 
-function resetStringArray(target: { length: number; pop(): void; push(value: string): void }, values: string[]) {
+function clearStringArray(target: { length: number; pop(): void }) {
   while (target.length > 0) {
     target.pop();
   }
+}
+
+function clearLogArray(target: { length: number; pop(): void }) {
+  while (target.length > 0) {
+    target.pop();
+  }
+}
+
+function resetStringArray(target: { length: number; pop(): void; push(value: string): void }, values: string[]) {
+  clearStringArray(target);
 
   for (const value of values) {
     target.push(value);
   }
 }
 
-function appendUnique(target: { push(value: string): void }, value: string) {
-  const values = target as unknown as Iterable<string>;
-  if ([...values].includes(value)) {
-    return;
+function appendUniqueString(target: { push(value: string): void } & Iterable<string>, value: string) {
+  for (const existing of target) {
+    if (existing === value) {
+      return;
+    }
   }
 
   target.push(value);
@@ -1289,6 +1813,10 @@ function appendUnique(target: { push(value: string): void }, value: string) {
 
 function isString(value: string | undefined): value is string {
   return typeof value === "string";
+}
+
+function isLogEntry(value: LogEntryState | undefined): value is LogEntryState {
+  return value !== undefined;
 }
 
 function calculateDistance(fromX: number, fromY: number, toX: number, toY: number) {
@@ -1330,6 +1858,10 @@ function normalizeRoomCode(roomCode?: string) {
   }
 
   return normalized.replace(/[^a-z0-9-_]/g, "").slice(0, 24) || "local-adventure";
+}
+
+function normalizeJoinRole(role?: JoinRole) {
+  return role === "dm" ? "dm" : "player";
 }
 
 function sanitizePlayerName(playerName?: string) {
