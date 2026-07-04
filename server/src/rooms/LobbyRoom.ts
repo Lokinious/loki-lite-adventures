@@ -1,9 +1,11 @@
 import type { Client } from "colyseus";
 import colyseus from "colyseus";
+import abilityDefinitions from "../../../content/abilities.json" with { type: "json" };
 import classDefinitions from "../../../content/classes.json" with { type: "json" };
 import enemyDefinitions from "../../../content/enemies.json" with { type: "json" };
 import itemDefinitions from "../../../content/items.json" with { type: "json" };
 import mapDefinitions from "../../../content/maps.json" with { type: "json" };
+import raceDefinitions from "../../../content/races.json" with { type: "json" };
 import sceneDefinitions from "../../../content/scenes.json" with { type: "json" };
 import { EnemyState, LobbyState, LogEntryState, PlayerState } from "./schema/LobbyState.js";
 
@@ -21,6 +23,10 @@ type SelectCharacterMessage = {
   classId: string;
 };
 
+type SelectRaceMessage = {
+  raceId: string;
+};
+
 type MoveMessage = {
   x: number;
   y: number;
@@ -35,6 +41,19 @@ type SceneActionMessage = {
 };
 
 type PurchaseMessage = {
+  itemId: string;
+};
+
+type UseAbilityMessage = {
+  abilityId: string;
+  targetId: string;
+};
+
+type EquipItemMessage = {
+  itemId: string;
+};
+
+type UseItemMessage = {
   itemId: string;
 };
 
@@ -61,9 +80,57 @@ type DmActionMessage = {
 type CharacterDefinition = {
   id: string;
   name: string;
+  description: string;
   health: number;
   movement: number;
+  defense: number;
+  attackBonus: number;
+  attackRange: number;
+  damageDice: string;
+  spellDamage: number;
+  abilityId: string;
+  coreAttributes: {
+    might: number;
+    agility: number;
+    focus: number;
+    spirit: number;
+  };
   startingInventory: string[];
+};
+
+type RaceDefinition = {
+  id: string;
+  name: string;
+  description: string;
+  traitName: string;
+  traitDescription: string;
+  coreBonuses: {
+    might: number;
+    agility: number;
+    focus: number;
+    spirit: number;
+  };
+  statBonuses: {
+    maxHealth: number;
+    movement: number;
+    defense: number;
+    attackBonus: number;
+    attackRange: number;
+    spellDamage: number;
+  };
+};
+
+type AbilityDefinition = {
+  id: string;
+  name: string;
+  classId: string;
+  description: string;
+  range: number;
+  targetType: "enemy" | "ally";
+  usesAttackRoll: boolean;
+  damageDice: string;
+  healingDice: string;
+  limit: "once_per_turn";
 };
 
 type EnemyDefinition = {
@@ -82,8 +149,18 @@ type EnemyDefinition = {
 type ItemDefinition = {
   id: string;
   name: string;
+  rarity: string;
   price: number;
   effect: string;
+  itemType: "weapon" | "armor" | "consumable" | "trinket";
+  slot: "" | "weapon" | "armor";
+  attackBonus: number;
+  defenseBonus: number;
+  spellDamageBonus: number;
+  attackRangeBonus: number;
+  maxHealthBonus: number;
+  movementBonus: number;
+  healDice: string;
 };
 
 type MapDefinition = {
@@ -101,12 +178,6 @@ type SceneDefinition = {
   sceneType: "story" | "encounter" | "shop" | "victory";
   nextSceneId?: string;
   objective?: string;
-};
-
-type CombatStats = {
-  attackBonus: number;
-  damageDice: string;
-  defense: number;
 };
 
 type Point = {
@@ -153,6 +224,7 @@ type MerchantItemView = {
   name: string;
   price: number;
   effect: string;
+  itemType: ItemDefinition["itemType"];
 };
 
 type VictorySummaryView = {
@@ -168,12 +240,59 @@ type LogEntryView = {
   message: string;
 };
 
+type InventoryItemView = {
+  entryId: string;
+  id: string;
+  name: string;
+  effect: string;
+  itemType: ItemDefinition["itemType"];
+  slot: ItemDefinition["slot"];
+  equipped: boolean;
+  usable: boolean;
+  equippable: boolean;
+};
+
+type RaceOptionView = {
+  id: string;
+  name: string;
+  description: string;
+  traitName: string;
+  traitDescription: string;
+};
+
+type ClassOptionView = {
+  id: string;
+  name: string;
+  description: string;
+  health: number;
+  movement: number;
+  defense: number;
+  attackBonus: number;
+  attackRange: number;
+  spellDamage: number;
+  abilityId: string;
+  abilityName: string;
+};
+
+type AbilityView = {
+  id: string;
+  name: string;
+  description: string;
+  range: number;
+  targetType: AbilityDefinition["targetType"];
+  usesAttackRoll: boolean;
+  limit: AbilityDefinition["limit"];
+  ready: boolean;
+};
+
 type RoomSnapshot = {
   roomCode: string;
   selfRole: JoinRole;
   dmSessionId: string;
   dmName: string;
   adventureStarted: boolean;
+  availableRaces: RaceOptionView[];
+  availableClasses: ClassOptionView[];
   availableScenes: SceneOptionView[];
   currentScene: SceneView;
   sceneActions: SceneActionView[];
@@ -191,20 +310,36 @@ type RoomSnapshot = {
     id: string;
     name: string;
     role: "player";
+    raceId: string;
+    raceName: string;
     classId: string;
     className: string;
+    characterIdentity: string;
+    confirmedCharacter: boolean;
     x: number;
     y: number;
     health: number;
     maxHealth: number;
     movement: number;
     remainingMovement: number;
+    might: number;
+    agility: number;
+    focus: number;
+    spirit: number;
     defense: number;
     attackBonus: number;
+    attackRange: number;
+    spellDamage: number;
     damageDice: string;
+    ability: AbilityView | null;
     alive: boolean;
     gold: number;
-    inventory: string[];
+    inventory: InventoryItemView[];
+    equippedWeapon: string;
+    equippedArmor: string;
+    xp: number;
+    level: number;
+    actionReady: boolean;
   }>;
   enemies: Array<{
     id: string;
@@ -227,35 +362,66 @@ const maxClients = 7;
 const maxLogEntries = 60;
 const startingPlayerGold = 10;
 
+const availableAbilities = abilityDefinitions as AbilityDefinition[];
 const availableClasses = classDefinitions as CharacterDefinition[];
 const availableEnemies = enemyDefinitions as EnemyDefinition[];
 const availableItems = itemDefinitions as ItemDefinition[];
 const availableMaps = mapDefinitions as MapDefinition[];
+const availableRaces = raceDefinitions as RaceDefinition[];
 const availableScenes = sceneDefinitions as SceneDefinition[];
 
 const defaultClass = availableClasses[0] ?? {
   id: "guardian",
   name: "Guardian",
+  description: "Guardian",
   health: 14,
   movement: 5,
+  defense: 14,
+  attackBonus: 5,
+  attackRange: 1,
+  damageDice: "1d8+3",
+  spellDamage: 0,
+  abilityId: "shield_bash",
+  coreAttributes: {
+    might: 3,
+    agility: 1,
+    focus: 0,
+    spirit: 1
+  },
   startingInventory: []
 };
 
+const defaultRace = availableRaces[0] ?? {
+  id: "human",
+  name: "Human",
+  description: "Flexible generalist",
+  traitName: "Adaptable",
+  traitDescription: "Once per encounter, reroll one failed attack or ability roll.",
+  coreBonuses: {
+    might: 1,
+    agility: 1,
+    focus: 1,
+    spirit: 1
+  },
+  statBonuses: {
+    maxHealth: 0,
+    movement: 0,
+    defense: 0,
+    attackBonus: 0,
+    attackRange: 0,
+    spellDamage: 0
+  }
+};
+
+const abilitiesById = new Map(availableAbilities.map((abilityDefinition) => [abilityDefinition.id, abilityDefinition]));
 const classesById = new Map(availableClasses.map((classDefinition) => [classDefinition.id, classDefinition]));
 const enemiesById = new Map(availableEnemies.map((enemyDefinition) => [enemyDefinition.id, enemyDefinition]));
 const itemsById = new Map(availableItems.map((itemDefinition) => [itemDefinition.id, itemDefinition]));
 const mapsById = new Map(availableMaps.map((mapDefinition) => [mapDefinition.id, mapDefinition]));
+const racesById = new Map(availableRaces.map((raceDefinition) => [raceDefinition.id, raceDefinition]));
 const scenesById = new Map(availableScenes.map((sceneDefinition) => [sceneDefinition.id, sceneDefinition]));
 const orderedSceneIds = availableScenes.map((sceneDefinition) => sceneDefinition.id);
-
-const combatStatsByClassId: Record<string, CombatStats> = {
-  guardian: { attackBonus: 5, damageDice: "1d8+3", defense: 14 },
-  ranger: { attackBonus: 5, damageDice: "1d8+2", defense: 13 },
-  arcanist: { attackBonus: 4, damageDice: "1d10+2", defense: 11 },
-  mystic: { attackBonus: 4, damageDice: "1d6+2", defense: 12 }
-};
-
-const merchantItemIds = ["healing_potion", "iron_sword"];
+const merchantItemIds = ["healing_potion", "iron_sword", "leather_armor"];
 
 const spawnPoints: Point[] = [
   { x: 1, y: 1 },
@@ -287,12 +453,32 @@ export class LobbyRoom extends Room<LobbyState> {
       this.handleCharacterSelection(client, message);
     });
 
+    this.onMessage("selectRace", (client, message: SelectRaceMessage) => {
+      this.handleRaceSelection(client, message);
+    });
+
+    this.onMessage("confirmCharacter", (client) => {
+      this.handleCharacterConfirmation(client);
+    });
+
     this.onMessage("requestMove", (client, message: MoveMessage) => {
       this.handleMoveRequest(client, message);
     });
 
     this.onMessage("requestAttack", (client, message: AttackMessage) => {
       this.handleAttackRequest(client, message);
+    });
+
+    this.onMessage("requestUseAbility", (client, message: UseAbilityMessage) => {
+      this.handleAbilityRequest(client, message);
+    });
+
+    this.onMessage("requestEquipItem", (client, message: EquipItemMessage) => {
+      this.handleEquipItemRequest(client, message);
+    });
+
+    this.onMessage("requestUseItem", (client, message: UseItemMessage) => {
+      this.handleUseItemRequest(client, message);
     });
 
     this.onMessage("endTurn", (client) => {
@@ -337,7 +523,7 @@ export class LobbyRoom extends Room<LobbyState> {
       return;
     }
 
-    const player = this.createPlayerState(client.sessionId, playerName, defaultClass);
+    const player = this.createPlayerState(client.sessionId, playerName, defaultClass, defaultRace);
     this.state.players.set(client.sessionId, player);
     this.state.turnOrder.push(client.sessionId);
     this.repositionPlayers();
@@ -427,15 +613,71 @@ export class LobbyRoom extends Room<LobbyState> {
 
     player.classId = selectedClass.id;
     player.className = selectedClass.name;
-    player.health = selectedClass.health;
-    player.maxHealth = selectedClass.health;
-    player.movement = selectedClass.movement;
-    player.remainingMovement = selectedClass.movement;
-    player.alive = true;
+    player.characterIdentity = `${player.raceName} ${selectedClass.name}`;
+    player.confirmedCharacter = false;
+    player.equippedWeapon = "";
+    player.equippedArmor = "";
     resetStringArray(player.inventory, selectedClass.startingInventory ?? []);
-    applyCombatStatsToPlayer(player, getCombatStatsForClass(selectedClass.id));
+    applyDerivedStatsToPlayer(player, { healToFull: true, resetTurnResources: true });
 
-    this.addPublicLog(`${player.name} selected ${player.className}.`);
+    this.syncState();
+    this.publishSnapshots();
+  }
+
+  private handleRaceSelection(client: Client, message: SelectRaceMessage) {
+    if (this.isDmSession(client.sessionId)) {
+      this.rejectAction(client, "Dungeon Masters do not select adventurer races.");
+      return;
+    }
+
+    const player = this.state.players.get(client.sessionId);
+    const currentScene = this.getCurrentScene();
+
+    if (!player) {
+      return;
+    }
+
+    if (currentScene.id !== "tavern" || this.isAdventureStarted()) {
+      this.rejectAction(client, "Races can only be changed in the room lobby.");
+      return;
+    }
+
+    const selectedRace = racesById.get(message.raceId);
+
+    if (!selectedRace) {
+      this.rejectAction(client, "That race is not available.");
+      return;
+    }
+
+    player.raceId = selectedRace.id;
+    player.raceName = selectedRace.name;
+    player.characterIdentity = `${selectedRace.name} ${player.className}`;
+    player.confirmedCharacter = false;
+    applyDerivedStatsToPlayer(player, { healToFull: true, resetTurnResources: true });
+    this.syncState();
+    this.publishSnapshots();
+  }
+
+  private handleCharacterConfirmation(client: Client) {
+    if (this.isDmSession(client.sessionId)) {
+      this.rejectAction(client, "Dungeon Masters do not confirm player characters.");
+      return;
+    }
+
+    const player = this.state.players.get(client.sessionId);
+
+    if (!player) {
+      return;
+    }
+
+    if (this.getCurrentScene().id !== "tavern" || this.isAdventureStarted()) {
+      this.rejectAction(client, "Characters can only be confirmed in the room lobby.");
+      return;
+    }
+
+    player.confirmedCharacter = true;
+    applyDerivedStatsToPlayer(player, { healToFull: true, resetTurnResources: true });
+    this.addPublicLog(`${player.name} confirms ${player.characterIdentity}.`);
     this.syncState();
     this.publishSnapshots();
   }
@@ -536,6 +778,11 @@ export class LobbyRoom extends Room<LobbyState> {
       return;
     }
 
+    if (player.actionUsed) {
+      this.rejectAction(client, "You already used your action this turn.");
+      return;
+    }
+
     const enemy = this.state.enemies.get(message.targetId);
 
     if (!enemy || !enemy.alive) {
@@ -543,37 +790,42 @@ export class LobbyRoom extends Room<LobbyState> {
       return;
     }
 
-    if (calculateDistance(player.x, player.y, enemy.x, enemy.y) !== 1) {
-      this.rejectAction(client, "That target is not adjacent.");
+    if (calculateDistance(player.x, player.y, enemy.x, enemy.y) > player.attackRange) {
+      this.rejectAction(client, "That target is out of range.");
       return;
     }
 
+    player.actionUsed = true;
     this.addPublicLog(`${player.name} attacks ${enemy.name}.`);
 
-    const attackRoll = rollDie(20);
-    const attackTotal = attackRoll + player.attackBonus;
+    const attackResolution = resolvePlayerAttackRoll(player, enemy.defense);
     this.addPublicLog(
-      `Attack roll: d20 (${attackRoll}) + ${player.attackBonus} = ${attackTotal} vs ${enemy.defense}.`
+      `Attack roll: d20 (${attackResolution.roll}) + ${player.attackBonus} = ${attackResolution.total} vs ${enemy.defense}.`
     );
 
-    if (attackTotal < enemy.defense) {
+    if (attackResolution.traitMessage) {
+      this.addPublicLog(attackResolution.traitMessage);
+    }
+
+    if (!attackResolution.hit) {
       this.addPublicLog(`${player.name} misses ${enemy.name}.`);
       this.syncState();
       this.publishSnapshots();
       return;
     }
 
-    const damageResult = rollDiceExpression(player.damageDice);
-    enemy.hp = Math.max(0, enemy.hp - damageResult.total);
+    const damageTotal = calculatePlayerDamage(player, player.damageDice);
+    enemy.hp = Math.max(0, enemy.hp - damageTotal);
 
     this.addPublicLog(`${player.name} hits ${enemy.name}.`);
     this.addPublicLog(
-      `Damage dealt: ${damageResult.total}. ${enemy.name} is now at ${enemy.hp}/${enemy.maxHp} HP.`
+      `Damage dealt: ${damageTotal}. ${enemy.name} is now at ${enemy.hp}/${enemy.maxHp} HP.`
     );
 
     if (enemy.hp === 0) {
       enemy.alive = false;
       this.state.enemiesDefeated += 1;
+      this.rewardExperience(enemy.name.includes("Chief") ? 10 : 5);
       this.addPublicLog(`${enemy.name} is defeated.`);
 
       if (!this.getLivingEnemies().length) {
@@ -582,6 +834,233 @@ export class LobbyRoom extends Room<LobbyState> {
       }
     }
 
+    this.syncState();
+    this.publishSnapshots();
+  }
+
+  private handleAbilityRequest(client: Client, message: UseAbilityMessage) {
+    if (this.isDmSession(client.sessionId)) {
+      this.rejectAction(client, "Dungeon Masters do not use player abilities.");
+      return;
+    }
+
+    const player = this.state.players.get(client.sessionId);
+
+    if (!player) {
+      return;
+    }
+
+    if (this.getCurrentScene().sceneType !== "encounter") {
+      this.rejectAction(client, "Abilities are only available during encounters.");
+      return;
+    }
+
+    if (!this.isPlayerTurn(client.sessionId)) {
+      this.rejectAction(client, "It is not your turn.");
+      return;
+    }
+
+    if (!player.alive) {
+      this.rejectAction(client, "Defeated adventurers cannot use abilities.");
+      return;
+    }
+
+    if (player.actionUsed) {
+      this.rejectAction(client, "You already used your action this turn.");
+      return;
+    }
+
+    if (message.abilityId !== player.abilityId) {
+      this.rejectAction(client, "That ability is not available to your class.");
+      return;
+    }
+
+    const ability = abilitiesById.get(message.abilityId);
+
+    if (!ability) {
+      this.rejectAction(client, "That ability does not exist.");
+      return;
+    }
+
+    if (ability.targetType === "enemy") {
+      const enemy = this.state.enemies.get(message.targetId);
+
+      if (!enemy || !enemy.alive) {
+        this.rejectAction(client, "That target is no longer available.");
+        return;
+      }
+
+      const abilityRange = getAbilityRangeForPlayer(player, ability);
+
+      if (calculateDistance(player.x, player.y, enemy.x, enemy.y) > abilityRange) {
+        this.rejectAction(client, "That target is out of ability range.");
+        return;
+      }
+
+      player.actionUsed = true;
+      this.addPublicLog(`${player.name} uses ${ability.name} on ${enemy.name}.`);
+
+      const attackResolution = resolvePlayerAttackRoll(player, enemy.defense);
+      this.addPublicLog(
+        `Ability roll: d20 (${attackResolution.roll}) + ${player.attackBonus} = ${attackResolution.total} vs ${enemy.defense}.`
+      );
+
+      if (attackResolution.traitMessage) {
+        this.addPublicLog(attackResolution.traitMessage);
+      }
+
+      if (!attackResolution.hit) {
+        this.addPublicLog(`${ability.name} misses ${enemy.name}.`);
+        this.syncState();
+        this.publishSnapshots();
+        return;
+      }
+
+      const damageTotal = calculateAbilityDamage(player, ability);
+      enemy.hp = Math.max(0, enemy.hp - damageTotal);
+
+      this.addPublicLog(`${ability.name} hits ${enemy.name}.`);
+      this.addPublicLog(
+        `${ability.name} deals ${damageTotal} damage. ${enemy.name} is now at ${enemy.hp}/${enemy.maxHp} HP.`
+      );
+
+      if (enemy.hp === 0) {
+        enemy.alive = false;
+        this.state.enemiesDefeated += 1;
+        this.rewardExperience(enemy.name.includes("Chief") ? 10 : 5);
+        this.addPublicLog(`${enemy.name} is defeated.`);
+
+        if (!this.getLivingEnemies().length) {
+          this.handleEncounterCompletion(player, enemy);
+          return;
+        }
+      }
+
+      this.syncState();
+      this.publishSnapshots();
+      return;
+    }
+
+    const targetPlayer = this.state.players.get(message.targetId);
+
+    if (!targetPlayer || !targetPlayer.alive) {
+      this.rejectAction(client, "That ally cannot be targeted right now.");
+      return;
+    }
+
+    const abilityRange = getAbilityRangeForPlayer(player, ability);
+
+    if (calculateDistance(player.x, player.y, targetPlayer.x, targetPlayer.y) > abilityRange) {
+      this.rejectAction(client, "That ally is out of ability range.");
+      return;
+    }
+
+    player.actionUsed = true;
+    const healTotal = calculateHealingAmount(ability.healingDice);
+    targetPlayer.health = Math.min(targetPlayer.maxHealth, targetPlayer.health + healTotal);
+    this.addPublicLog(`${player.name} uses ${ability.name} on ${targetPlayer.name}.`);
+    this.addPublicLog(
+      `${ability.name} restores ${healTotal} HP. ${targetPlayer.name} is now at ${targetPlayer.health}/${targetPlayer.maxHealth} HP.`
+    );
+    this.syncState();
+    this.publishSnapshots();
+  }
+
+  private handleEquipItemRequest(client: Client, message: EquipItemMessage) {
+    if (this.isDmSession(client.sessionId)) {
+      this.rejectAction(client, "Dungeon Masters do not equip player gear.");
+      return;
+    }
+
+    const player = this.state.players.get(client.sessionId);
+
+    if (!player) {
+      return;
+    }
+
+    if (this.getCurrentScene().sceneType === "encounter") {
+      this.rejectAction(client, "Equipment can only be changed outside encounters.");
+      return;
+    }
+
+    if (![...player.inventory].includes(message.itemId)) {
+      this.rejectAction(client, "That item is not in your inventory.");
+      return;
+    }
+
+    const item = itemsById.get(message.itemId);
+
+    if (!item || !item.slot) {
+      this.rejectAction(client, "That item cannot be equipped.");
+      return;
+    }
+
+    if (item.slot === "weapon") {
+      player.equippedWeapon = item.id;
+    } else if (item.slot === "armor") {
+      player.equippedArmor = item.id;
+    }
+
+    applyDerivedStatsToPlayer(player);
+    this.addPublicLog(`${player.name} equips ${item.name}.`);
+    this.syncState();
+    this.publishSnapshots();
+  }
+
+  private handleUseItemRequest(client: Client, message: UseItemMessage) {
+    if (this.isDmSession(client.sessionId)) {
+      this.rejectAction(client, "Dungeon Masters do not use player items.");
+      return;
+    }
+
+    const player = this.state.players.get(client.sessionId);
+
+    if (!player) {
+      return;
+    }
+
+    const item = itemsById.get(message.itemId);
+
+    if (!item || item.itemType !== "consumable") {
+      this.rejectAction(client, "That item cannot be used.");
+      return;
+    }
+
+    const inventoryIndex = [...player.inventory].findIndex((itemId) => itemId === item.id);
+
+    if (inventoryIndex === -1) {
+      this.rejectAction(client, "That item is not in your inventory.");
+      return;
+    }
+
+    if (this.getCurrentScene().sceneType === "encounter") {
+      if (!this.isPlayerTurn(client.sessionId)) {
+        this.rejectAction(client, "It is not your turn.");
+        return;
+      }
+
+      if (player.actionUsed) {
+        this.rejectAction(client, "You already used your action this turn.");
+        return;
+      }
+    }
+
+    if (player.health >= player.maxHealth) {
+      this.rejectAction(client, "You are already at full health.");
+      return;
+    }
+
+    removeInventoryItem(player.inventory, inventoryIndex);
+    const healTotal = calculateHealingAmount(item.healDice);
+    player.health = Math.min(player.maxHealth, player.health + healTotal);
+
+    if (this.getCurrentScene().sceneType === "encounter") {
+      player.actionUsed = true;
+    }
+
+    this.addPublicLog(
+      `${player.name} drinks ${item.name} and restores ${healTotal} HP (${player.health}/${player.maxHealth}).`
+    );
     this.syncState();
     this.publishSnapshots();
   }
@@ -624,6 +1103,10 @@ export class LobbyRoom extends Room<LobbyState> {
     switch (this.getCurrentScene().id) {
       case "tavern":
         if (message.actionId === "accept_quest") {
+          if (!this.allPlayersConfirmed()) {
+            this.rejectAction(client, "All players must confirm their race and class before the adventure begins.");
+            return;
+          }
           this.ensureAdventureStarted();
           this.addPublicLog("The party accepts the goblin quest.");
           this.transitionToScene("forest", "The party leaves the tavern for the forest road.");
@@ -860,6 +1343,12 @@ export class LobbyRoom extends Room<LobbyState> {
     }
 
     if (nextScene.id !== "tavern") {
+      if (!this.allPlayersConfirmed()) {
+        this.addDmLog("All players must confirm their race and class before the adventure begins.");
+        this.syncState();
+        this.publishSnapshots();
+        return;
+      }
       this.ensureAdventureStarted();
     }
 
@@ -1020,6 +1509,7 @@ export class LobbyRoom extends Room<LobbyState> {
     this.clearEnemies();
     this.clearActiveTurn();
     this.repositionPlayers();
+    this.resetEncounterFlags();
 
     if (scene?.sceneType === "encounter") {
       this.spawnConfiguredEncounter(sceneId);
@@ -1124,6 +1614,13 @@ export class LobbyRoom extends Room<LobbyState> {
     this.addPublicLog(message);
   }
 
+  private rewardExperience(amount: number) {
+    for (const player of this.state.players.values()) {
+      player.xp += amount;
+      player.level = 1 + Math.floor(player.xp / 20);
+    }
+  }
+
   private resetAdventure() {
     clearStringArray(this.state.completedEncounters);
     clearLogArray(this.state.publicLog);
@@ -1137,14 +1634,15 @@ export class LobbyRoom extends Room<LobbyState> {
 
     for (const player of this.state.players.values()) {
       const classDefinition = classesById.get(player.classId) ?? defaultClass;
-      player.health = classDefinition.health;
-      player.maxHealth = classDefinition.health;
-      player.movement = classDefinition.movement;
-      player.remainingMovement = classDefinition.movement;
       player.alive = true;
       player.gold = startingPlayerGold;
+      player.confirmedCharacter = false;
+      player.equippedWeapon = "";
+      player.equippedArmor = "";
+      player.xp = 0;
+      player.level = 1;
       resetStringArray(player.inventory, classDefinition.startingInventory ?? []);
-      applyCombatStatsToPlayer(player, getCombatStatsForClass(player.classId));
+      applyDerivedStatsToPlayer(player, { healToFull: true, resetTurnResources: true });
     }
 
     this.repositionPlayers();
@@ -1187,6 +1685,7 @@ export class LobbyRoom extends Room<LobbyState> {
     this.state.activeTurnType = "player";
     this.state.activeTurnId = sessionId;
     player.remainingMovement = player.movement;
+    player.actionUsed = false;
     this.state.totalTurns += 1;
     this.addPublicLog(`${player.name}'s turn begins.`);
   }
@@ -1342,21 +1841,33 @@ export class LobbyRoom extends Room<LobbyState> {
     return null;
   }
 
-  private createPlayerState(sessionId: string, playerName: string, character: CharacterDefinition) {
+  private createPlayerState(
+    sessionId: string,
+    playerName: string,
+    character: CharacterDefinition,
+    race: RaceDefinition
+  ) {
     const player = new PlayerState();
     player.id = sessionId;
     player.name = playerName;
     player.role = "player";
+    player.raceId = race.id;
+    player.raceName = race.name;
     player.classId = character.id;
     player.className = character.name;
-    player.health = character.health;
-    player.maxHealth = character.health;
-    player.movement = character.movement;
-    player.remainingMovement = character.movement;
+    player.characterIdentity = `${race.name} ${character.name}`;
+    player.confirmedCharacter = false;
     player.alive = true;
     player.gold = startingPlayerGold;
+    player.equippedWeapon = "";
+    player.equippedArmor = "";
+    player.xp = 0;
+    player.level = 1;
+    player.actionUsed = false;
+    player.adaptableUsed = false;
+    player.luckyFailureUsed = false;
     resetStringArray(player.inventory, character.startingInventory ?? []);
-    applyCombatStatsToPlayer(player, getCombatStatsForClass(character.id));
+    applyDerivedStatsToPlayer(player, { healToFull: true, resetTurnResources: true });
     return player;
   }
 
@@ -1369,6 +1880,14 @@ export class LobbyRoom extends Room<LobbyState> {
       player.y = spawnPoint.y;
       player.remainingMovement = player.movement;
     });
+  }
+
+  private resetEncounterFlags() {
+    for (const player of this.state.players.values()) {
+      player.actionUsed = false;
+      player.adaptableUsed = false;
+      player.luckyFailureUsed = false;
+    }
   }
 
   private clearEnemies() {
@@ -1390,6 +1909,12 @@ export class LobbyRoom extends Room<LobbyState> {
 
   private hasDungeonMaster() {
     return Boolean(this.state.dmSessionId);
+  }
+
+  private allPlayersConfirmed() {
+    const players = [...this.state.players.values()];
+
+    return players.length > 0 && players.every((player) => player.confirmedCharacter);
   }
 
   private isDmSession(sessionId: string) {
@@ -1551,11 +2076,13 @@ export class LobbyRoom extends Room<LobbyState> {
     return merchantItemIds
       .map((itemId) => itemsById.get(itemId))
       .filter((item): item is ItemDefinition => item !== undefined)
-      .map((item) => ({
+      .map((item, index) => ({
+        entryId: `${item.id}-${index}`,
         id: item.id,
         name: item.name,
         price: item.price,
-        effect: item.effect
+        effect: item.effect,
+        itemType: item.itemType
       }));
   }
 
@@ -1635,6 +2162,26 @@ export class LobbyRoom extends Room<LobbyState> {
       dmSessionId: this.state.dmSessionId,
       dmName: this.state.dmName,
       adventureStarted: this.isAdventureStarted(),
+      availableRaces: availableRaces.map((race) => ({
+        id: race.id,
+        name: race.name,
+        description: race.description,
+        traitName: race.traitName,
+        traitDescription: race.traitDescription
+      })),
+      availableClasses: availableClasses.map((characterClass) => ({
+        id: characterClass.id,
+        name: characterClass.name,
+        description: characterClass.description,
+        health: characterClass.health,
+        movement: characterClass.movement,
+        defense: characterClass.defense,
+        attackBonus: characterClass.attackBonus,
+        attackRange: characterClass.attackRange,
+        spellDamage: characterClass.spellDamage,
+        abilityId: characterClass.abilityId,
+        abilityName: abilitiesById.get(characterClass.abilityId)?.name ?? "Unknown Ability"
+      })),
       availableScenes: availableScenes.map((scene) => ({
         id: scene.id,
         title: scene.title,
@@ -1684,20 +2231,36 @@ export class LobbyRoom extends Room<LobbyState> {
         id: player.id,
         name: player.name,
         role: "player" as const,
+        raceId: player.raceId,
+        raceName: player.raceName,
         classId: player.classId,
         className: player.className,
+        characterIdentity: player.characterIdentity,
+        confirmedCharacter: player.confirmedCharacter,
         x: player.x,
         y: player.y,
         health: player.health,
         maxHealth: player.maxHealth,
         movement: player.movement,
         remainingMovement: player.remainingMovement,
+        might: player.might,
+        agility: player.agility,
+        focus: player.focus,
+        spirit: player.spirit,
         defense: player.defense,
         attackBonus: player.attackBonus,
+        attackRange: player.attackRange,
+        spellDamage: player.spellDamage,
         damageDice: player.damageDice,
+        ability: buildAbilityView(player),
         alive: player.alive,
         gold: player.gold,
-        inventory: [...player.inventory].filter(isString)
+        inventory: buildInventoryViews(player),
+        equippedWeapon: player.equippedWeapon,
+        equippedArmor: player.equippedArmor,
+        xp: player.xp,
+        level: player.level,
+        actionReady: !player.actionUsed
       })),
       enemies: [...this.state.enemies.values()].map((enemy) => ({
         id: enemy.id,
@@ -1726,14 +2289,212 @@ export class LobbyRoom extends Room<LobbyState> {
   }
 }
 
-function getCombatStatsForClass(classId: string): CombatStats {
-  return combatStatsByClassId[classId] ?? combatStatsByClassId.guardian!;
+function getClassDefinition(classId: string) {
+  return classesById.get(classId) ?? defaultClass;
 }
 
-function applyCombatStatsToPlayer(player: PlayerState, stats: CombatStats) {
-  player.attackBonus = stats.attackBonus;
-  player.damageDice = stats.damageDice;
-  player.defense = stats.defense;
+function getRaceDefinition(raceId: string) {
+  return racesById.get(raceId) ?? defaultRace;
+}
+
+function getAbilityDefinition(abilityId: string) {
+  return abilitiesById.get(abilityId) ?? null;
+}
+
+function getEquippedItems(player: PlayerState) {
+  return [player.equippedWeapon, player.equippedArmor]
+    .map((itemId) => itemsById.get(itemId))
+    .filter((item): item is ItemDefinition => item !== undefined);
+}
+
+function calculateDerivedStats(player: PlayerState) {
+  const characterClass = getClassDefinition(player.classId);
+  const race = getRaceDefinition(player.raceId);
+  const equipment = getEquippedItems(player);
+
+  const equipmentBonuses = equipment.reduce(
+    (totals, item) => ({
+      attackBonus: totals.attackBonus + item.attackBonus,
+      defenseBonus: totals.defenseBonus + item.defenseBonus,
+      spellDamageBonus: totals.spellDamageBonus + item.spellDamageBonus,
+      attackRangeBonus: totals.attackRangeBonus + item.attackRangeBonus,
+      maxHealthBonus: totals.maxHealthBonus + item.maxHealthBonus,
+      movementBonus: totals.movementBonus + item.movementBonus
+    }),
+    {
+      attackBonus: 0,
+      defenseBonus: 0,
+      spellDamageBonus: 0,
+      attackRangeBonus: 0,
+      maxHealthBonus: 0,
+      movementBonus: 0
+    }
+  );
+
+  return {
+    className: characterClass.name,
+    raceName: race.name,
+    characterIdentity: `${race.name} ${characterClass.name}`,
+    might: characterClass.coreAttributes.might + race.coreBonuses.might,
+    agility: characterClass.coreAttributes.agility + race.coreBonuses.agility,
+    focus: characterClass.coreAttributes.focus + race.coreBonuses.focus,
+    spirit: characterClass.coreAttributes.spirit + race.coreBonuses.spirit,
+    maxHealth:
+      characterClass.health + race.statBonuses.maxHealth + equipmentBonuses.maxHealthBonus,
+    movement:
+      characterClass.movement + race.statBonuses.movement + equipmentBonuses.movementBonus,
+    defense: characterClass.defense + race.statBonuses.defense + equipmentBonuses.defenseBonus,
+    attackBonus:
+      characterClass.attackBonus + race.statBonuses.attackBonus + equipmentBonuses.attackBonus,
+    attackRange:
+      characterClass.attackRange +
+      race.statBonuses.attackRange +
+      equipmentBonuses.attackRangeBonus,
+    spellDamage:
+      characterClass.spellDamage + race.statBonuses.spellDamage + equipmentBonuses.spellDamageBonus,
+    damageDice: characterClass.damageDice,
+    abilityId: characterClass.abilityId,
+    abilityName: getAbilityDefinition(characterClass.abilityId)?.name ?? "Unknown Ability"
+  };
+}
+
+function applyDerivedStatsToPlayer(
+  player: PlayerState,
+  options: { healToFull?: boolean; resetTurnResources?: boolean } = {}
+) {
+  const derivedStats = calculateDerivedStats(player);
+  const previousMaxHealth = player.maxHealth || derivedStats.maxHealth;
+  const preservedHealth = options.healToFull
+    ? derivedStats.maxHealth
+    : Math.min(derivedStats.maxHealth, Math.max(0, player.health + (derivedStats.maxHealth - previousMaxHealth)));
+
+  player.className = derivedStats.className;
+  player.raceName = derivedStats.raceName;
+  player.characterIdentity = derivedStats.characterIdentity;
+  player.might = derivedStats.might;
+  player.agility = derivedStats.agility;
+  player.focus = derivedStats.focus;
+  player.spirit = derivedStats.spirit;
+  player.maxHealth = derivedStats.maxHealth;
+  player.health = preservedHealth;
+  player.movement = derivedStats.movement;
+  player.defense = derivedStats.defense;
+  player.attackBonus = derivedStats.attackBonus;
+  player.attackRange = derivedStats.attackRange;
+  player.spellDamage = derivedStats.spellDamage;
+  player.damageDice = derivedStats.damageDice;
+  player.abilityId = derivedStats.abilityId;
+  player.abilityName = derivedStats.abilityName;
+
+  if (options.healToFull) {
+    player.alive = true;
+    player.health = player.maxHealth;
+  } else {
+    player.alive = player.health > 0;
+  }
+
+  if (options.resetTurnResources) {
+    player.remainingMovement = player.movement;
+    player.actionUsed = false;
+  } else {
+    player.remainingMovement = Math.min(player.remainingMovement, player.movement);
+  }
+}
+
+function buildAbilityView(player: PlayerState): AbilityView | null {
+  const ability = getAbilityDefinition(player.abilityId);
+
+  if (!ability) {
+    return null;
+  }
+
+  return {
+    id: ability.id,
+    name: ability.name,
+    description: ability.description,
+    range: getAbilityRangeForPlayer(player, ability),
+    targetType: ability.targetType,
+    usesAttackRoll: ability.usesAttackRoll,
+    limit: ability.limit,
+    ready: !player.actionUsed
+  };
+}
+
+function buildInventoryViews(player: PlayerState): InventoryItemView[] {
+  return [...player.inventory]
+    .filter(isString)
+    .map((itemId) => itemsById.get(itemId))
+    .filter((item): item is ItemDefinition => item !== undefined)
+    .map((item, index) => ({
+      entryId: `${item.id}-${index}`,
+      id: item.id,
+      name: item.name,
+      effect: item.effect,
+      itemType: item.itemType,
+      slot: item.slot,
+      equipped: player.equippedWeapon === item.id || player.equippedArmor === item.id,
+      usable: item.itemType === "consumable",
+      equippable: Boolean(item.slot)
+    }));
+}
+
+function getAbilityRangeForPlayer(player: PlayerState, ability: AbilityDefinition) {
+  const characterClass = getClassDefinition(player.classId);
+  const bonusRange = Math.max(0, player.attackRange - characterClass.attackRange);
+  return ability.range + bonusRange;
+}
+
+function calculatePlayerDamage(player: PlayerState, expression: string) {
+  let total = rollDiceExpression(expression).total;
+
+  if (player.raceId === "orc" && player.health <= Math.ceil(player.maxHealth / 2)) {
+    total += 1;
+  }
+
+  return total;
+}
+
+function calculateAbilityDamage(player: PlayerState, ability: AbilityDefinition) {
+  let total = calculatePlayerDamage(player, ability.damageDice);
+
+  if (ability.id === "fire_bolt") {
+    total += player.spellDamage;
+  }
+
+  return total;
+}
+
+function calculateHealingAmount(expression: string) {
+  return rollDiceExpression(expression).total;
+}
+
+function resolvePlayerAttackRoll(player: PlayerState, targetDefense: number) {
+  let roll = rollDie(20);
+  let rerollMessage = "";
+
+  if (player.raceId === "halfling" && roll === 1 && !player.luckyFailureUsed) {
+    player.luckyFailureUsed = true;
+    const reroll = rollDie(20);
+    rerollMessage = `${player.name}'s Lucky Escape turns a critical failure into a reroll (${roll} -> ${reroll}).`;
+    roll = reroll;
+  }
+
+  let total = roll + player.attackBonus;
+
+  if (total < targetDefense && player.raceId === "human" && !player.adaptableUsed) {
+    player.adaptableUsed = true;
+    const reroll = rollDie(20);
+    rerollMessage = `${player.name}'s Adaptable trait rerolls a failed attack (${roll} -> ${reroll}).`;
+    roll = reroll;
+    total = roll + player.attackBonus;
+  }
+
+  return {
+    roll,
+    total,
+    hit: total >= targetDefense,
+    traitMessage: rerollMessage
+  };
 }
 
 function clonePlayerState(player: PlayerState) {
@@ -1741,19 +2502,38 @@ function clonePlayerState(player: PlayerState) {
   nextPlayer.id = player.id;
   nextPlayer.name = player.name;
   nextPlayer.role = player.role;
+  nextPlayer.raceId = player.raceId;
+  nextPlayer.raceName = player.raceName;
   nextPlayer.classId = player.classId;
   nextPlayer.className = player.className;
+  nextPlayer.characterIdentity = player.characterIdentity;
+  nextPlayer.confirmedCharacter = player.confirmedCharacter;
   nextPlayer.x = player.x;
   nextPlayer.y = player.y;
   nextPlayer.health = player.health;
   nextPlayer.maxHealth = player.maxHealth;
   nextPlayer.movement = player.movement;
   nextPlayer.remainingMovement = player.remainingMovement;
+  nextPlayer.might = player.might;
+  nextPlayer.agility = player.agility;
+  nextPlayer.focus = player.focus;
+  nextPlayer.spirit = player.spirit;
   nextPlayer.defense = player.defense;
   nextPlayer.attackBonus = player.attackBonus;
+  nextPlayer.attackRange = player.attackRange;
+  nextPlayer.spellDamage = player.spellDamage;
   nextPlayer.damageDice = player.damageDice;
+  nextPlayer.abilityId = player.abilityId;
+  nextPlayer.abilityName = player.abilityName;
   nextPlayer.alive = player.alive;
   nextPlayer.gold = player.gold;
+  nextPlayer.equippedWeapon = player.equippedWeapon;
+  nextPlayer.equippedArmor = player.equippedArmor;
+  nextPlayer.xp = player.xp;
+  nextPlayer.level = player.level;
+  nextPlayer.actionUsed = player.actionUsed;
+  nextPlayer.adaptableUsed = player.adaptableUsed;
+  nextPlayer.luckyFailureUsed = player.luckyFailureUsed;
   resetStringArray(nextPlayer.inventory, [...player.inventory].filter(isString));
   return nextPlayer;
 }
@@ -1799,6 +2579,14 @@ function resetStringArray(target: { length: number; pop(): void; push(value: str
   for (const value of values) {
     target.push(value);
   }
+}
+
+function removeInventoryItem(
+  target: { length: number; pop(): void; push(value: string): void } & Iterable<string>,
+  indexToRemove: number
+) {
+  const nextValues = [...target].filter((value, index) => typeof value === "string" && index !== indexToRemove);
+  resetStringArray(target, nextValues);
 }
 
 function appendUniqueString(target: { push(value: string): void } & Iterable<string>, value: string) {

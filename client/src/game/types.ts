@@ -1,24 +1,63 @@
 export type JoinMode = "create" | "join";
 export type JoinRole = "player" | "dm";
 
+export type InventoryItemView = {
+  entryId: string;
+  id: string;
+  name: string;
+  effect: string;
+  itemType: "weapon" | "armor" | "consumable" | "trinket";
+  slot: "" | "weapon" | "armor";
+  equipped: boolean;
+  usable: boolean;
+  equippable: boolean;
+};
+
+export type AbilityView = {
+  id: string;
+  name: string;
+  description: string;
+  range: number;
+  targetType: "enemy" | "ally";
+  usesAttackRoll: boolean;
+  limit: "once_per_turn";
+  ready: boolean;
+};
+
 export type PlayerView = {
   id: string;
   name: string;
   role: "player";
+  raceId: string;
+  raceName: string;
   classId: string;
   className: string;
+  characterIdentity: string;
+  confirmedCharacter: boolean;
   x: number;
   y: number;
   health: number;
   maxHealth: number;
   movement: number;
   remainingMovement: number;
+  might: number;
+  agility: number;
+  focus: number;
+  spirit: number;
   defense: number;
   attackBonus: number;
+  attackRange: number;
+  spellDamage: number;
   damageDice: string;
+  ability: AbilityView | null;
   alive: boolean;
   gold: number;
-  inventory: string[];
+  inventory: InventoryItemView[];
+  equippedWeapon: string;
+  equippedArmor: string;
+  xp: number;
+  level: number;
+  actionReady: boolean;
 };
 
 export type EnemyView = {
@@ -79,6 +118,29 @@ export type MerchantItemView = {
   name: string;
   price: number;
   effect: string;
+  itemType: "weapon" | "armor" | "consumable" | "trinket";
+};
+
+export type RaceOptionView = {
+  id: string;
+  name: string;
+  description: string;
+  traitName: string;
+  traitDescription: string;
+};
+
+export type ClassOptionView = {
+  id: string;
+  name: string;
+  description: string;
+  health: number;
+  movement: number;
+  defense: number;
+  attackBonus: number;
+  attackRange: number;
+  spellDamage: number;
+  abilityId: string;
+  abilityName: string;
 };
 
 export type VictorySummaryView = {
@@ -95,6 +157,8 @@ export type LobbyView = {
   dmSessionId: string;
   dmName: string;
   adventureStarted: boolean;
+  availableRaces: RaceOptionView[];
+  availableClasses: ClassOptionView[];
   availableScenes: SceneOptionView[];
   currentScene: SceneView;
   sceneActions: SceneActionView[];

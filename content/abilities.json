@@ -1,0 +1,50 @@
+[
+  {
+    "id": "shield_bash",
+    "name": "Shield Bash",
+    "classId": "guardian",
+    "description": "A heavy shield strike that punishes nearby foes.",
+    "range": 1,
+    "targetType": "enemy",
+    "usesAttackRoll": true,
+    "damageDice": "1d6+2",
+    "healingDice": "",
+    "limit": "once_per_turn"
+  },
+  {
+    "id": "power_shot",
+    "name": "Power Shot",
+    "classId": "ranger",
+    "description": "A focused ranged attack with extra stopping power.",
+    "range": 4,
+    "targetType": "enemy",
+    "usesAttackRoll": true,
+    "damageDice": "1d10+2",
+    "healingDice": "",
+    "limit": "once_per_turn"
+  },
+  {
+    "id": "fire_bolt",
+    "name": "Fire Bolt",
+    "classId": "arcanist",
+    "description": "A bolt of fire that scales with spell damage bonuses.",
+    "range": 4,
+    "targetType": "enemy",
+    "usesAttackRoll": true,
+    "damageDice": "1d10+1",
+    "healingDice": "",
+    "limit": "once_per_turn"
+  },
+  {
+    "id": "healing_light",
+    "name": "Healing Light",
+    "classId": "mystic",
+    "description": "A restorative spell that heals an ally within range.",
+    "range": 3,
+    "targetType": "ally",
+    "usesAttackRoll": false,
+    "damageDice": "",
+    "healingDice": "1d6+2",
+    "limit": "once_per_turn"
+  }
+]

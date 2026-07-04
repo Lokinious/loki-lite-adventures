@@ -36,11 +36,16 @@ type RoomConnectionContextValue = {
   connect(options: ConnectOptions): Promise<string>;
   leave(): Promise<void>;
   requestState(): void;
+  selectRace(raceId: string): void;
   selectClass(classId: string): void;
+  confirmCharacter(): void;
   move(x: number, y: number): void;
   attack(targetId: string): void;
+  useAbility(abilityId: string, targetId: string): void;
   endTurn(): void;
   purchase(itemId: string): void;
+  equipItem(itemId: string): void;
+  useItem(itemId: string): void;
   sceneAction(actionId: string): void;
   runDmAction(message: DmActionMessage): void;
   runDmCommand(command: string): void;
@@ -159,8 +164,16 @@ export function RoomConnectionProvider({ children }: { children: React.ReactNode
     roomRef.current?.send("requestState");
   }
 
+  function selectRace(raceId: string) {
+    roomRef.current?.send("selectRace", { raceId });
+  }
+
   function selectClass(classId: string) {
     roomRef.current?.send("selectCharacter", { classId });
+  }
+
+  function confirmCharacter() {
+    roomRef.current?.send("confirmCharacter");
   }
 
   function move(x: number, y: number) {
@@ -171,12 +184,24 @@ export function RoomConnectionProvider({ children }: { children: React.ReactNode
     roomRef.current?.send("requestAttack", { targetId });
   }
 
+  function useAbility(abilityId: string, targetId: string) {
+    roomRef.current?.send("requestUseAbility", { abilityId, targetId });
+  }
+
   function endTurn() {
     roomRef.current?.send("endTurn");
   }
 
   function purchase(itemId: string) {
     roomRef.current?.send("requestPurchase", { itemId });
+  }
+
+  function equipItem(itemId: string) {
+    roomRef.current?.send("requestEquipItem", { itemId });
+  }
+
+  function useItem(itemId: string) {
+    roomRef.current?.send("requestUseItem", { itemId });
   }
 
   function sceneAction(actionId: string) {
@@ -191,6 +216,48 @@ export function RoomConnectionProvider({ children }: { children: React.ReactNode
     roomRef.current?.send("requestDmCommand", { command });
   }
 
+  useEffect(() => {
+    if (!import.meta.env.DEV) {
+      return;
+    }
+
+    const debugWindow = window as Window & {
+      __lokiDebug?: {
+        selectRace(raceId: string): void;
+        selectClass(classId: string): void;
+        confirmCharacter(): void;
+        move(x: number, y: number): void;
+        attack(targetId: string): void;
+        useAbility(abilityId: string, targetId: string): void;
+        endTurn(): void;
+        purchase(itemId: string): void;
+        equipItem(itemId: string): void;
+        useItem(itemId: string): void;
+        sceneAction(actionId: string): void;
+        runDmCommand(command: string): void;
+      };
+    };
+
+    debugWindow.__lokiDebug = {
+      selectRace,
+      selectClass,
+      confirmCharacter,
+      move,
+      attack,
+      useAbility,
+      endTurn,
+      purchase,
+      equipItem,
+      useItem,
+      sceneAction,
+      runDmCommand
+    };
+
+    return () => {
+      delete debugWindow.__lokiDebug;
+    };
+  }, [attack, confirmCharacter, endTurn, equipItem, move, purchase, runDmCommand, sceneAction, selectClass, selectRace, useAbility, useItem]);
+
   const value = useMemo<RoomConnectionContextValue>(
     () => ({
       status,
@@ -203,11 +270,16 @@ export function RoomConnectionProvider({ children }: { children: React.ReactNode
       connect,
       leave,
       requestState,
+      selectRace,
       selectClass,
+      confirmCharacter,
       move,
       attack,
+      useAbility,
       endTurn,
       purchase,
+      equipItem,
+      useItem,
       sceneAction,
       runDmAction,
       runDmCommand,

@@ -2,53 +2,81 @@
   {
     "id": "guardian",
     "name": "Guardian",
+    "description": "A durable frontline protector who controls space with shield and steel.",
     "health": 14,
     "movement": 5,
+    "defense": 14,
+    "attackBonus": 5,
+    "attackRange": 1,
+    "damageDice": "1d8+3",
+    "spellDamage": 0,
+    "abilityId": "shield_bash",
     "coreAttributes": {
       "might": 3,
       "agility": 1,
       "focus": 0,
       "spirit": 1
     },
-    "startingInventory": ["iron_sword", "shield_talisman", "healing_kit"]
+    "startingInventory": ["healing_potion", "shield_talisman"]
   },
   {
     "id": "ranger",
     "name": "Ranger",
+    "description": "A mobile skirmisher who strikes from range and controls the pace of battle.",
     "health": 10,
     "movement": 6,
+    "defense": 13,
+    "attackBonus": 5,
+    "attackRange": 3,
+    "damageDice": "1d8+2",
+    "spellDamage": 0,
+    "abilityId": "power_shot",
     "coreAttributes": {
       "might": 1,
       "agility": 3,
       "focus": 1,
       "spirit": 0
     },
-    "startingInventory": ["oak_bow", "camp_knife", "healing_kit"]
+    "startingInventory": ["healing_potion", "camp_knife"]
   },
   {
     "id": "arcanist",
     "name": "Arcanist",
+    "description": "A focused caster who channels destructive arcane power from a safe distance.",
     "health": 8,
     "movement": 5,
+    "defense": 11,
+    "attackBonus": 4,
+    "attackRange": 3,
+    "damageDice": "1d10+2",
+    "spellDamage": 3,
+    "abilityId": "fire_bolt",
     "coreAttributes": {
       "might": 0,
       "agility": 1,
       "focus": 3,
       "spirit": 1
     },
-    "startingInventory": ["ember_staff", "mana_ink", "healing_kit"]
+    "startingInventory": ["healing_potion", "mana_ink"]
   },
   {
     "id": "mystic",
     "name": "Mystic",
+    "description": "A spiritual guide who sustains allies and balances the battle line.",
     "health": 9,
     "movement": 5,
+    "defense": 12,
+    "attackBonus": 4,
+    "attackRange": 2,
+    "damageDice": "1d6+2",
+    "spellDamage": 2,
+    "abilityId": "healing_light",
     "coreAttributes": {
       "might": 0,
       "agility": 1,
       "focus": 1,
       "spirit": 3
     },
-    "startingInventory": ["moon_charm", "warding_robes", "healing_kit"]
+    "startingInventory": ["healing_potion", "moon_charm"]
   }
 ]

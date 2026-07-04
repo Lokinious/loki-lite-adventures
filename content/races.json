@@ -1,0 +1,128 @@
+[
+  {
+    "id": "human",
+    "name": "Human",
+    "description": "Flexible generalists who adapt to any role.",
+    "traitName": "Adaptable",
+    "traitDescription": "Once per encounter, reroll one failed attack or ability roll.",
+    "coreBonuses": {
+      "might": 1,
+      "agility": 1,
+      "focus": 1,
+      "spirit": 1
+    },
+    "statBonuses": {
+      "maxHealth": 0,
+      "movement": 0,
+      "defense": 0,
+      "attackBonus": 0,
+      "attackRange": 0,
+      "spellDamage": 0
+    }
+  },
+  {
+    "id": "elf",
+    "name": "Elf",
+    "description": "Precision archers and scouts with swift battlefield movement.",
+    "traitName": "Keen Senses",
+    "traitDescription": "Future hook for spotting hidden threats and secrets.",
+    "coreBonuses": {
+      "might": 0,
+      "agility": 0,
+      "focus": 0,
+      "spirit": 0
+    },
+    "statBonuses": {
+      "maxHealth": 0,
+      "movement": 1,
+      "defense": 0,
+      "attackBonus": 0,
+      "attackRange": 1,
+      "spellDamage": 0
+    }
+  },
+  {
+    "id": "dwarf",
+    "name": "Dwarf",
+    "description": "Stout defenders who anchor the front line.",
+    "traitName": "Stone Skin",
+    "traitDescription": "Future hook for reducing incoming damage.",
+    "coreBonuses": {
+      "might": 0,
+      "agility": 0,
+      "focus": 0,
+      "spirit": 0
+    },
+    "statBonuses": {
+      "maxHealth": 2,
+      "movement": 0,
+      "defense": 1,
+      "attackBonus": 0,
+      "attackRange": 0,
+      "spellDamage": 0
+    }
+  },
+  {
+    "id": "orc",
+    "name": "Orc",
+    "description": "Aggressive bruisers who hit harder when wounded.",
+    "traitName": "Berserk",
+    "traitDescription": "Gain +1 bonus damage while below half health.",
+    "coreBonuses": {
+      "might": 0,
+      "agility": 0,
+      "focus": 0,
+      "spirit": 0
+    },
+    "statBonuses": {
+      "maxHealth": 0,
+      "movement": 0,
+      "defense": 0,
+      "attackBonus": 1,
+      "attackRange": 0,
+      "spellDamage": 0
+    }
+  },
+  {
+    "id": "halfling",
+    "name": "Halfling",
+    "description": "Lucky wanderers who refuse to be slowed by bad breaks.",
+    "traitName": "Lucky Escape",
+    "traitDescription": "Ignore the first critical failure each encounter and move +1.",
+    "coreBonuses": {
+      "might": 0,
+      "agility": 0,
+      "focus": 0,
+      "spirit": 0
+    },
+    "statBonuses": {
+      "maxHealth": 0,
+      "movement": 1,
+      "defense": 0,
+      "attackBonus": 0,
+      "attackRange": 0,
+      "spellDamage": 0
+    }
+  },
+  {
+    "id": "tiefling",
+    "name": "Tiefling",
+    "description": "Arcane adepts whose spells burn hotter than most.",
+    "traitName": "Infernal Spark",
+    "traitDescription": "Spell hits deal +1 bonus fire damage.",
+    "coreBonuses": {
+      "might": 0,
+      "agility": 0,
+      "focus": 0,
+      "spirit": 0
+    },
+    "statBonuses": {
+      "maxHealth": 0,
+      "movement": 0,
+      "defense": 0,
+      "attackBonus": 0,
+      "attackRange": 0,
+      "spellDamage": 1
+    }
+  }
+]

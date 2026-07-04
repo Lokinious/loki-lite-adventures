@@ -1,5 +1,6 @@
 import type {
   EnemyView,
+  InventoryItemView,
   JoinRole,
   LobbyView,
   LogEntryView,
@@ -9,13 +10,20 @@ import type {
 
 type PartyPanelProps = {
   lobby: LobbyView;
+  targetAction?: {
+    label: string;
+    canTarget(player: PlayerView): boolean;
+    getMessage(player: PlayerView): string;
+    onTarget(playerId: string): void;
+  } | null;
 };
 
 type EnemyPanelProps = {
   enemies: EnemyView[];
-  canAttackEnemy(enemy: EnemyView): boolean;
+  actionLabel: string;
+  canTargetEnemy(enemy: EnemyView): boolean;
   getEnemyRangeMessage(enemy: EnemyView): string;
-  onAttack(targetId: string): void;
+  onTarget(targetId: string): void;
 };
 
 type LogPanelProps = {
@@ -56,7 +64,31 @@ type DmPanelProps = {
   onRunCommand(command: string): void;
 };
 
-export function PartyPanel({ lobby }: PartyPanelProps) {
+type CharacterSheetPanelProps = {
+  player: PlayerView | null;
+};
+
+type InventoryPanelProps = {
+  player: PlayerView | null;
+  onEquip(itemId: string): void;
+  onUse(itemId: string): void;
+  canEquip(item: InventoryItemView): boolean;
+  canUse(item: InventoryItemView): boolean;
+};
+
+type ActionHotbarProps = {
+  currentPlayer: PlayerView | null;
+  activeMode: "attack" | "ability";
+  onModeChange(mode: "attack" | "ability"): void;
+  onUsePotion(): void;
+  onEndTurn(): void;
+  canAttack: boolean;
+  canUseAbility: boolean;
+  canUsePotion: boolean;
+  canEndTurn: boolean;
+};
+
+export function PartyPanel({ lobby, targetAction = null }: PartyPanelProps) {
   return (
     <section className="panel">
       <div className="section-header">
@@ -77,7 +109,9 @@ export function PartyPanel({ lobby }: PartyPanelProps) {
       )}
       <div className="player-list" data-testid="player-list">
         {lobby.players.length ? (
-          lobby.players.map((player) => <PlayerCard key={player.id} player={player} />)
+          lobby.players.map((player) => (
+            <PlayerCard key={player.id} player={player} targetAction={targetAction} />
+          ))
         ) : (
           <p className="meta-copy">Players will appear here once they join.</p>
         )}
@@ -86,7 +120,13 @@ export function PartyPanel({ lobby }: PartyPanelProps) {
   );
 }
 
-function PlayerCard({ player }: { player: PlayerView }) {
+function PlayerCard({
+  player,
+  targetAction
+}: {
+  player: PlayerView;
+  targetAction: PartyPanelProps["targetAction"];
+}) {
   return (
     <article
       className="player-card"
@@ -95,7 +135,7 @@ function PlayerCard({ player }: { player: PlayerView }) {
     >
       <div>
         <strong data-testid={`player-name-${player.id}`}>{player.name}</strong>
-        <p data-testid={`player-class-${player.id}`}>{player.className}</p>
+        <p data-testid={`player-class-${player.id}`}>{player.characterIdentity}</p>
       </div>
       <div className="player-stats">
         <span data-testid={`player-health-${player.id}`}>
@@ -108,22 +148,204 @@ function PlayerCard({ player }: { player: PlayerView }) {
           Tile {player.x + 1},{player.y + 1}
         </span>
         <span data-testid={`player-gold-${player.id}`}>Gold {player.gold}</span>
+        <span data-testid={`player-level-${player.id}`}>Level {player.level}</span>
+        <span data-testid={`player-defense-${player.id}`}>Defense {player.defense}</span>
+        <span data-testid={`player-attack-${player.id}`}>Attack +{player.attackBonus}</span>
         <span data-testid={`player-state-${player.id}`}>
-          {player.alive ? "Ready" : "Knocked out"}
+          {player.alive ? (player.confirmedCharacter ? "Ready" : "Unconfirmed") : "Knocked out"}
         </span>
       </div>
       <p data-testid={`player-inventory-${player.id}`}>
-        Inventory: {player.inventory.length ? player.inventory.join(", ") : "Empty"}
+        Inventory: {player.inventory.length ? player.inventory.map((item) => item.name).join(", ") : "Empty"}
       </p>
+      {targetAction ? (
+        <div className="button-row">
+          <button
+            type="button"
+            data-testid={`player-target-button-${player.id}`}
+            onClick={() => targetAction.onTarget(player.id)}
+            disabled={!targetAction.canTarget(player)}
+          >
+            {targetAction.label}
+          </button>
+          <span className="meta-copy" data-testid={`player-target-status-${player.id}`}>
+            {targetAction.getMessage(player)}
+          </span>
+        </div>
+      ) : null}
     </article>
+  );
+}
+
+export function CharacterSheetPanel({ player }: CharacterSheetPanelProps) {
+  if (!player) {
+    return null;
+  }
+
+  return (
+    <section className="panel" data-testid="character-sheet">
+      <div className="section-header">
+        <h2>Character Sheet</h2>
+        <span data-testid="character-identity">{player.characterIdentity}</span>
+      </div>
+      <div className="player-stats two-column-grid">
+        <span data-testid="character-confirmed">
+          {player.confirmedCharacter ? "Confirmed" : "Awaiting confirmation"}
+        </span>
+        <span data-testid="character-level">Level {player.level}</span>
+        <span data-testid="character-xp">XP {player.xp}</span>
+        <span data-testid="character-defense">Defense {player.defense}</span>
+        <span data-testid="character-attack-bonus">Attack +{player.attackBonus}</span>
+        <span data-testid="character-range">Range {player.attackRange}</span>
+        <span data-testid="character-spell-damage">Spell +{player.spellDamage}</span>
+        <span data-testid="character-damage-dice">Damage {player.damageDice}</span>
+      </div>
+      <div className="player-stats two-column-grid">
+        <span data-testid="character-might">Might {player.might}</span>
+        <span data-testid="character-agility">Agility {player.agility}</span>
+        <span data-testid="character-focus">Focus {player.focus}</span>
+        <span data-testid="character-spirit">Spirit {player.spirit}</span>
+      </div>
+      <p className="meta-copy" data-testid="character-equipment-summary">
+        Weapon: {player.equippedWeapon || "None"} | Armor: {player.equippedArmor || "None"}
+      </p>
+    </section>
+  );
+}
+
+export function InventoryPanel({
+  player,
+  onEquip,
+  onUse,
+  canEquip,
+  canUse
+}: InventoryPanelProps) {
+  if (!player) {
+    return null;
+  }
+
+  return (
+    <section className="panel" data-testid="inventory-panel">
+      <div className="section-header">
+        <h2>Inventory</h2>
+        <span data-testid="inventory-count">{player.inventory.length} items</span>
+      </div>
+      <div className="player-list">
+        {player.inventory.length ? (
+          player.inventory.map((item) => (
+            <article key={item.entryId} className="player-card" data-testid={`inventory-item-${item.entryId}`}>
+              <div>
+                <strong>{item.name}</strong>
+                <p>{item.effect}</p>
+              </div>
+              <div className="player-stats">
+                <span>{item.itemType}</span>
+                <span>{item.equipped ? "Equipped" : "Unequipped"}</span>
+              </div>
+              <div className="button-row">
+                {item.equippable ? (
+                  <button
+                    type="button"
+                    data-testid={`equip-item-${item.id}`}
+                    onClick={() => onEquip(item.id)}
+                    disabled={!canEquip(item)}
+                  >
+                    Equip
+                  </button>
+                ) : null}
+                {item.usable ? (
+                  <button
+                    type="button"
+                    data-testid={`use-item-${item.id}`}
+                    onClick={() => onUse(item.id)}
+                    disabled={!canUse(item)}
+                  >
+                    Use
+                  </button>
+                ) : null}
+              </div>
+            </article>
+          ))
+        ) : (
+          <p className="meta-copy">No items collected yet.</p>
+        )}
+      </div>
+    </section>
+  );
+}
+
+export function ActionHotbar({
+  currentPlayer,
+  activeMode,
+  onModeChange,
+  onUsePotion,
+  onEndTurn,
+  canAttack,
+  canUseAbility,
+  canUsePotion,
+  canEndTurn
+}: ActionHotbarProps) {
+  return (
+    <section className="panel" data-testid="action-hotbar">
+      <div className="section-header">
+        <h2>Action Hotbar</h2>
+        <span data-testid="action-hotbar-state">
+          {activeMode === "attack"
+            ? `Targeting basic attack (${currentPlayer?.attackRange ?? 0} range)`
+            : `Targeting ${currentPlayer?.ability?.name ?? "class ability"}`}
+        </span>
+      </div>
+      <div className="button-row hotbar-row">
+        <button
+          type="button"
+          className={activeMode === "attack" ? "tab-button tab-button--active" : "tab-button"}
+          data-testid="hotbar-basic-attack"
+          onClick={() => onModeChange("attack")}
+          disabled={!canAttack}
+        >
+          Basic Attack
+        </button>
+        <button
+          type="button"
+          className={activeMode === "ability" ? "tab-button tab-button--active" : "tab-button"}
+          data-testid="hotbar-class-ability"
+          onClick={() => onModeChange("ability")}
+          disabled={!canUseAbility}
+        >
+          {currentPlayer?.ability?.name ?? "Class Ability"}
+        </button>
+        <button
+          type="button"
+          data-testid="hotbar-potion"
+          onClick={onUsePotion}
+          disabled={!canUsePotion}
+        >
+          Healing Potion
+        </button>
+        <button
+          type="button"
+          data-testid="hotbar-end-turn"
+          onClick={onEndTurn}
+          disabled={!canEndTurn}
+        >
+          End Turn
+        </button>
+      </div>
+      <p className="meta-copy" data-testid="selected-ability-summary">
+        {currentPlayer?.ability
+          ? `${currentPlayer.ability.name}: ${currentPlayer.ability.description}`
+          : "No class ability available."}
+      </p>
+    </section>
   );
 }
 
 export function EnemyPanel({
   enemies,
-  canAttackEnemy,
+  actionLabel,
+  canTargetEnemy,
   getEnemyRangeMessage,
-  onAttack
+  onTarget
 }: EnemyPanelProps) {
   return (
     <section className="panel">
@@ -161,10 +383,10 @@ export function EnemyPanel({
                 <button
                   type="button"
                   data-testid={`enemy-attack-button-${enemy.id}`}
-                  onClick={() => onAttack(enemy.id)}
-                  disabled={!canAttackEnemy(enemy)}
+                  onClick={() => onTarget(enemy.id)}
+                  disabled={!canTargetEnemy(enemy)}
                 >
-                  Attack
+                  {actionLabel}
                 </button>
                 <span className="meta-copy" data-testid={`enemy-range-${enemy.id}`}>
                   {getEnemyRangeMessage(enemy)}

@@ -1,14 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { DmPanel, EnemyPanel, LogPanel, PartyPanel } from "../components/GamePanels";
+import { CharacterSheetPanel, DmPanel, EnemyPanel, LogPanel, PartyPanel } from "../components/GamePanels";
 import { useRoomConnection } from "../game/RoomConnectionContext";
 import type { EnemyView } from "../game/types";
-import { getPlayableClasses } from "../services/content";
 
 export function RoomLobbyPage() {
   const navigate = useNavigate();
   const { roomCode: routeRoomCode = "" } = useParams();
-  const playableClasses = useMemo(() => getPlayableClasses(), []);
   const {
     lobby,
     role,
@@ -18,13 +16,16 @@ export function RoomLobbyPage() {
     status,
     isConnected,
     requestState,
+    selectRace,
     selectClass,
+    confirmCharacter,
     attack,
     sceneAction,
     runDmAction,
     runDmCommand
   } = useRoomConnection();
-  const [selectedClassId, setSelectedClassId] = useState(playableClasses[0]?.id ?? "");
+  const [selectedClassId, setSelectedClassId] = useState("");
+  const [selectedRaceId, setSelectedRaceId] = useState("");
   const [sceneTarget, setSceneTarget] = useState("tavern");
   const [goldAmount, setGoldAmount] = useState("5");
   const [commandDraft, setCommandDraft] = useState("");
@@ -49,8 +50,19 @@ export function RoomLobbyPage() {
   const currentPlayer = lobby?.players.find((player) => player.id === sessionId) ?? null;
 
   useEffect(() => {
-    setSelectedClassId(currentPlayer?.classId ?? playableClasses[0]?.id ?? "");
-  }, [currentPlayer?.classId, playableClasses]);
+    setSelectedClassId(currentPlayer?.classId ?? lobby?.availableClasses[0]?.id ?? "");
+    setSelectedRaceId(currentPlayer?.raceId ?? lobby?.availableRaces[0]?.id ?? "");
+  }, [currentPlayer?.classId, currentPlayer?.raceId, lobby?.availableClasses, lobby?.availableRaces]);
+
+  const selectedClass = useMemo(
+    () => lobby?.availableClasses.find((playableClass) => playableClass.id === selectedClassId) ?? null,
+    [lobby?.availableClasses, selectedClassId]
+  );
+
+  const selectedRace = useMemo(
+    () => lobby?.availableRaces.find((playableRace) => playableRace.id === selectedRaceId) ?? null,
+    [lobby?.availableRaces, selectedRaceId]
+  );
 
   if (!isConnected || !lobby || roomCode !== routeRoomCode) {
     return (
@@ -76,7 +88,7 @@ export function RoomLobbyPage() {
       return false;
     }
 
-    return Math.abs(currentPlayer.x - enemy.x) + Math.abs(currentPlayer.y - enemy.y) === 1;
+    return Math.abs(currentPlayer.x - enemy.x) + Math.abs(currentPlayer.y - enemy.y) <= currentPlayer.attackRange;
   }
 
   function getEnemyRangeMessage(enemy: EnemyView) {
@@ -84,7 +96,7 @@ export function RoomLobbyPage() {
       return "No target";
     }
 
-    return canAttackEnemy(enemy) ? "Adjacent target" : "Move adjacent to attack";
+    return canAttackEnemy(enemy) ? "Target in range" : `Need range ${currentPlayer.attackRange}`;
   }
 
   return (
@@ -128,13 +140,38 @@ export function RoomLobbyPage() {
           {role === "player" ? (
             <section className="panel">
               <div className="section-header">
-                <h2>Class selection</h2>
+                <h2>Character creation</h2>
                 <span data-testid="selected-class-label">
-                  {currentPlayer?.className ?? "Not selected yet"}
+                  {currentPlayer?.characterIdentity ?? "Not selected yet"}
                 </span>
               </div>
+              <h3>Choose a race</h3>
+              <div className="class-grid" data-testid="race-grid">
+                {lobby.availableRaces.map((playableRace) => {
+                  const isSelected = selectedRaceId === playableRace.id;
+
+                  return (
+                    <button
+                      key={playableRace.id}
+                      type="button"
+                      data-testid={`race-card-${playableRace.id}`}
+                      className={`class-card${isSelected ? " class-card--selected" : ""}`}
+                      onClick={() => {
+                        setSelectedRaceId(playableRace.id);
+                        selectRace(playableRace.id);
+                      }}
+                      disabled={lobby.adventureStarted}
+                    >
+                      <strong>{playableRace.name}</strong>
+                      <span>{playableRace.description}</span>
+                      <span>{playableRace.traitName}</span>
+                    </button>
+                  );
+                })}
+              </div>
+              <h3>Choose a class</h3>
               <div className="class-grid">
-                {playableClasses.map((playableClass) => {
+                {lobby.availableClasses.map((playableClass) => {
                   const isSelected = selectedClassId === playableClass.id;
 
                   return (
@@ -150,15 +187,50 @@ export function RoomLobbyPage() {
                       disabled={lobby.adventureStarted}
                     >
                       <strong>{playableClass.name}</strong>
+                      <span>{playableClass.description}</span>
                       <span>Health: {playableClass.health}</span>
                       <span>Movement: {playableClass.movement}</span>
+                      <span>Ability: {playableClass.abilityName}</span>
                     </button>
                   );
                 })}
               </div>
+              <div className="player-card top-gap" data-testid="character-preview-card">
+                <strong data-testid="character-preview-identity">
+                  {currentPlayer?.characterIdentity ??
+                    `${selectedRace?.name ?? "Race"} ${selectedClass?.name ?? "Class"}`}
+                </strong>
+                <div className="player-stats">
+                  <span data-testid="preview-health">HP {currentPlayer?.maxHealth ?? selectedClass?.health ?? 0}</span>
+                  <span data-testid="preview-movement">Move {currentPlayer?.movement ?? selectedClass?.movement ?? 0}</span>
+                  <span data-testid="preview-defense">Defense {currentPlayer?.defense ?? selectedClass?.defense ?? 0}</span>
+                  <span data-testid="preview-attack">Attack +{currentPlayer?.attackBonus ?? selectedClass?.attackBonus ?? 0}</span>
+                  <span data-testid="preview-range">Range {currentPlayer?.attackRange ?? selectedClass?.attackRange ?? 0}</span>
+                  <span data-testid="preview-spell-damage">Spell +{currentPlayer?.spellDamage ?? selectedClass?.spellDamage ?? 0}</span>
+                </div>
+                {selectedRace ? (
+                  <p className="meta-copy" data-testid="selected-race-trait">
+                    {selectedRace.traitName}: {selectedRace.traitDescription}
+                  </p>
+                ) : null}
+              </div>
+              <div className="button-row top-gap">
+                <button
+                  type="button"
+                  data-testid="confirm-character-button"
+                  onClick={confirmCharacter}
+                  disabled={lobby.adventureStarted}
+                >
+                  Confirm Character
+                </button>
+                <span className="meta-copy" data-testid="character-confirmation-state">
+                  {currentPlayer?.confirmedCharacter ? "Character confirmed" : "Choose race and class, then confirm."}
+                </span>
+              </div>
             </section>
           ) : null}
 
+          <CharacterSheetPanel player={currentPlayer} />
           <PartyPanel lobby={lobby} />
         </div>
 
@@ -225,9 +297,10 @@ export function RoomLobbyPage() {
 
           <EnemyPanel
             enemies={lobby.enemies}
-            canAttackEnemy={canAttackEnemy}
+            actionLabel="Attack"
+            canTargetEnemy={canAttackEnemy}
             getEnemyRangeMessage={getEnemyRangeMessage}
-            onAttack={attack}
+            onTarget={attack}
           />
         </div>
 

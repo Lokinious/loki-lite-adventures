@@ -257,6 +257,21 @@ textarea {
   gap: 12px;
 }
 
+.two-column-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 12px;
+}
+
+.hotbar-row {
+  align-items: stretch;
+}
+
+.panel h3 {
+  margin: 0 0 12px;
+  color: #cbd5e1;
+}
+
 .class-card {
   display: grid;
   gap: 4px;

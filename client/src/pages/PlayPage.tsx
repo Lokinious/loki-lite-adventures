@@ -1,6 +1,16 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { DmLogTabsPanel, DmPanel, EnemyPanel, LogPanel, PartyPanel, TurnOrderPanel } from "../components/GamePanels";
+import {
+  ActionHotbar,
+  CharacterSheetPanel,
+  DmLogTabsPanel,
+  DmPanel,
+  EnemyPanel,
+  InventoryPanel,
+  LogPanel,
+  PartyPanel,
+  TurnOrderPanel
+} from "../components/GamePanels";
 import { useRoomConnection } from "../game/RoomConnectionContext";
 import type { EnemyView } from "../game/types";
 import { createGameBridge, type TacticalSnapshot } from "../phaser/createPhaserConfig";
@@ -21,8 +31,11 @@ export function PlayPage() {
     requestState,
     move,
     attack,
+    useAbility,
     endTurn,
     purchase,
+    equipItem,
+    useItem,
     sceneAction,
     runDmAction,
     runDmCommand
@@ -32,6 +45,7 @@ export function PlayPage() {
   const [commandDraft, setCommandDraft] = useState("");
   const [dmCommand, setDmCommand] = useState("");
   const [activeLogTab, setActiveLogTab] = useState<"public" | "dm">("public");
+  const [activeTargetMode, setActiveTargetMode] = useState<"attack" | "ability">("attack");
   const gameBridgeRef = useRef<ReturnType<typeof createGameBridge> | null>(null);
 
   useEffect(() => {
@@ -47,6 +61,7 @@ export function PlayPage() {
   const currentPlayer = lobby?.players.find((player) => player.id === sessionId) ?? null;
   const activeTurn = lobby?.activeTurn ?? { type: "none", id: "", name: "No active turn" };
   const isCurrentPlayersTurn = activeTurn.type === "player" && activeTurn.id === sessionId;
+  const currentAbility = currentPlayer?.ability ?? null;
   const activeTurnLabel =
     activeTurn.type === "none" ? "Waiting for players" : `${activeTurn.name}'s turn`;
 
@@ -138,20 +153,38 @@ export function PlayPage() {
     );
   }
 
+  const activeLobby = lobby;
   const currentScene = lobby.currentScene;
 
-  function canAttackEnemy(enemy: EnemyView) {
+  function getTargetRange() {
+    if (!currentPlayer) {
+      return 0;
+    }
+
+    if (activeTargetMode === "ability" && currentAbility?.targetType === "enemy") {
+      return currentAbility.range;
+    }
+
+    return currentPlayer.attackRange;
+  }
+
+  function canTargetEnemy(enemy: EnemyView) {
     if (
       role !== "player" ||
       !currentPlayer ||
       !currentPlayer.alive ||
       !enemy.alive ||
-      !isCurrentPlayersTurn
+      !isCurrentPlayersTurn ||
+      !currentPlayer.actionReady
     ) {
       return false;
     }
 
-    return Math.abs(currentPlayer.x - enemy.x) + Math.abs(currentPlayer.y - enemy.y) === 1;
+    if (activeTargetMode === "ability" && currentAbility?.targetType === "ally") {
+      return false;
+    }
+
+    return Math.abs(currentPlayer.x - enemy.x) + Math.abs(currentPlayer.y - enemy.y) <= getTargetRange();
   }
 
   function getEnemyRangeMessage(enemy: EnemyView) {
@@ -159,7 +192,51 @@ export function PlayPage() {
       return role === "dm" ? "DM observes combat" : "No target";
     }
 
-    return canAttackEnemy(enemy) ? "Adjacent target" : "Move adjacent to attack";
+    if (activeTargetMode === "ability" && currentAbility?.targetType === "ally") {
+      return "Choose an ally target";
+    }
+
+    return canTargetEnemy(enemy) ? "Target in range" : `Need range ${getTargetRange()}`;
+  }
+
+  function canTargetAlly(playerId: string) {
+    if (
+      role !== "player" ||
+      !currentPlayer ||
+      !currentAbility ||
+      currentAbility.targetType !== "ally" ||
+      !isCurrentPlayersTurn ||
+      !currentPlayer.actionReady
+    ) {
+      return false;
+    }
+
+    const targetPlayer = activeLobby.players.find((player) => player.id === playerId);
+
+    if (!targetPlayer || !targetPlayer.alive) {
+      return false;
+    }
+
+    return (
+      Math.abs(currentPlayer.x - targetPlayer.x) + Math.abs(currentPlayer.y - targetPlayer.y) <=
+      currentAbility.range
+    );
+  }
+
+  function getAllyTargetMessage(playerId: string) {
+    if (!currentAbility || currentAbility.targetType !== "ally" || !currentPlayer) {
+      return "No ally target";
+    }
+
+    const targetPlayer = activeLobby.players.find((player) => player.id === playerId);
+
+    if (!targetPlayer || !targetPlayer.alive) {
+      return "Unavailable target";
+    }
+
+    return canTargetAlly(playerId)
+      ? `${currentAbility.name} ready`
+      : `Need range ${currentAbility.range}`;
   }
 
   function getMovementStatusMessage() {
@@ -172,10 +249,33 @@ export function PlayPage() {
     }
 
     if (isCurrentPlayersTurn) {
-      return `You have ${currentPlayer?.remainingMovement ?? 0} movement left.`;
+      return `You have ${currentPlayer?.remainingMovement ?? 0} movement left and ${currentPlayer?.actionReady ? "an action available" : "no action left"}.`;
     }
 
     return role === "dm" ? "Observing player turns." : "Click-to-move unlocks only on your turn.";
+  }
+
+  function handleEnemyTarget(targetId: string) {
+    if (activeTargetMode === "ability" && currentAbility?.targetType === "enemy") {
+      useAbility(currentAbility.id, targetId);
+      return;
+    }
+
+    attack(targetId);
+  }
+
+  function handleAllyTarget(playerId: string) {
+    if (currentAbility?.targetType === "ally") {
+      useAbility(currentAbility.id, playerId);
+    }
+  }
+
+  function handleUsePotion() {
+    const potion = currentPlayer?.inventory.find((item) => item.id === "healing_potion");
+
+    if (potion) {
+      useItem(potion.id);
+    }
   }
 
   return (
@@ -212,16 +312,52 @@ export function PlayPage() {
             <div className="map-shell" data-testid="map-shell">
               <div id={phaserContainerId} className="phaser-surface play-phaser-surface" />
             </div>
-            <div className="button-row">
-              <button
-                type="button"
-                data-testid="end-turn-button"
-                onClick={endTurn}
-                disabled={role !== "player" || !isCurrentPlayersTurn}
-              >
-                End turn
-              </button>
-            </div>
+            {role === "player" ? (
+              <ActionHotbar
+                currentPlayer={currentPlayer}
+                activeMode={activeTargetMode}
+                onModeChange={setActiveTargetMode}
+                onUsePotion={handleUsePotion}
+                onEndTurn={endTurn}
+                canAttack={Boolean(currentPlayer?.alive && isCurrentPlayersTurn && currentPlayer.actionReady)}
+                canUseAbility={Boolean(
+                  currentPlayer?.alive &&
+                    isCurrentPlayersTurn &&
+                    currentPlayer.actionReady &&
+                    currentPlayer.ability
+                )}
+                canUsePotion={Boolean(
+                  currentPlayer?.alive &&
+                    currentPlayer.inventory.some((item) => item.id === "healing_potion") &&
+                    currentPlayer.health < currentPlayer.maxHealth &&
+                    (currentScene.sceneType !== "encounter" || (isCurrentPlayersTurn && currentPlayer.actionReady))
+                )}
+                canEndTurn={role === "player" && isCurrentPlayersTurn}
+              />
+            ) : (
+              <div className="button-row">
+                <button
+                  type="button"
+                  data-testid="end-turn-button"
+                  onClick={endTurn}
+                  disabled
+                >
+                  End turn
+                </button>
+              </div>
+            )}
+            {role === "player" ? (
+              <div className="button-row">
+                <button
+                  type="button"
+                  data-testid="end-turn-button"
+                  onClick={endTurn}
+                  disabled={role !== "player" || !isCurrentPlayersTurn}
+                >
+                  End turn
+                </button>
+              </div>
+            ) : null}
           </section>
 
           {currentScene.sceneType === "story" ? (
@@ -355,13 +491,42 @@ export function PlayPage() {
               }}
             />
           ) : null}
-          <PartyPanel lobby={lobby} />
+          <CharacterSheetPanel player={currentPlayer} />
+          <InventoryPanel
+            player={currentPlayer}
+            onEquip={equipItem}
+            onUse={useItem}
+            canEquip={(item) => currentScene.sceneType !== "encounter" && !item.equipped}
+            canUse={(item) =>
+              Boolean(
+                item.usable &&
+                  currentPlayer &&
+                  currentPlayer.health < currentPlayer.maxHealth &&
+                  (currentScene.sceneType !== "encounter" ||
+                    (isCurrentPlayersTurn && currentPlayer.actionReady))
+              )
+            }
+          />
+          <PartyPanel
+            lobby={lobby}
+            targetAction={
+              currentAbility?.targetType === "ally" && activeTargetMode === "ability"
+                ? {
+                    label: currentAbility.name,
+                    canTarget: (player) => canTargetAlly(player.id),
+                    getMessage: (player) => getAllyTargetMessage(player.id),
+                    onTarget: handleAllyTarget
+                  }
+                : null
+            }
+          />
           <TurnOrderPanel lobby={lobby} />
           <EnemyPanel
             enemies={lobby.enemies}
-            canAttackEnemy={canAttackEnemy}
+            actionLabel={activeTargetMode === "ability" && currentAbility?.targetType === "enemy" ? currentAbility.name : "Attack"}
+            canTargetEnemy={canTargetEnemy}
             getEnemyRangeMessage={getEnemyRangeMessage}
-            onAttack={attack}
+            onTarget={handleEnemyTarget}
           />
           {role === "dm" ? (
             <>
