@@ -6,6 +6,7 @@ export type TacticalToken = {
   name: string;
   classId: string;
   className: string;
+  tokenKind: "player" | "enemy";
   x: number;
   y: number;
   isActiveTurn: boolean;
@@ -19,8 +20,8 @@ export type TacticalSnapshot = {
 };
 
 type TokenSprite = {
-  body: Phaser.GameObjects.Rectangle;
-  border: Phaser.GameObjects.Rectangle;
+  body: Phaser.GameObjects.Ellipse | Phaser.GameObjects.Rectangle;
+  border: Phaser.GameObjects.Ellipse | Phaser.GameObjects.Rectangle;
   label: Phaser.GameObjects.Text;
 };
 
@@ -94,9 +95,18 @@ class TacticalScene extends Phaser.Scene {
       let sprite = this.tokens.get(token.id);
 
       if (!sprite) {
+        const body =
+          token.tokenKind === "enemy"
+            ? this.add.ellipse(centerX, centerY, 28, 28, tint)
+            : this.add.rectangle(centerX, centerY, 28, 28, tint);
+        const border =
+          token.tokenKind === "enemy"
+            ? this.add.ellipse(centerX, centerY, 34, 34)
+            : this.add.rectangle(centerX, centerY, 34, 34);
+
         sprite = {
-          body: this.add.rectangle(centerX, centerY, 28, 28, tint),
-          border: this.add.rectangle(centerX, centerY, 34, 34),
+          body,
+          border,
           label: this.add.text(centerX, centerY + 22, token.name, {
             color: "#f8fafc",
             fontFamily: "Arial",
@@ -111,7 +121,10 @@ class TacticalScene extends Phaser.Scene {
       sprite.body.setPosition(centerX, centerY).setFillStyle(tint);
       sprite.border
         .setPosition(centerX, centerY)
-        .setStrokeStyle(token.isActiveTurn ? 3 : 2, token.isSelf ? 0xfacc15 : 0xffffff);
+        .setStrokeStyle(
+          token.isActiveTurn ? 3 : 2,
+          token.tokenKind === "enemy" ? 0xf97316 : token.isSelf ? 0xfacc15 : 0xffffff
+        );
       sprite.label.setPosition(centerX, centerY + 22).setText(token.name);
     }
   }

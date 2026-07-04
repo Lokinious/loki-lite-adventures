@@ -1,5 +1,19 @@
 [
   {
+    "id": "goblin",
+    "name": "Goblin",
+    "health": 12,
+    "armorClass": 5,
+    "movement": 4,
+    "attacks": [
+      {
+        "name": "Rusty Stab",
+        "toHit": 12,
+        "damage": "1d4+1"
+      }
+    ]
+  },
+  {
     "id": "wolf",
     "name": "Wolf",
     "health": 8,

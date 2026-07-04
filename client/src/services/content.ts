@@ -14,7 +14,8 @@ const classColors: Record<string, number> = {
   guardian: 0x34d399,
   ranger: 0x38bdf8,
   arcanist: 0xa78bfa,
-  mystic: 0xf472b6
+  mystic: 0xf472b6,
+  "enemy-goblin": 0xef4444
 };
 
 export function getPlayableClasses() {

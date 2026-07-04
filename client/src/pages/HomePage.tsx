@@ -18,8 +18,27 @@ type PlayerView = {
   x: number;
   y: number;
   health: number;
+  maxHealth: number;
   movement: number;
   remainingMovement: number;
+  defense: number;
+  attackBonus: number;
+  damageDice: string;
+  alive: boolean;
+};
+
+type EnemyView = {
+  id: string;
+  name: string;
+  hp: number;
+  maxHp: number;
+  defense: number;
+  x: number;
+  y: number;
+  movement: number;
+  attackBonus: number;
+  damageDice: string;
+  alive: boolean;
 };
 
 type CombatLogEntryView = {
@@ -27,13 +46,28 @@ type CombatLogEntryView = {
   message: string;
 };
 
+type ActiveTurnView = {
+  type: "player" | "enemy" | "none";
+  id: string;
+  name: string;
+};
+
+type TurnOrderEntryView = {
+  id: string;
+  name: string;
+  kind: "player" | "enemy";
+  subtitle: string;
+  active: boolean;
+};
+
 type LobbyView = {
   roomCode: string;
   gridWidth: number;
   gridHeight: number;
-  activeTurnSessionId: string;
-  turnOrder: string[];
+  activeTurn: ActiveTurnView;
+  turnOrder: TurnOrderEntryView[];
   players: PlayerView[];
+  enemies: EnemyView[];
   combatLog: CombatLogEntryView[];
 };
 
@@ -84,23 +118,49 @@ export function HomePage() {
     return {
       width: lobby.gridWidth,
       height: lobby.gridHeight,
-      tokens: lobby.players.map((player) => ({
-        id: player.id,
-        name: player.name,
-        classId: player.classId,
-        className: player.className,
-        x: player.x,
-        y: player.y,
-        isActiveTurn: player.id === lobby.activeTurnSessionId,
-        isSelf: player.id === sessionId
-      }))
+      tokens: [
+        ...lobby.players
+          .filter((player) => player.alive)
+          .map((player) => ({
+            id: player.id,
+            name: player.name,
+            classId: player.classId,
+            className: player.className,
+            tokenKind: "player" as const,
+            x: player.x,
+            y: player.y,
+            isActiveTurn:
+              lobby.activeTurn.type === "player" && player.id === lobby.activeTurn.id,
+            isSelf: player.id === sessionId
+          })),
+        ...lobby.enemies
+          .filter((enemy) => enemy.alive)
+          .map((enemy) => ({
+            id: enemy.id,
+            name: enemy.name,
+            classId: "enemy-goblin",
+            className: enemy.name,
+            tokenKind: "enemy" as const,
+            x: enemy.x,
+            y: enemy.y,
+            isActiveTurn: lobby.activeTurn.type === "enemy" && enemy.id === lobby.activeTurn.id,
+            isSelf: false
+          }))
+      ]
     };
   }, [lobby, sessionId]);
 
   const currentPlayer = lobby?.players.find((player) => player.id === sessionId) ?? null;
-  const activePlayer =
-    lobby?.players.find((player) => player.id === lobby.activeTurnSessionId) ?? null;
-  const isCurrentPlayersTurn = activePlayer?.id === sessionId;
+  const currentEnemyTargets = lobby?.enemies ?? [];
+  const isCurrentPlayersTurn =
+    lobby?.activeTurn.type === "player" && lobby.activeTurn.id === sessionId;
+  const activeTurnLabel = lobby?.activeTurn.name ?? "Waiting for players";
+  const turnStatusMessage =
+    lobby?.activeTurn.type === "enemy"
+      ? `${activeTurnLabel} is acting automatically.`
+      : isCurrentPlayersTurn
+        ? `You have ${currentPlayer?.remainingMovement ?? 0} movement left.`
+        : "Click-to-move unlocks only on your turn.";
 
   useEffect(() => {
     gameBridgeRef.current?.sync(
@@ -164,6 +224,18 @@ export function HomePage() {
 
   function handleEndTurn() {
     joinedRoom?.send("endTurn");
+  }
+
+  function handleAttack(targetId: string) {
+    joinedRoom?.send("requestAttack", { targetId });
+  }
+
+  function canAttackEnemy(enemy: EnemyView) {
+    if (!currentPlayer || !currentPlayer.alive || !enemy.alive || !isCurrentPlayersTurn) {
+      return false;
+    }
+
+    return Math.abs(currentPlayer.x - enemy.x) + Math.abs(currentPlayer.y - enemy.y) === 1;
   }
 
   return (
@@ -277,12 +349,17 @@ export function HomePage() {
                     <p data-testid={`player-class-${player.id}`}>{player.className}</p>
                   </div>
                   <div className="player-stats">
-                    <span data-testid={`player-health-${player.id}`}>HP {player.health}</span>
+                    <span data-testid={`player-health-${player.id}`}>
+                      HP {player.health}/{player.maxHealth}
+                    </span>
                     <span data-testid={`player-move-${player.id}`}>
                       Move {player.remainingMovement}/{player.movement}
                     </span>
                     <span data-testid={`player-tile-${player.id}`}>
                       Tile {player.x + 1},{player.y + 1}
+                    </span>
+                    <span data-testid={`player-state-${player.id}`}>
+                      {player.alive ? "Ready" : "Knocked out"}
                     </span>
                   </div>
                 </article>
@@ -296,9 +373,7 @@ export function HomePage() {
             <div className="section-header">
               <h2>Tactical map</h2>
               <span data-testid="active-turn-label">
-                {activePlayer
-                  ? `${activePlayer.name}'s turn`
-                  : "Waiting for players"}
+                {lobby?.activeTurn.type === "none" ? "Waiting for players" : `${activeTurnLabel}'s turn`}
               </span>
             </div>
             <div className="map-shell" data-testid="map-shell">
@@ -314,9 +389,7 @@ export function HomePage() {
                 End turn
               </button>
               <span className="meta-copy" data-testid="movement-status">
-                {isCurrentPlayersTurn
-                  ? `You have ${currentPlayer?.remainingMovement ?? 0} movement left.`
-                  : "Click-to-move unlocks only on your turn."}
+                {turnStatusMessage}
               </span>
             </div>
           </section>
@@ -325,32 +398,70 @@ export function HomePage() {
         <div className="right-column">
           <section className="panel">
             <div className="section-header">
+              <h2>Enemies</h2>
+              <span data-testid="enemy-count">{lobby?.enemies.length ?? 0} total</span>
+            </div>
+            <div className="player-list" data-testid="enemy-list">
+              {currentEnemyTargets.map((enemy) => (
+                <article
+                  key={enemy.id}
+                  className="player-card enemy-card"
+                  data-testid={`enemy-card-${enemy.id}`}
+                  data-enemy-name={enemy.name}
+                >
+                  <div>
+                    <strong data-testid={`enemy-name-${enemy.id}`}>{enemy.name}</strong>
+                    <p data-testid={`enemy-status-${enemy.id}`}>
+                      {enemy.alive ? "Alive" : "Defeated"}
+                    </p>
+                  </div>
+                  <div className="player-stats">
+                    <span data-testid={`enemy-health-${enemy.id}`}>
+                      HP {enemy.hp}/{enemy.maxHp}
+                    </span>
+                    <span data-testid={`enemy-defense-${enemy.id}`}>Defense {enemy.defense}</span>
+                    <span data-testid={`enemy-tile-${enemy.id}`}>
+                      Tile {enemy.x + 1},{enemy.y + 1}
+                    </span>
+                  </div>
+                  <div className="button-row">
+                    <button
+                      type="button"
+                      data-testid={`enemy-attack-button-${enemy.id}`}
+                      onClick={() => handleAttack(enemy.id)}
+                      disabled={!canAttackEnemy(enemy)}
+                    >
+                      Attack
+                    </button>
+                    <span className="meta-copy" data-testid={`enemy-range-${enemy.id}`}>
+                      {canAttackEnemy(enemy) ? "Adjacent target" : "Move adjacent to attack"}
+                    </span>
+                  </div>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <section className="panel">
+            <div className="section-header">
               <h2>Turn order</h2>
-              <span data-testid="turn-order-status">{activePlayer ? "Live" : "Idle"}</span>
+              <span data-testid="turn-order-status">
+                {lobby?.activeTurn.type === "none" ? "Idle" : "Live"}
+              </span>
             </div>
             <ol className="turn-order" data-testid="turn-order-list">
-              {lobby?.turnOrder.map((playerId) => {
-                const player = playersById.get(playerId);
-
-                if (!player) {
-                  return null;
-                }
-
-                const isActive = player.id === lobby.activeTurnSessionId;
-
-                return (
-                  <li
-                    key={player.id}
-                    data-testid={`turn-order-item-${player.id}`}
-                    data-player-name={player.name}
-                    data-active={isActive ? "true" : "false"}
-                    className={`turn-order__item${isActive ? " turn-order__item--active" : ""}`}
-                  >
-                    <strong>{player.name}</strong>
-                    <span>{player.className}</span>
-                  </li>
-                );
-              }) ?? <li className="meta-copy">Turn order appears after players join.</li>}
+              {lobby?.turnOrder.map((turnEntry) => (
+                <li
+                  key={turnEntry.id}
+                  data-testid={`turn-order-item-${turnEntry.id}`}
+                  data-player-name={turnEntry.name}
+                  data-active={turnEntry.active ? "true" : "false"}
+                  className={`turn-order__item${turnEntry.active ? " turn-order__item--active" : ""}`}
+                >
+                  <strong>{turnEntry.name}</strong>
+                  <span>{turnEntry.subtitle}</span>
+                </li>
+              )) ?? <li className="meta-copy">Turn order appears after players join.</li>}
             </ol>
           </section>
 
