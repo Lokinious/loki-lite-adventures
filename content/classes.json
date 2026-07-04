@@ -1,0 +1,54 @@
+[
+  {
+    "id": "guardian",
+    "name": "Guardian",
+    "health": 14,
+    "movement": 5,
+    "coreAttributes": {
+      "might": 3,
+      "agility": 1,
+      "focus": 0,
+      "spirit": 1
+    },
+    "startingInventory": ["iron_sword", "shield_talisman", "healing_kit"]
+  },
+  {
+    "id": "ranger",
+    "name": "Ranger",
+    "health": 10,
+    "movement": 6,
+    "coreAttributes": {
+      "might": 1,
+      "agility": 3,
+      "focus": 1,
+      "spirit": 0
+    },
+    "startingInventory": ["oak_bow", "camp_knife", "healing_kit"]
+  },
+  {
+    "id": "arcanist",
+    "name": "Arcanist",
+    "health": 8,
+    "movement": 5,
+    "coreAttributes": {
+      "might": 0,
+      "agility": 1,
+      "focus": 3,
+      "spirit": 1
+    },
+    "startingInventory": ["ember_staff", "mana_ink", "healing_kit"]
+  },
+  {
+    "id": "mystic",
+    "name": "Mystic",
+    "health": 9,
+    "movement": 5,
+    "coreAttributes": {
+      "might": 0,
+      "agility": 1,
+      "focus": 1,
+      "spirit": 3
+    },
+    "startingInventory": ["moon_charm", "warding_robes", "healing_kit"]
+  }
+]

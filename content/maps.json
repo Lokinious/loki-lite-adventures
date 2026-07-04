@@ -1,0 +1,16 @@
+[
+  {
+    "id": "tavern",
+    "name": "Wayfarer's Rest",
+    "width": 12,
+    "height": 10,
+    "fogOfWar": false
+  },
+  {
+    "id": "forest",
+    "name": "Haunted Forest",
+    "width": 18,
+    "height": 14,
+    "fogOfWar": true
+  }
+]

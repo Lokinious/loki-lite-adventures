@@ -1,0 +1,30 @@
+[
+  {
+    "id": "wolf",
+    "name": "Wolf",
+    "health": 8,
+    "armorClass": 12,
+    "movement": 6,
+    "attacks": [
+      {
+        "name": "Bite",
+        "toHit": 4,
+        "damage": "1d6+2"
+      }
+    ]
+  },
+  {
+    "id": "skeleton",
+    "name": "Skeleton",
+    "health": 10,
+    "armorClass": 13,
+    "movement": 5,
+    "attacks": [
+      {
+        "name": "Rusty Blade",
+        "toHit": 3,
+        "damage": "1d6+1"
+      }
+    ]
+  }
+]

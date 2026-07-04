@@ -1,0 +1,16 @@
+[
+  {
+    "id": "healing_kit",
+    "name": "Healing Kit",
+    "rarity": "common",
+    "price": 15,
+    "effect": "Restore 1d6 health."
+  },
+  {
+    "id": "ember_staff",
+    "name": "Ember Staff",
+    "rarity": "uncommon",
+    "price": 40,
+    "effect": "Empowers offensive arcane spells."
+  }
+]

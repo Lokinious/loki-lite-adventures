@@ -1,0 +1,22 @@
+[
+  {
+    "id": "wolves_easy",
+    "sceneId": "forest",
+    "enemies": [
+      {
+        "enemyId": "wolf",
+        "quantity": 2
+      }
+    ]
+  },
+  {
+    "id": "undead_easy",
+    "sceneId": "forest",
+    "enemies": [
+      {
+        "enemyId": "skeleton",
+        "quantity": 2
+      }
+    ]
+  }
+]
