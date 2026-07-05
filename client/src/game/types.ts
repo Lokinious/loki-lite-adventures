@@ -195,6 +195,8 @@ export type SessionMapView = {
   mapId: string;
   mapName: string;
   notes: string;
+  spawnSlots: Array<{ id: SpawnSlotId; x: number; y: number }>;
+  fogAreas: FogAreaView[];
   spawnCount: number;
   encounterCount: number;
   entityCount: number;
@@ -274,9 +276,22 @@ export type PreparationSpawnView = {
 export type PreparationEncounterView = {
   id: string;
   name: string;
+  mapKey: MapSlotKey;
   x: number;
   y: number;
+  enemyIds: string[];
   enemyCount: number;
+  active: boolean;
+  notes: string;
+};
+
+export type EncounterGroupView = {
+  id: string;
+  mapKey: MapSlotKey;
+  name: string;
+  enemyIds: string[];
+  x: number;
+  y: number;
   active: boolean;
   notes: string;
 };
@@ -464,11 +479,36 @@ export type VictorySummaryView = {
   adventureDuration: string;
 };
 
+export type CampaignMetadataView = {
+  id: string;
+  name: string;
+  description: string;
+  author: string;
+  version: string;
+  difficulty: string;
+  recommendedPlayers: string;
+  theme: string;
+  levelRange: string;
+  tags: string[];
+  thumbnail?: string;
+  coverImage?: string;
+  assetIds?: string[];
+  createdDate: string;
+  updatedDate: string;
+  estimatedLength: string;
+  creatorName: string;
+  changeNotes: string;
+  visibility: "private" | "shared" | "public" | "official";
+  ownership: "creator" | "official";
+  requiredPacks: string[];
+};
+
 export type LobbyView = {
   roomCode: string;
   selfRole: JoinRole;
   dmSessionId: string;
   dmName: string;
+  currentCampaign: CampaignMetadataView | null;
   roomPhase: RoomPhase;
   controlsLocked: boolean;
   campaignDifficulty: CampaignDifficulty;
@@ -483,6 +523,7 @@ export type LobbyView = {
   adventureTemplates: AdventureTemplateView[];
   preparationSpawns: PreparationSpawnView[];
   preparationEncounters: PreparationEncounterView[];
+  encounterGroups: EncounterGroupView[];
   fogAreas: FogAreaView[];
   revealedTiles: Array<{ x: number; y: number }>;
   revealAllFog: boolean;

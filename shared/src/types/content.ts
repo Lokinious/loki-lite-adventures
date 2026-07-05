@@ -65,6 +65,45 @@ export type MapDefinition = {
   fogOfWar: boolean;
 };
 
+export type AssetCategory = "map" | "npc" | "enemy" | "item" | "shop" | "cover" | "environment";
+
+export type AssetDefinition = {
+  id: string;
+  name: string;
+  category: AssetCategory;
+  imagePath: string;
+  thumbnailPath?: string;
+  tags?: string[];
+  author?: string;
+  source?: "official" | "custom" | "generated";
+  createdAt?: string;
+  version?: string;
+  ownership?: {
+    ownerId?: string;
+    ownerName?: string;
+    license?: string;
+    marketplaceSku?: string;
+  };
+};
+
+export type MapMetadata = {
+  mapId: string;
+  assetId: string;
+  spawnPoints: Array<{ x: number; y: number }>;
+  encounterZones: Array<{
+    id: string;
+    name: string;
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    encounterId?: string;
+  }>;
+  npcPositions: Array<{ npcId: string; x: number; y: number }>;
+  shopPositions: Array<{ shopId: string; x: number; y: number }>;
+  questMarkers: Array<{ questId: string; label: string; x: number; y: number }>;
+};
+
 export type ItemDefinition = {
   id: string;
   name: string;

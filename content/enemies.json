@@ -170,6 +170,16 @@
     ]
   },
   {
+    "id": "brother_malrec",
+    "name": "Brother Malrec",
+    "health": 28,
+    "armorClass": 13,
+    "movement": 5,
+    "attacks": [
+      { "name": "Shadow Bolt", "toHit": 5, "damage": "1d8" }
+    ]
+  },
+  {
     "id": "bandit",
     "name": "Bandit",
     "health": 12,

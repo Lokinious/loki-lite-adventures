@@ -1,0 +1,19 @@
+{
+  "mapId": "crypt-entrance",
+  "assetId": "map_crypt_entrance_01",
+  "spawnPoints": [
+    { "x": 1, "y": 10 },
+    { "x": 2, "y": 10 },
+    { "x": 3, "y": 10 }
+  ],
+  "encounterZones": [
+    { "id": "crypt-entrance-bones", "name": "Bone-Strewn Gate", "x": 5, "y": 6, "width": 3, "height": 2, "encounterId": "crypt_guardians" }
+  ],
+  "npcPositions": [
+    { "npcId": "brother_tomas", "x": 9, "y": 3 }
+  ],
+  "shopPositions": [],
+  "questMarkers": [
+    { "questId": "missing_pilgrims", "label": "Enter Saint Aric's Crypt", "x": 6, "y": 1 }
+  ]
+}

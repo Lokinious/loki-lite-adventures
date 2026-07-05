@@ -1,0 +1,17 @@
+{
+  "mapId": "forgotten-crypt",
+  "assetId": "map_forgotten_crypt_01",
+  "spawnPoints": [
+    { "x": 2, "y": 10 },
+    { "x": 3, "y": 10 },
+    { "x": 4, "y": 10 }
+  ],
+  "encounterZones": [
+    { "id": "forgotten-crypt-passage", "name": "Restless Passage", "x": 4, "y": 4, "width": 4, "height": 3, "encounterId": "restless_dead" }
+  ],
+  "npcPositions": [],
+  "shopPositions": [],
+  "questMarkers": [
+    { "questId": "missing_pilgrims", "label": "Find the Hidden Reliquary", "x": 3, "y": 3 }
+  ]
+}

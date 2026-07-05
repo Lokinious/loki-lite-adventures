@@ -4,6 +4,7 @@ import { CharacterSheetPanel, DmPanel, DmWorldToolsPanel, EnemyPanel, LogPanel, 
 import { PreparationCanvas } from "../components/PreparationCanvas";
 import { useRoomConnection } from "../game/RoomConnectionContext";
 import type { EnemyView } from "../game/types";
+import { buildCampaignPackageFromLobby, saveCampaignToLibrary, triggerCampaignDownload, type CampaignVisibility } from "../services/campaignLibrary";
 
 export function RoomLobbyPage() {
   const navigate = useNavigate();
@@ -25,7 +26,8 @@ export function RoomLobbyPage() {
     sceneAction,
     runDmAction,
     runDmTool,
-    runDmCommand
+    runDmCommand,
+    setStatus
   } = useRoomConnection();
   const [selectedClassId, setSelectedClassId] = useState("");
   const [selectedRaceId, setSelectedRaceId] = useState("");
@@ -33,6 +35,13 @@ export function RoomLobbyPage() {
   const [goldAmount, setGoldAmount] = useState("5");
   const [commandDraft, setCommandDraft] = useState("");
   const [dmCommand, setDmCommand] = useState("");
+  const [campaignName, setCampaignName] = useState("");
+  const [campaignDescription, setCampaignDescription] = useState("");
+  const [campaignVersion, setCampaignVersion] = useState("1.0.0");
+  const [campaignTheme, setCampaignTheme] = useState("Adventure");
+  const [campaignTags, setCampaignTags] = useState("");
+  const [campaignVisibility, setCampaignVisibility] = useState<CampaignVisibility>("private");
+  const [campaignChangeNotes, setCampaignChangeNotes] = useState("");
 
   useEffect(() => {
     requestState();
@@ -49,6 +58,20 @@ export function RoomLobbyPage() {
       setSceneTarget(lobby.currentScene.id);
     }
   }, [lobby?.availableScenes.length, lobby?.currentScene.id]);
+
+  useEffect(() => {
+    if (!lobby?.currentCampaign) {
+      return;
+    }
+
+    setCampaignName(lobby.currentCampaign.name);
+    setCampaignDescription(lobby.currentCampaign.description);
+    setCampaignVersion(lobby.currentCampaign.version);
+    setCampaignTheme(lobby.currentCampaign.theme);
+    setCampaignTags(lobby.currentCampaign.tags.join(", "));
+    setCampaignVisibility(lobby.currentCampaign.visibility);
+    setCampaignChangeNotes(lobby.currentCampaign.changeNotes);
+  }, [lobby?.currentCampaign]);
 
   const currentPlayer = lobby?.players.find((player) => player.id === sessionId) ?? null;
 
@@ -83,8 +106,9 @@ export function RoomLobbyPage() {
     );
   }
 
-  const currentScene = lobby.currentScene;
-  const playerSceneControlsVisible = role === "player" && lobby.sceneActions.length > 0;
+  const activeLobby = lobby;
+  const currentScene = activeLobby.currentScene;
+  const playerSceneControlsVisible = role === "player" && activeLobby.sceneActions.length > 0;
 
   function canAttackEnemy(enemy: EnemyView) {
     if (!currentPlayer || !currentPlayer.alive || !enemy.alive) {
@@ -100,6 +124,27 @@ export function RoomLobbyPage() {
     }
 
     return canAttackEnemy(enemy) ? "Target in range" : `Need range ${currentPlayer.attackRange}`;
+  }
+
+  function buildCampaignPackage() {
+    return buildCampaignPackageFromLobby(activeLobby, {
+      id: activeLobby.currentCampaign?.ownership === "creator" ? activeLobby.currentCampaign.id : campaignName,
+      name: campaignName || activeLobby.currentCampaign?.name || "Custom Campaign",
+      description: campaignDescription,
+      author: activeLobby.currentCampaign?.author || playerName,
+      creatorName: playerName,
+      version: campaignVersion,
+      difficulty: activeLobby.currentCampaign?.difficulty ?? "medium",
+      recommendedPlayers: activeLobby.currentCampaign?.recommendedPlayers ?? "2-6",
+      theme: campaignTheme,
+      levelRange: activeLobby.currentCampaign?.levelRange ?? "1-3",
+      tags: campaignTags.split(",").map((tag) => tag.trim()).filter(Boolean),
+      estimatedLength: activeLobby.currentCampaign?.estimatedLength ?? "1-2 Sessions",
+      changeNotes: campaignChangeNotes,
+      visibility: campaignVisibility,
+      ownership: "creator",
+      requiredPacks: activeLobby.currentCampaign?.requiredPacks ?? ["core"]
+    });
   }
 
   return (
@@ -176,6 +221,80 @@ export function RoomLobbyPage() {
                 <p className="meta-copy" data-testid="scene-type">
                   Type: {currentScene.sceneType}
                 </p>
+              </section>
+              <section className="panel" data-testid="campaign-manager-panel">
+                <div className="section-header">
+                  <h2>Campaign Manager</h2>
+                  <span data-testid="campaign-manager-summary">{lobby.currentCampaign?.name ?? "Custom Campaign"}</span>
+                </div>
+                <div className="two-column-grid">
+                  <label className="field">
+                    <span>Name</span>
+                    <input data-testid="campaign-name-input" value={campaignName} onChange={(event) => setCampaignName(event.target.value)} />
+                  </label>
+                  <label className="field">
+                    <span>Version</span>
+                    <input data-testid="campaign-version-input" value={campaignVersion} onChange={(event) => setCampaignVersion(event.target.value)} />
+                  </label>
+                  <label className="field">
+                    <span>Theme</span>
+                    <input data-testid="campaign-theme-input" value={campaignTheme} onChange={(event) => setCampaignTheme(event.target.value)} />
+                  </label>
+                  <label className="field">
+                    <span>Visibility</span>
+                    <select data-testid="campaign-visibility-select" value={campaignVisibility} onChange={(event) => setCampaignVisibility(event.target.value as CampaignVisibility)}>
+                      <option value="private">Private</option>
+                      <option value="shared">Shared</option>
+                      <option value="public">Public</option>
+                      <option value="official">Official</option>
+                    </select>
+                  </label>
+                </div>
+                <label className="field">
+                  <span>Description</span>
+                  <textarea data-testid="campaign-description-input" value={campaignDescription} onChange={(event) => setCampaignDescription(event.target.value)} rows={3} />
+                </label>
+                <label className="field">
+                  <span>Tags</span>
+                  <input data-testid="campaign-tags-input" value={campaignTags} onChange={(event) => setCampaignTags(event.target.value)} placeholder="goblin, mystery, shared" />
+                </label>
+                <label className="field">
+                  <span>Change Notes</span>
+                  <textarea data-testid="campaign-change-notes-input" value={campaignChangeNotes} onChange={(event) => setCampaignChangeNotes(event.target.value)} rows={2} />
+                </label>
+                <div className="button-row">
+                  <button
+                    type="button"
+                    data-testid="save-campaign-button"
+                    onClick={() => {
+                      const packageData = buildCampaignPackage();
+                      saveCampaignToLibrary({
+                        category: "my",
+                        metadata: packageData.metadata,
+                        packageData
+                      });
+                      setStatus(`Saved campaign ${packageData.metadata.name} to My Campaigns.`);
+                    }}
+                  >
+                    Save Campaign
+                  </button>
+                  <button
+                    type="button"
+                    className="secondary-button"
+                    data-testid="export-campaign-json-button"
+                    onClick={() => triggerCampaignDownload(buildCampaignPackage(), "json")}
+                  >
+                    Export JSON
+                  </button>
+                  <button
+                    type="button"
+                    className="secondary-button"
+                    data-testid="export-campaign-package-button"
+                    onClick={() => triggerCampaignDownload(buildCampaignPackage(), "package")}
+                  >
+                    Export Package
+                  </button>
+                </div>
               </section>
               <PartyPanel lobby={lobby} />
               <LogPanel

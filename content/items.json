@@ -350,5 +350,37 @@
     "maxHealthBonus": 0,
     "movementBonus": 0,
     "healDice": ""
+  },
+  {
+    "id": "blessed_symbol",
+    "name": "Blessed Symbol",
+    "rarity": "uncommon",
+    "price": 18,
+    "effect": "+1 damage against undead.",
+    "itemType": "trinket",
+    "slot": "",
+    "attackBonus": 0,
+    "defenseBonus": 0,
+    "spellDamageBonus": 0,
+    "attackRangeBonus": 0,
+    "maxHealthBonus": 0,
+    "movementBonus": 0,
+    "healDice": ""
+  },
+  {
+    "id": "blessed_cloak",
+    "name": "Blessed Cloak",
+    "rarity": "uncommon",
+    "price": 30,
+    "effect": "+1 defense against undead.",
+    "itemType": "armor",
+    "slot": "armor",
+    "attackBonus": 0,
+    "defenseBonus": 1,
+    "spellDamageBonus": 0,
+    "attackRangeBonus": 0,
+    "maxHealthBonus": 0,
+    "movementBonus": 0,
+    "healDice": ""
   }
 ]

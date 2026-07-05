@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { Client, Room } from "colyseus.js";
+import type { CampaignPackage, CampaignSelectionMode } from "../services/campaignLibrary";
 import type {
   AutomationEffectType,
   CampaignDifficulty,
@@ -21,11 +22,14 @@ import type {
   WorldEntityType
 } from "./types";
 
-type ConnectOptions = {
+export type ConnectOptions = {
   mode: JoinMode;
   roomCode: string;
   playerName: string;
   role: JoinRole;
+  campaignMode?: CampaignSelectionMode;
+  campaignId?: string;
+  campaignPayload?: CampaignPackage;
 };
 
 type DmActionMessage = {
@@ -279,7 +283,10 @@ export function RoomConnectionProvider({ children }: { children: React.ReactNode
           ? await client.create("lobby", {
               roomCode: normalizedRoomCode,
               playerName: options.playerName,
-              role: options.role
+              role: options.role,
+              campaignMode: options.campaignMode,
+              campaignId: options.campaignId,
+              campaignPayload: options.campaignPayload
             })
           : await client.join("lobby", {
               roomCode: normalizedRoomCode,

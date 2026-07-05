@@ -1,0 +1,19 @@
+{
+  "mapId": "necromancer-sanctum",
+  "assetId": "map_necromancer_sanctum_01",
+  "spawnPoints": [
+    { "x": 3, "y": 9 },
+    { "x": 4, "y": 9 },
+    { "x": 5, "y": 9 }
+  ],
+  "encounterZones": [
+    { "id": "sanctum-ritual-circle", "name": "Ritual Circle", "x": 6, "y": 1, "width": 4, "height": 3, "encounterId": "brother_malrec_boss" }
+  ],
+  "npcPositions": [
+    { "npcId": "brother_malrec", "x": 8, "y": 2 }
+  ],
+  "shopPositions": [],
+  "questMarkers": [
+    { "questId": "missing_pilgrims", "label": "Stop the Necromancer", "x": 8, "y": 2 }
+  ]
+}

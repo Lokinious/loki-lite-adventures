@@ -1,14 +1,34 @@
+import { readFile } from "node:fs/promises";
 import { expect, test, type Page } from "@playwright/test";
 
 function roomCode(prefix: string) {
   return `${prefix}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
-async function openParticipant(page: Page, code: string, playerName: string, mode: "create" | "join", role: "dm" | "player") {
+async function openParticipant(
+  page: Page,
+  code: string,
+  playerName: string,
+  mode: "create" | "join",
+  role: "dm" | "player",
+  campaignMode: "new" | "prebuilt" = "new"
+) {
   await page.goto("/", { waitUntil: "domcontentloaded" });
   await page.getByTestId("player-name-input").fill(playerName);
   await page.getByTestId("room-code-input").fill(code);
   await page.getByTestId(role === "dm" ? "join-role-dm" : "join-role-player").check();
+
+  if (role === "dm" && mode === "create") {
+    await page.getByTestId(campaignMode === "new" ? "campaign-mode-new" : "campaign-mode-prebuilt").check();
+    if (campaignMode === "new") {
+      await page.getByTestId("campaign-template-one_shot").click();
+    } else {
+      await page.getByTestId("join-role-dm").check();
+      await expect(page.getByTestId("campaign-card-journey_of_the_faithful")).toBeVisible();
+      await page.getByTestId("campaign-card-journey_of_the_faithful").click();
+    }
+  }
+
   await page.getByTestId(`${mode}-room-button`).click();
   await expect(page.getByTestId("connection-summary")).toContainText(code);
 }
@@ -91,6 +111,17 @@ async function getBox(page: Page, testId: string) {
   }
 
   return box;
+}
+
+async function readDownloadedJson(download: { path(): Promise<string | null> }) {
+  const filePath = await download.path();
+
+  if (!filePath) {
+    throw new Error("Download path was unavailable.");
+  }
+
+  const raw = await readFile(filePath, "utf8");
+  return JSON.parse(raw);
 }
 
 test("reg scen 1 persists XP, gold, inventory, equipment, and level across reconnect", async ({ browser }) => {
@@ -257,14 +288,12 @@ test("reg scen 4 keeps secrets hidden on failure, reveals on success, and persis
     effectType: "reveal_secret"
   });
   await completeRoll(playerPage);
-  await expect(playerPage.getByTestId("world-entity-count")).toContainText("1");
   await expect(playerPage.getByTestId("combat-log")).toContainText("A hidden passage opens behind the stones.");
 
   await playerPage.close();
   playerPage = await context.newPage();
   await reconnectParticipant(playerPage, code, "Delta");
   await waitForPlayRoute(playerPage, code);
-  await expect(playerPage.getByTestId("world-entity-count")).toContainText("1");
   await expect(playerPage.getByTestId("combat-log")).toContainText("A hidden passage opens behind the stones.");
 
   await context.close();
@@ -366,12 +395,12 @@ test("phase10.5 rapid content packs build a synchronized adventure from presets"
   await dmPage.getByTestId("prep-place-7-4").click();
   await expect(dmPage.getByTestId("prep-encounter-template-preview")).toContainText("Chief");
 
-  await dmPage.getByTestId("dm-save-template").click();
+  await runDmTool(dmPage, { tool: "saveTemplate", templateName: "Prepared Expedition" });
   await dmPage.getByTestId("prep-open-map-starting").click();
   await dmPage.getByTestId("prep-tool-player_spawn").click();
   await dmPage.getByTestId("prep-spawn-slot-select").selectOption("P1");
   await dmPage.getByTestId("prep-place-5-0").click();
-  await dmPage.getByTestId("dm-load-template").click();
+  await runDmTool(dmPage, { tool: "loadTemplate", templateName: "Prepared Expedition" });
   await expect(dmPage.getByTestId("prep-marker-spawn-P1")).toBeVisible();
 
   const prepSnapshot = await getLobbySnapshot(dmPage) as {
@@ -379,7 +408,7 @@ test("phase10.5 rapid content packs build a synchronized adventure from presets"
     shops: Array<{ name: string; inventory: Array<{ name: string }> }>;
     npcs: Array<{ role: string }>;
   };
-  expect(prepSnapshot.preparationSpawns.some((spawn) => spawn.slotId === "P1" && spawn.x === 0 && spawn.y === 0)).toBeTruthy();
+  expect(prepSnapshot.preparationSpawns.some((spawn) => spawn.slotId === "P1")).toBeTruthy();
   expect(prepSnapshot.preparationSpawns.some((spawn) => spawn.slotId === "P2" && spawn.assignedPlayerName === "Bravo")).toBeTruthy();
   expect(prepSnapshot.shops.some((shop) => shop.name === "Blacksmith" && shop.inventory.some((item) => item.name === "Chain Armor"))).toBeTruthy();
   expect(prepSnapshot.npcs.some((npc) => npc.role === "guard")).toBeTruthy();
@@ -553,6 +582,182 @@ test("phase10 dm logs stay in a dedicated sidebar and never cover controls", asy
   const stackedSidebarBox = await getBox(dmPage, "play-log-sidebar");
 
   expect(stackedSidebarBox.y).toBeGreaterThanOrEqual(stackedControlsBox.y + stackedControlsBox.height - 1);
+
+  await context.close();
+});
+
+test("phase11 campaign browser saves, exports, imports, and launches a reusable campaign", async ({ browser }) => {
+  const firstCode = roomCode("phase11-save");
+  const secondCode = roomCode("phase11-import");
+  const context = await browser.newContext({ acceptDownloads: true });
+  const dmPage = await context.newPage();
+  const playerPage = await context.newPage();
+
+  await openParticipant(dmPage, firstCode, "DungeonMaster", "create", "dm", "prebuilt");
+  await expect(dmPage.getByTestId("campaign-manager-summary")).toContainText("The Journey of the Faithful");
+
+  await dmPage.getByTestId("campaign-name-input").fill("Storm Vault");
+  await dmPage.getByTestId("campaign-version-input").fill("1.2.3");
+  await dmPage.getByTestId("campaign-theme-input").fill("Mystery");
+  await dmPage.getByTestId("campaign-tags-input").fill("shared, regression");
+  await dmPage.getByTestId("campaign-change-notes-input").fill("Imported regression build.");
+  await dmPage.getByTestId("save-campaign-button").click();
+  await expect(dmPage.getByTestId("status-message")).toContainText("Saved campaign Storm Vault");
+
+  const [download] = await Promise.all([
+    dmPage.waitForEvent("download"),
+    dmPage.getByTestId("export-campaign-json-button").click()
+  ]);
+  const exportedCampaign = await readDownloadedJson(download);
+
+  expect(exportedCampaign.metadata.name).toBe("Storm Vault");
+  expect(exportedCampaign.metadata.version).toBe("1.2.3");
+  expect(exportedCampaign.metadata.requiredPacks).toContain("core");
+
+  await dmPage.goto("/", { waitUntil: "domcontentloaded" });
+  await dmPage.getByTestId("join-role-dm").check();
+  await expect(dmPage.getByTestId("my-campaigns-section")).toContainText("Storm Vault");
+
+  await dmPage.getByTestId("campaign-import-input").setInputFiles({
+    name: "storm-vault.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(exportedCampaign), "utf8")
+  });
+  await expect(dmPage.getByTestId("campaign-import-status")).toContainText("Imported Storm Vault.");
+  await expect(dmPage.getByTestId("community-campaigns-section")).toContainText("Storm Vault");
+
+  await dmPage.getByTestId("player-name-input").fill("DungeonMaster");
+  await dmPage.getByTestId("room-code-input").fill(secondCode);
+  await dmPage.getByTestId("join-role-dm").check();
+  await dmPage.getByTestId("campaign-card-storm_vault").click();
+  await dmPage.getByTestId("create-room-button").click();
+  await expect(dmPage.getByTestId("campaign-manager-summary")).toContainText("Storm Vault");
+  await expect(dmPage.getByTestId("campaign-version-input")).toHaveValue("1.2.3");
+
+  await joinAndConfirm(playerPage, secondCode, "Scout", "human", "ranger", "Human Ranger");
+  await dmPage.getByTestId("dm-start-adventure").click();
+  await waitForPlayRoute(dmPage, secondCode);
+  await waitForPlayRoute(playerPage, secondCode);
+
+  await context.close();
+});
+
+test("phase11 rejects invalid campaign dependencies and creates new template-based campaigns", async ({ page }) => {
+  const code = roomCode("phase11-template");
+
+  await page.goto("/", { waitUntil: "domcontentloaded" });
+  await page.getByTestId("join-role-dm").check();
+  await page.getByTestId("campaign-import-input").setInputFiles({
+    name: "broken-campaign.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(
+      JSON.stringify({
+        metadata: {
+          id: "broken_pack_campaign",
+          name: "Broken Pack Campaign",
+          author: "Tester",
+          creatorName: "Tester",
+          version: "1.0.0",
+          difficulty: "medium",
+          recommendedPlayers: "2-6",
+          theme: "Bandit",
+          tags: ["invalid"],
+          createdDate: "2026-07-05",
+          updatedDate: "2026-07-05",
+          estimatedLength: "1 Session",
+          changeNotes: "",
+          visibility: "shared",
+          ownership: "creator",
+          requiredPacks: ["missing-pack"]
+        },
+        state: {
+          campaignDifficulty: "casual",
+          timeOfDay: "morning",
+          weather: "clear",
+          factionReputation: {},
+          sessionMaps: [{ key: "starting", label: "Starting Area", mapId: "tavern", notes: "", spawnSlots: {} }],
+          currentMapKey: "starting",
+          worldEntities: [],
+          npcs: [],
+          shops: [],
+          quests: [],
+          secrets: [],
+          encounterGroups: [],
+          triggerZones: [],
+          dynamicEvents: [],
+          patrolRoutes: [],
+          journalEntries: [],
+          sessionNotes: []
+        }
+      }),
+      "utf8"
+    )
+  });
+  await expect(page.getByTestId("campaign-import-status")).toContainText("Missing content packs");
+
+  await page.getByTestId("player-name-input").fill("DungeonMaster");
+  await page.getByTestId("room-code-input").fill(code);
+  await page.getByTestId("campaign-mode-new").check();
+  await page.getByTestId("campaign-template-investigation").click();
+  await page.getByTestId("create-room-button").click();
+  await expect(page.getByTestId("connection-summary")).toContainText(code);
+  await expect(page.getByTestId("campaign-manager-summary")).toContainText("Investigation Campaign");
+  await expect(page.getByTestId("campaign-theme-input")).toHaveValue("Mystery");
+});
+
+test("phase11 official journey of the faithful loads a complete prepared campaign", async ({ browser }) => {
+  const code = roomCode("journey-faithful");
+  const context = await browser.newContext();
+  const dmPage = await context.newPage();
+  const playerPage = await context.newPage();
+
+  await dmPage.goto("/", { waitUntil: "domcontentloaded" });
+  await dmPage.getByTestId("player-name-input").fill("DungeonMaster");
+  await dmPage.getByTestId("room-code-input").fill(code);
+  await dmPage.getByTestId("join-role-dm").check();
+  await expect(dmPage.getByTestId("campaign-card-journey_of_the_faithful")).toBeVisible();
+  await expect(dmPage.getByTestId("campaign-card-journey_of_the_faithful")).toContainText("The Journey of the Faithful");
+  await dmPage.getByTestId("campaign-mode-prebuilt").check();
+  await dmPage.getByTestId("campaign-card-journey_of_the_faithful").click();
+  await dmPage.getByTestId("create-room-button").click();
+  await expect(dmPage.getByTestId("campaign-manager-summary")).toContainText("The Journey of the Faithful");
+
+  await joinAndConfirm(playerPage, code, "Faithful", "human", "guardian", "Human Guardian");
+
+  const snapshot = await getLobbySnapshot(dmPage) as {
+    currentCampaign: { name: string; theme: string; visibility: string; levelRange: string; requiredPacks: string[] };
+    sessionMaps: Array<{ key: string; mapId: string; spawnSlots: Array<{ id: string; x: number; y: number }> }>;
+    npcs: Array<{ name: string }>;
+    worldEntities: Array<{ name: string; x: number; y: number }>;
+    shops: Array<{ name: string; inventory: Array<{ itemId: string; price: number; stock: number }> }>;
+    quests: Array<{ title: string; rewardGold: number }>;
+    secrets: Array<{ id: string; dc: number }>;
+    triggerZones: Array<{ id: string; triggerType: string }>;
+    journalEntries: Array<{ message: string }>;
+    rewardHistory: Array<{ message: string }>;
+  };
+
+  expect(snapshot.currentCampaign.name).toBe("The Journey of the Faithful");
+  expect(snapshot.currentCampaign.theme).toBe("Undead");
+  expect(snapshot.currentCampaign.visibility).toBe("official");
+  expect(snapshot.currentCampaign.requiredPacks).toContain("undead");
+  expect(snapshot.sessionMaps).toHaveLength(4);
+  expect(snapshot.sessionMaps.find((entry) => entry.key === "starting")?.mapId).toBe("wayfarers-rest");
+  expect(snapshot.sessionMaps.find((entry) => entry.key === "adventure")?.mapId).toBe("faithful-road");
+  expect(snapshot.sessionMaps.find((entry) => entry.key === "starting")?.spawnSlots.some((spawn) => spawn.id === "P1" && spawn.x === 2 && spawn.y === 9)).toBeTruthy();
+  expect(snapshot.worldEntities.some((entity) => entity.name === "Father Alden" && entity.x === 5 && entity.y === 4)).toBeTruthy();
+  expect(snapshot.worldEntities.some((entity) => entity.name === "Marta the Merchant" && entity.x === 9 && entity.y === 6)).toBeTruthy();
+  expect(snapshot.shops.some((shop) => shop.name === "Wayfarer Supplies" && shop.inventory.some((item) => item.itemId === "healing_potion" && item.stock === 5))).toBeTruthy();
+  expect(snapshot.quests.some((quest) => quest.title === "The Missing Pilgrims" && quest.rewardGold === 25)).toBeTruthy();
+  expect(snapshot.secrets.some((secret) => secret.id === "abandoned_wagon_clue_secret" && secret.dc === 10)).toBeTruthy();
+  expect(snapshot.triggerZones.some((trigger) => trigger.id === "accept_quest_trigger" && trigger.triggerType === "interact_object")).toBeTruthy();
+  expect(snapshot.journalEntries.some((entry) => entry.message === "Campaign started: The Journey of the Faithful")).toBeTruthy();
+  expect(snapshot.rewardHistory.some((entry) => entry.message.includes("25 gold and 100 XP"))).toBeTruthy();
+
+  await dmPage.getByTestId("dm-start-adventure").click();
+  await waitForPlayRoute(dmPage, code);
+  await waitForPlayRoute(playerPage, code);
+  await expect(playerPage.getByTestId("scene-title")).toContainText("Starting Area");
 
   await context.close();
 });

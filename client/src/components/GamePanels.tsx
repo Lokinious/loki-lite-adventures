@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, type DragEvent } from "react";
 import type {
   AutomationEffectType,
   DynamicEventKind,
@@ -26,6 +26,8 @@ import type {
   WorldEntityType,
   WorldEntityView
 } from "../game/types";
+import { getAssetRegistry, getMapMetadataByAssetId } from "../services/assetLibrary";
+import type { AssetCategory, AssetDefinition } from "../../../content/assets/schema";
 
 type PartyPanelProps = {
   lobby: LobbyView;
@@ -132,6 +134,8 @@ type DmWorldToolsPanelProps = {
   lobby: LobbyView;
   onRunTool(message: Record<string, unknown>): void;
 };
+
+const assetCategories: Array<AssetCategory | "all"> = ["all", "map", "npc", "enemy", "shop", "item", "environment", "cover"];
 
 export function PartyPanel({ lobby, targetAction = null }: PartyPanelProps) {
   return (
@@ -624,7 +628,7 @@ export function RewardHistoryPanel({ rewards }: { rewards: RewardHistoryView[] }
 
 export function LogPanel({ title, logs, testId, countTestId, entryPrefix }: LogPanelProps) {
   return (
-    <section className="panel">
+    <section className="panel log-panel">
       <div className="section-header">
         <h2>{title}</h2>
         <span data-testid={countTestId}>{logs.length} entries</span>
@@ -756,7 +760,9 @@ export function DmPanel({
 }
 
 export function DmWorldToolsPanel({ lobby, onRunTool }: DmWorldToolsPanelProps) {
-  const [activeTab, setActiveTab] = useState<"maps" | "players" | "npcs" | "objects" | "shops" | "quests" | "encounters" | "secrets" | "rewards" | "notes" | "world">("maps");
+  const [activeTab, setActiveTab] = useState<"assets" | "maps" | "players" | "npcs" | "objects" | "shops" | "quests" | "encounters" | "secrets" | "rewards" | "notes" | "world">("assets");
+  const [assetSearch, setAssetSearch] = useState("");
+  const [assetCategoryFilter, setAssetCategoryFilter] = useState<AssetCategory | "all">("all");
   const [selectedMapKey, setSelectedMapKey] = useState(lobby.currentMapKey);
   const [selectedMapId, setSelectedMapId] = useState(lobby.sessionMaps.find((map) => map.key === lobby.currentMapKey)?.mapId ?? lobby.currentScene.mapId);
   const [npcName, setNpcName] = useState("Gatekeeper");
@@ -833,6 +839,16 @@ export function DmWorldToolsPanel({ lobby, onRunTool }: DmWorldToolsPanelProps) 
 
   const npcOptions = useMemo(() => lobby.npcs, [lobby.npcs]);
   const entityOptions = useMemo(() => lobby.worldEntities, [lobby.worldEntities]);
+  const assets = useMemo(() => getAssetRegistry(), []);
+  const filteredAssets = useMemo(() => {
+    const normalizedSearch = assetSearch.trim().toLowerCase();
+
+    return assets.filter((asset) => {
+      const matchesCategory = assetCategoryFilter === "all" || asset.category === assetCategoryFilter;
+      const searchableText = [asset.name, asset.category, asset.source ?? "", ...(asset.tags ?? [])].join(" ").toLowerCase();
+      return matchesCategory && (!normalizedSearch || searchableText.includes(normalizedSearch));
+    });
+  }, [assetCategoryFilter, assetSearch, assets]);
   const quickActionButtons = [
     { id: "skill-check", label: "Skill Check", run: () => setActiveTab("secrets") },
     { id: "reveal-secret", label: "Reveal Secret", run: () => latestSecret && onRunTool({ tool: "revealSecret", secretId: latestSecret.id }) },
@@ -1001,7 +1017,7 @@ export function DmWorldToolsPanel({ lobby, onRunTool }: DmWorldToolsPanelProps) 
       </section>
 
       <div className="tab-row">
-        {(["maps", "players", "npcs", "objects", "shops", "quests", "encounters", "secrets", "rewards", "notes", "world"] as const).map((tab) => (
+        {(["assets", "maps", "players", "npcs", "objects", "shops", "quests", "encounters", "secrets", "rewards", "notes", "world"] as const).map((tab) => (
           <button
             key={tab}
             type="button"
@@ -1013,6 +1029,16 @@ export function DmWorldToolsPanel({ lobby, onRunTool }: DmWorldToolsPanelProps) 
           </button>
         ))}
       </div>
+
+      {activeTab === "assets" ? (
+        <AssetBrowserPanel
+          assets={filteredAssets}
+          assetSearch={assetSearch}
+          assetCategoryFilter={assetCategoryFilter}
+          onAssetSearchChange={setAssetSearch}
+          onAssetCategoryFilterChange={setAssetCategoryFilter}
+        />
+      ) : null}
 
       {activeTab === "maps" ? (
         <div className="player-list">
@@ -1692,8 +1718,100 @@ export function DmWorldToolsPanel({ lobby, onRunTool }: DmWorldToolsPanelProps) 
   );
 }
 
+function AssetBrowserPanel({
+  assets,
+  assetSearch,
+  assetCategoryFilter,
+  onAssetSearchChange,
+  onAssetCategoryFilterChange
+}: {
+  assets: AssetDefinition[];
+  assetSearch: string;
+  assetCategoryFilter: AssetCategory | "all";
+  onAssetSearchChange(value: string): void;
+  onAssetCategoryFilterChange(value: AssetCategory | "all"): void;
+}) {
+  function handleDragStart(event: DragEvent<HTMLElement>, asset: AssetDefinition) {
+    event.dataTransfer.setData("application/loki-asset", JSON.stringify({ assetId: asset.id, category: asset.category, imagePath: asset.imagePath }));
+    event.dataTransfer.setData("text/plain", asset.id);
+    event.dataTransfer.effectAllowed = "copy";
+  }
+
+  return (
+    <div className="player-list" data-testid="dm-asset-browser">
+      <div className="two-column-grid">
+        <label className="field">
+          <span>Search</span>
+          <input data-testid="dm-asset-search" value={assetSearch} onChange={(event) => onAssetSearchChange(event.target.value)} />
+        </label>
+        <label className="field">
+          <span>Category</span>
+          <select data-testid="dm-asset-category-filter" value={assetCategoryFilter} onChange={(event) => onAssetCategoryFilterChange(event.target.value as AssetCategory | "all")}>
+            {assetCategories.map((category) => (
+              <option key={category} value={category}>
+                {category === "all" ? "All" : formatAssetCategory(category)}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+
+      <div className="asset-filter-row" data-testid="dm-asset-category-buttons">
+        {assetCategories.map((category) => (
+          <button
+            key={category}
+            type="button"
+            className={assetCategoryFilter === category ? "tab-button tab-button--active" : "tab-button"}
+            data-testid={`dm-asset-filter-${category}`}
+            onClick={() => onAssetCategoryFilterChange(category)}
+          >
+            {category === "all" ? "All" : formatAssetCategory(category)}
+          </button>
+        ))}
+      </div>
+
+      <div className="asset-browser-grid" data-testid="dm-asset-results">
+        {assets.length ? (
+          assets.map((asset) => {
+            const metadata = asset.category === "map" ? getMapMetadataByAssetId(asset.id) : null;
+
+            return (
+              <article
+                key={asset.id}
+                className="asset-browser-card"
+                data-testid={`dm-asset-card-${asset.id}`}
+                draggable
+                onDragStart={(event) => handleDragStart(event, asset)}
+              >
+                <img src={asset.thumbnailPath ?? asset.imagePath} alt="" draggable={false} />
+                <div>
+                  <strong>{asset.name}</strong>
+                  <p>{formatAssetCategory(asset.category)} · {asset.source ?? "custom"} · v{asset.version ?? "1.0.0"}</p>
+                </div>
+                <div className="player-stats">
+                  {(asset.tags ?? []).slice(0, 3).map((tag) => <span key={tag}>{tag}</span>)}
+                </div>
+                <p className="meta-copy">
+                  {asset.ownership?.ownerName ?? asset.author ?? "Unknown owner"}
+                  {metadata ? ` · ${metadata.spawnPoints.length} spawns · ${metadata.encounterZones.length} zones` : ""}
+                </p>
+              </article>
+            );
+          })
+        ) : (
+          <p className="meta-copy">No assets match the current search.</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function SceneOption({ scene }: { scene: SceneOptionView }) {
   return <option value={scene.id}>{scene.title} ({scene.sceneType})</option>;
+}
+
+function formatAssetCategory(category: AssetCategory) {
+  return category.slice(0, 1).toUpperCase() + category.slice(1);
 }
 
 function formatEntityLabel(type: WorldEntityType) {

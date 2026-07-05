@@ -9,6 +9,7 @@ import enemyDefinitions from "../../../content/enemies.json" with { type: "json"
 import itemDefinitions from "../../../content/items.json" with { type: "json" };
 import mapDefinitions from "../../../content/maps.json" with { type: "json" };
 import raceDefinitions from "../../../content/races.json" with { type: "json" };
+import officialCampaignDefinitions from "../../../content/campaigns.json" with { type: "json" };
 import sceneDefinitions from "../../../content/scenes.json" with { type: "json" };
 import { EnemyState, LobbyState, LogEntryState, PlayerState } from "./schema/LobbyState.js";
 
@@ -23,6 +24,9 @@ type JoinOptions = {
   roomCode?: string;
   playerName?: string;
   role?: JoinRole;
+  campaignMode?: "new" | "custom" | "prebuilt";
+  campaignId?: string;
+  campaignPayload?: CampaignPackage;
 };
 
 type SelectCharacterMessage = {
@@ -659,6 +663,8 @@ type SessionMapView = {
   mapId: string;
   mapName: string;
   notes: string;
+  spawnSlots: Array<{ id: SpawnSlotId; x: number; y: number }>;
+  fogAreas: FogAreaView[];
   spawnCount: number;
   encounterCount: number;
   entityCount: number;
@@ -776,6 +782,73 @@ type AdventureTemplateView = {
   campMapName: string;
 };
 
+type CampaignVisibility = "private" | "shared" | "public" | "official";
+type CampaignOwnership = "creator" | "official";
+
+type CampaignMetadata = {
+  id: string;
+  name: string;
+  description: string;
+  author: string;
+  version: string;
+  difficulty: string;
+  recommendedPlayers: string;
+  theme: string;
+  levelRange: string;
+  tags: string[];
+  thumbnail?: string;
+  coverImage?: string;
+  assetIds?: string[];
+  createdDate: string;
+  updatedDate: string;
+  estimatedLength: string;
+  creatorName: string;
+  changeNotes: string;
+  visibility: CampaignVisibility;
+  ownership: CampaignOwnership;
+  requiredPacks: string[];
+};
+
+type CampaignPackageState = {
+  campaignDifficulty: CampaignDifficulty;
+  timeOfDay: TimeOfDay;
+  weather: WeatherType;
+  factionReputation: Partial<Record<FactionId, number>>;
+  sessionMaps: Array<{
+    key: MapSlotKey;
+    label: string;
+    mapId: string;
+    notes: string;
+    spawnSlots: Partial<Record<SpawnSlotId, Point>>;
+    fogAreas?: FogAreaRecord[];
+    revealAll?: boolean;
+  }>;
+  currentMapKey: MapSlotKey;
+  worldEntities: WorldEntityRecord[];
+  npcs: NpcRecord[];
+  shops: ShopRecord[];
+  quests: QuestRecord[];
+  secrets: SecretRecord[];
+  encounterGroups: EncounterGroupRecord[];
+  triggerZones: TriggerZoneRecord[];
+  dynamicEvents: DynamicEventRecord[];
+  patrolRoutes: PatrolRouteRecord[];
+  journalEntries: JournalEntryView[];
+  sessionNotes: RewardHistoryView[];
+  rewardHistory: RewardHistoryView[];
+};
+
+type CampaignPackage = {
+  metadata: CampaignMetadata;
+  state: CampaignPackageState;
+  assets?: unknown;
+};
+
+type OfficialCampaignDefinition = CampaignMetadata & {
+  adventureTemplateId: string;
+  packageData?: CampaignPackage;
+};
+
 type PreparationSpawnView = {
   slotId: SpawnSlotId;
   assignedPlayerId: string | undefined;
@@ -787,9 +860,22 @@ type PreparationSpawnView = {
 type PreparationEncounterView = {
   id: string;
   name: string;
+  mapKey: MapSlotKey;
   x: number;
   y: number;
+  enemyIds: string[];
   enemyCount: number;
+  active: boolean;
+  notes: string;
+};
+
+type EncounterGroupView = {
+  id: string;
+  mapKey: MapSlotKey;
+  name: string;
+  enemyIds: string[];
+  x: number;
+  y: number;
   active: boolean;
   notes: string;
 };
@@ -1082,6 +1168,7 @@ type RoomSnapshot = {
   selfRole: JoinRole;
   dmSessionId: string;
   dmName: string;
+  currentCampaign: CampaignMetadata | null;
   roomPhase: RoomPhase;
   controlsLocked: boolean;
   campaignDifficulty: CampaignDifficulty;
@@ -1096,6 +1183,7 @@ type RoomSnapshot = {
   adventureTemplates: AdventureTemplateView[];
   preparationSpawns: PreparationSpawnView[];
   preparationEncounters: PreparationEncounterView[];
+  encounterGroups: EncounterGroupView[];
   fogAreas: FogAreaView[];
   revealedTiles: Point[];
   revealAllFog: boolean;
@@ -1265,6 +1353,8 @@ const npcPresets = availableContentPacks.flatMap((pack) => pack.npcPresets ?? []
 const npcPresetsById = new Map(npcPresets.map((preset) => [preset.id, preset]));
 const adventureTemplates = availableContentPacks.flatMap((pack) => pack.adventureTemplates ?? []);
 const adventureTemplatesById = new Map(adventureTemplates.map((template) => [template.id, template]));
+const officialCampaigns = officialCampaignDefinitions as OfficialCampaignDefinition[];
+const officialCampaignsById = new Map(officialCampaigns.map((campaign) => [campaign.id, campaign]));
 const orderedSceneIds = availableScenes.map((sceneDefinition) => sceneDefinition.id);
 const merchantItemIds = ["healing_potion", "iron_sword", "leather_armor"];
 const spawnSlotIds: SpawnSlotId[] = ["P1", "P2", "P3", "P4", "P5", "P6"];
@@ -1330,6 +1420,7 @@ const persistentSessionTemplates = new Map<string, SessionTemplateRecord>();
 export class LobbyRoom extends Room<LobbyState> {
   override maxClients = maxClients;
   private logIndex = 0;
+  private currentCampaign: CampaignMetadata | null = null;
   private roomPhase: RoomPhase = "preparation";
   private currentMapKey: MapSlotKey = "starting";
   private campaignDifficulty: CampaignDifficulty = "casual";
@@ -1364,7 +1455,8 @@ export class LobbyRoom extends Room<LobbyState> {
     this.setState(state);
     this.setMetadata({ roomCode: state.roomCode });
     this.initializeSessionMaps();
-    this.applyMapState("starting");
+    this.initializeCampaignFromOptions(options);
+    this.applyMapState(this.currentMapKey, { encounterOnEnter: false });
     this.syncState();
 
     this.onMessage("selectCharacter", (client, message: SelectCharacterMessage) => {
@@ -1446,6 +1538,286 @@ export class LobbyRoom extends Room<LobbyState> {
     this.onMessage("requestState", (client) => {
       this.sendSnapshot(client);
     });
+  }
+
+  private initializeCampaignFromOptions(options: JoinOptions) {
+    if (options.campaignPayload) {
+      this.applyCampaignPackage(options.campaignPayload, { logMessage: false });
+      return;
+    }
+
+    if (options.campaignId) {
+      const officialCampaign = officialCampaignsById.get(options.campaignId);
+
+      if (!officialCampaign) {
+        throw new Error(`Unknown campaign: ${options.campaignId}`);
+      }
+
+      this.assertCampaignDependencies(officialCampaign.requiredPacks ?? []);
+      if (officialCampaign.packageData) {
+        this.applyCampaignPackage(officialCampaign.packageData, { logMessage: false });
+      } else {
+        this.currentCampaign = buildCampaignMetadata(officialCampaign);
+        this.applyAdventureTemplateDefinition(officialCampaign.adventureTemplateId, { logMessage: false });
+      }
+      return;
+    }
+
+    if (options.campaignMode === "new" || options.role === "dm") {
+      this.currentCampaign = buildCampaignMetadata({
+        id: `${slugifyCampaignId(this.state.roomCode)}_campaign`,
+        name: "New Campaign",
+        description: "A custom campaign session.",
+        author: options.playerName?.trim() || "Dungeon Master",
+        version: "1.0.0",
+        difficulty: "medium",
+        recommendedPlayers: "2-6",
+        theme: "Adventure",
+        tags: ["template"],
+        createdDate: new Date().toISOString().slice(0, 10),
+        updatedDate: new Date().toISOString().slice(0, 10),
+        estimatedLength: "1-2 Sessions",
+        creatorName: options.playerName?.trim() || "Dungeon Master",
+        changeNotes: "",
+        visibility: "private",
+        ownership: "creator",
+        requiredPacks: ["core"]
+      });
+    }
+  }
+
+  private assertCampaignDependencies(requiredPacks: string[]) {
+    const missingPacks = requiredPacks
+      .map((packId) => normalizePackId(packId))
+      .filter((packId) => !contentPacksById.has(packId));
+
+    if (missingPacks.length) {
+      throw new Error(`Campaign is missing required content packs: ${missingPacks.join(", ")}`);
+    }
+  }
+
+  private resetCampaignWorldState() {
+    this.roomPhase = "preparation";
+    this.initializeSessionMaps();
+    this.worldEntities.clear();
+    this.npcs.clear();
+    this.shops.clear();
+    this.quests.clear();
+    this.secrets.clear();
+    this.skillChecks.clear();
+    this.encounterGroups.clear();
+    this.triggerZones.clear();
+    this.dynamicEvents.clear();
+    this.patrolRoutes.clear();
+    this.sessionNotes = [];
+    this.rewardHistory = [];
+    this.journalEntries = [];
+    this.timeOfDay = "morning";
+    this.weather = "clear";
+    this.currentMapKey = "starting";
+    this.factionReputation = {
+      town_guard: 0,
+      bandits: 0,
+      merchants_guild: 0,
+      arcane_circle: 0
+    };
+  }
+
+  private applyAdventureTemplateDefinition(adventureTemplateId: string, options: { logMessage: boolean }) {
+    const template = adventureTemplatesById.get(adventureTemplateId);
+
+    if (!template) {
+      throw new Error(`Unknown adventure template: ${adventureTemplateId}`);
+    }
+
+    this.resetCampaignWorldState();
+
+    for (const mapKey of availableMapSlots.map((slot) => slot.key)) {
+      const sessionMap = this.getSessionMap(mapKey);
+      const nextMapId = template.maps[mapKey];
+
+      if (nextMapId && mapsById.has(nextMapId)) {
+        sessionMap.mapId = nextMapId;
+      }
+
+      sessionMap.notes = `Prepared from ${template.name}.`;
+      sessionMap.spawnSlots = {};
+    }
+
+    for (const slotId of spawnSlotIds) {
+      const point = template.spawnSlots?.[slotId];
+      if (!point) {
+        continue;
+      }
+
+      this.getSessionMap("starting").spawnSlots[slotId] = { ...point };
+    }
+
+    for (const encounter of template.encounters ?? []) {
+      const encounterTemplate = encounterTemplatesById.get(encounter.templateId);
+      if (!encounterTemplate) {
+        continue;
+      }
+
+      this.createEncounterGroupFromDm({
+        tool: "createEncounterGroup",
+        mapKey: encounter.mapKey,
+        x: encounter.x,
+        y: encounter.y,
+        enemyIds: [...encounterTemplate.enemyIds],
+        name: encounterTemplate.name,
+        description: encounter.note ?? encounterTemplate.rewardSuggestion
+      });
+    }
+
+    for (const npc of template.npcs ?? []) {
+      this.placePreparationAssetFromDm({
+        tool: "placePreparationAsset",
+        assetType: "npc",
+        mapKey: npc.mapKey,
+        x: npc.x,
+        y: npc.y,
+        ...(npc.name ? { name: npc.name } : {}),
+        npcPresetId: npc.presetId,
+        ...(npc.entityType ? { entityType: npc.entityType } : {})
+      });
+    }
+
+    for (const shop of template.shops ?? []) {
+      this.placePreparationAssetFromDm({
+        tool: "placePreparationAsset",
+        assetType: "shop",
+        mapKey: shop.mapKey,
+        x: shop.x,
+        y: shop.y,
+        ...(shop.name ? { name: shop.name, title: shop.name } : {}),
+        ...(shop.npcPresetId ? { npcPresetId: shop.npcPresetId } : {}),
+        shopTemplateId: shop.templateId
+      });
+    }
+
+    for (const quest of template.quests ?? []) {
+      this.createQuestFromDm({
+        tool: "createQuest",
+        title: quest.title,
+        objective: quest.objective,
+        rewardGold: quest.rewardGold ?? 0
+      });
+    }
+
+    for (const secret of template.secrets ?? []) {
+      this.placePreparationAssetFromDm({
+        tool: "placePreparationAsset",
+        assetType: "secret",
+        mapKey: secret.mapKey,
+        x: secret.x,
+        y: secret.y,
+        ...(secret.name ? { name: secret.name } : {}),
+        checkType: secret.checkType,
+        dc: secret.dc,
+        description: secret.description
+      });
+    }
+
+    this.currentMapKey = "starting";
+    this.applyMapState("starting", { encounterOnEnter: false });
+
+    if (options.logMessage) {
+      this.addDmLog(`Applied adventure template ${template.name}.`);
+    }
+  }
+
+  private applyCampaignPackage(campaignPackage: CampaignPackage, options: { logMessage: boolean }) {
+    const normalized = normalizeCampaignPackage(campaignPackage);
+    this.assertCampaignDependencies(normalized.metadata.requiredPacks);
+    this.currentCampaign = normalized.metadata;
+    this.resetCampaignWorldState();
+    this.campaignDifficulty = normalized.state.campaignDifficulty;
+    this.timeOfDay = normalized.state.timeOfDay;
+    this.weather = normalized.state.weather;
+    this.currentMapKey = normalized.state.currentMapKey;
+
+    for (const [factionId, score] of Object.entries(normalized.state.factionReputation)) {
+      const normalizedFactionId = normalizeFactionId(factionId);
+      if (normalizedFactionId) {
+        this.factionReputation[normalizedFactionId] = Number(score) || 0;
+      }
+    }
+
+    for (const map of normalized.state.sessionMaps) {
+      const sessionMap = this.getSessionMap(map.key);
+      sessionMap.label = map.label;
+      sessionMap.mapId = mapsById.has(map.mapId) ? map.mapId : sessionMap.mapId;
+      sessionMap.notes = map.notes;
+      sessionMap.spawnSlots = {};
+      sessionMap.fogAreas = (map.fogAreas ?? []).map((area) => ({ ...area }));
+      sessionMap.revealAll = Boolean(map.revealAll);
+
+      for (const slotId of spawnSlotIds) {
+        const point = map.spawnSlots?.[slotId];
+        if (point) {
+          sessionMap.spawnSlots[slotId] = { x: point.x, y: point.y };
+        }
+      }
+    }
+
+    for (const entity of normalized.state.worldEntities) {
+      this.worldEntities.set(entity.id, { ...entity });
+    }
+
+    for (const npc of normalized.state.npcs) {
+      this.npcs.set(npc.id, { ...npc });
+    }
+
+    for (const shop of normalized.state.shops) {
+      this.shops.set(shop.id, { ...shop, inventory: shop.inventory.map((entry) => ({ ...entry })) });
+    }
+
+    for (const quest of normalized.state.quests) {
+      this.quests.set(quest.id, { ...quest, rewardItems: [...quest.rewardItems] });
+    }
+
+    for (const secret of normalized.state.secrets) {
+      this.secrets.set(secret.id, { ...secret });
+    }
+
+    for (const encounterGroup of normalized.state.encounterGroups) {
+      this.encounterGroups.set(encounterGroup.id, { ...encounterGroup, enemyIds: [...encounterGroup.enemyIds], trigger: { ...encounterGroup.trigger } });
+    }
+
+    for (const triggerZone of normalized.state.triggerZones) {
+      this.triggerZones.set(triggerZone.id, {
+        ...triggerZone,
+        effects: Array.isArray(triggerZone.effects)
+          ? triggerZone.effects.map((effect) => ({ ...effect, area: effect.area ? { ...effect.area } : undefined, reward: effect.reward ? { ...effect.reward } : undefined }))
+          : []
+      });
+    }
+
+    for (const dynamicEvent of normalized.state.dynamicEvents) {
+      this.dynamicEvents.set(dynamicEvent.id, {
+        ...dynamicEvent,
+        effects: Array.isArray(dynamicEvent.effects)
+          ? dynamicEvent.effects.map((effect) => ({ ...effect, area: effect.area ? { ...effect.area } : undefined, reward: effect.reward ? { ...effect.reward } : undefined }))
+          : []
+      });
+    }
+
+    for (const patrolRoute of normalized.state.patrolRoutes) {
+      this.patrolRoutes.set(patrolRoute.id, {
+        ...patrolRoute,
+        waypoints: patrolRoute.waypoints.map((waypoint) => ({ ...waypoint }))
+      });
+    }
+
+    this.journalEntries = normalized.state.journalEntries.map((entry) => ({ ...entry }));
+    this.sessionNotes = normalized.state.sessionNotes.map((entry) => ({ ...entry }));
+    this.rewardHistory = normalized.state.rewardHistory.map((entry) => ({ ...entry }));
+    this.applyMapState(this.currentMapKey, { encounterOnEnter: false });
+
+    if (options.logMessage) {
+      this.addDmLog(`Loaded campaign ${normalized.metadata.name}.`);
+    }
   }
 
   override onJoin(client: Client, options: JoinOptions) {
@@ -4070,120 +4442,13 @@ export class LobbyRoom extends Room<LobbyState> {
   }
 
   private applyAdventureTemplateFromDm(adventureTemplateId: string | undefined) {
-    const template = adventureTemplateId ? adventureTemplatesById.get(adventureTemplateId) : undefined;
-
-    if (!template) {
+    if (!adventureTemplateId || !adventureTemplatesById.has(adventureTemplateId)) {
       this.addDmLog(`Unknown adventure template: ${adventureTemplateId ?? ""}`);
       this.syncState();
       this.publishSnapshots();
       return;
     }
-
-    this.roomPhase = "preparation";
-    this.initializeSessionMaps();
-    this.worldEntities.clear();
-    this.npcs.clear();
-    this.shops.clear();
-    this.quests.clear();
-    this.secrets.clear();
-    this.skillChecks.clear();
-    this.encounterGroups.clear();
-    this.triggerZones.clear();
-    this.dynamicEvents.clear();
-    this.patrolRoutes.clear();
-    this.sessionNotes = [];
-    this.rewardHistory = [];
-    this.journalEntries = [];
-
-    for (const mapKey of availableMapSlots.map((slot) => slot.key)) {
-      const sessionMap = this.getSessionMap(mapKey);
-      const nextMapId = template.maps[mapKey];
-
-      if (nextMapId && mapsById.has(nextMapId)) {
-        sessionMap.mapId = nextMapId;
-      }
-
-      sessionMap.notes = `Prepared from ${template.name}.`;
-      sessionMap.spawnSlots = {};
-    }
-
-    for (const slotId of spawnSlotIds) {
-      const point = template.spawnSlots?.[slotId];
-      if (!point) {
-        continue;
-      }
-
-      this.getSessionMap("starting").spawnSlots[slotId] = { ...point };
-    }
-
-    for (const encounter of template.encounters ?? []) {
-      const encounterTemplate = encounterTemplatesById.get(encounter.templateId);
-      if (!encounterTemplate) {
-        continue;
-      }
-
-      this.createEncounterGroupFromDm({
-        tool: "createEncounterGroup",
-        mapKey: encounter.mapKey,
-        x: encounter.x,
-        y: encounter.y,
-        enemyIds: [...encounterTemplate.enemyIds],
-        name: encounterTemplate.name,
-        description: encounter.note ?? encounterTemplate.rewardSuggestion
-      });
-    }
-
-    for (const npc of template.npcs ?? []) {
-      this.placePreparationAssetFromDm({
-        tool: "placePreparationAsset",
-        assetType: "npc",
-        mapKey: npc.mapKey,
-        x: npc.x,
-        y: npc.y,
-        ...(npc.name ? { name: npc.name } : {}),
-        npcPresetId: npc.presetId,
-        ...(npc.entityType ? { entityType: npc.entityType } : {})
-      });
-    }
-
-    for (const shop of template.shops ?? []) {
-      this.placePreparationAssetFromDm({
-        tool: "placePreparationAsset",
-        assetType: "shop",
-        mapKey: shop.mapKey,
-        x: shop.x,
-        y: shop.y,
-        ...(shop.name ? { name: shop.name, title: shop.name } : {}),
-        ...(shop.npcPresetId ? { npcPresetId: shop.npcPresetId } : {}),
-        shopTemplateId: shop.templateId
-      });
-    }
-
-    for (const quest of template.quests ?? []) {
-      this.createQuestFromDm({
-        tool: "createQuest",
-        title: quest.title,
-        objective: quest.objective,
-        rewardGold: quest.rewardGold ?? 0
-      });
-    }
-
-    for (const secret of template.secrets ?? []) {
-      this.placePreparationAssetFromDm({
-        tool: "placePreparationAsset",
-        assetType: "secret",
-        mapKey: secret.mapKey,
-        x: secret.x,
-        y: secret.y,
-        ...(secret.name ? { name: secret.name } : {}),
-        checkType: secret.checkType,
-        dc: secret.dc,
-        description: secret.description
-      });
-    }
-
-    this.applyMapState("starting", { encounterOnEnter: false });
-    this.addDmLog(`Applied adventure template ${template.name}.`);
+    this.applyAdventureTemplateDefinition(adventureTemplateId, { logMessage: true });
     this.syncState();
     this.publishSnapshots();
   }
@@ -5568,6 +5833,17 @@ export class LobbyRoom extends Room<LobbyState> {
         mapId: sessionMap.mapId,
         mapName: mapDefinition.name,
         notes: sessionMap.notes,
+        spawnSlots: Object.entries(sessionMap.spawnSlots)
+          .map(([id, point]) => (point ? { id: id as SpawnSlotId, x: point.x, y: point.y } : undefined))
+          .filter((entry): entry is { id: SpawnSlotId; x: number; y: number } => entry !== undefined),
+        fogAreas: sessionMap.fogAreas.map((area) => ({
+          id: area.id,
+          name: area.name,
+          x: area.x,
+          y: area.y,
+          width: area.width,
+          height: area.height
+        })),
         spawnCount: Object.keys(sessionMap.spawnSlots).length,
         encounterCount: [...this.encounterGroups.values()].filter((group) => group.mapKey === slot.key).length,
         entityCount: [...this.worldEntities.values()].filter((entity) => entity.mapKey === slot.key).length,
@@ -5614,12 +5890,27 @@ export class LobbyRoom extends Room<LobbyState> {
       .map((group) => ({
         id: group.id,
         name: group.name,
+        mapKey: group.mapKey,
         x: group.trigger.x,
         y: group.trigger.y,
+        enemyIds: [...group.enemyIds],
         enemyCount: group.enemyIds.length,
         active: group.active,
         notes: group.notes
       }));
+  }
+
+  private buildEncounterGroupViews(): EncounterGroupView[] {
+    return [...this.encounterGroups.values()].map((group) => ({
+      id: group.id,
+      mapKey: group.mapKey,
+      name: group.name,
+      enemyIds: [...group.enemyIds],
+      x: group.trigger.x,
+      y: group.trigger.y,
+      active: group.active,
+      notes: group.notes
+    }));
   }
 
   private buildContentPackViews() {
@@ -6070,6 +6361,14 @@ export class LobbyRoom extends Room<LobbyState> {
       selfRole: this.isDmSession(sessionId) ? "dm" : "player",
       dmSessionId: this.state.dmSessionId,
       dmName: this.state.dmName,
+      currentCampaign: this.currentCampaign
+        ? {
+            ...this.currentCampaign,
+            tags: [...this.currentCampaign.tags],
+            assetIds: [...(this.currentCampaign.assetIds ?? [])],
+            requiredPacks: [...this.currentCampaign.requiredPacks]
+          }
+        : null,
       roomPhase: this.roomPhase,
       controlsLocked: this.roomPhase !== "live",
       campaignDifficulty: this.campaignDifficulty,
@@ -6084,6 +6383,7 @@ export class LobbyRoom extends Room<LobbyState> {
       adventureTemplates: this.buildAdventureTemplateViews(),
       preparationSpawns: this.buildPreparationSpawnViews(sessionId),
       preparationEncounters: this.buildPreparationEncounterViews(sessionId),
+      encounterGroups: this.buildEncounterGroupViews(),
       fogAreas: this.buildFogAreaViews(sessionId),
       revealedTiles: this.buildRevealedTiles(sessionId),
       revealAllFog: this.getSessionMap(this.currentMapKey).revealAll,
@@ -6954,6 +7254,27 @@ function normalizeFactionId(value: string | undefined): FactionId | null {
   }
 }
 
+function normalizePackId(value: string | undefined) {
+  switch (value?.trim().toLowerCase()) {
+    case "core-pack":
+      return "core";
+    case "goblin-pack":
+      return "goblin";
+    case "undead-pack":
+      return "undead";
+    case "bandit-pack":
+      return "bandit";
+    case "arcane-pack":
+      return "arcane";
+    case "wilderness-pack":
+      return "wilderness";
+    case "vampire-pack":
+      return "vampire";
+    default:
+      return value?.trim() ?? "";
+  }
+}
+
 function normalizeTriggerType(value: string | undefined): TriggerType {
   switch (value?.trim().toLowerCase()) {
     case "interact_object":
@@ -7188,6 +7509,87 @@ function normalizeSpawnSlotId(value: string | undefined): SpawnSlotId | undefine
     default:
       return undefined;
   }
+}
+
+function slugifyCampaignId(value: string | undefined) {
+  return (value ?? "campaign")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, 40) || "campaign";
+}
+
+function buildCampaignMetadata(input: Partial<CampaignMetadata>): CampaignMetadata {
+  const stamp = new Date().toISOString().slice(0, 10);
+  const name = input.name?.trim() || "Campaign";
+
+  return {
+    id: slugifyCampaignId(input.id?.trim() || name),
+    name,
+    description: input.description?.trim() || "",
+    author: input.author?.trim() || input.creatorName?.trim() || "Dungeon Master",
+    version: input.version?.trim() || "1.0.0",
+    difficulty: input.difficulty?.trim() || "medium",
+    recommendedPlayers: input.recommendedPlayers?.trim() || "2-6",
+    theme: input.theme?.trim() || "Adventure",
+    levelRange: input.levelRange?.trim() || "1-3",
+    tags: Array.isArray(input.tags) ? input.tags.filter(isString) : [],
+    thumbnail: input.thumbnail?.trim() || "",
+    coverImage: input.coverImage?.trim() || input.thumbnail?.trim() || "",
+    assetIds: Array.isArray(input.assetIds) ? [...new Set(input.assetIds.filter(isString))] : [],
+    createdDate: input.createdDate?.trim() || stamp,
+    updatedDate: input.updatedDate?.trim() || stamp,
+    estimatedLength: input.estimatedLength?.trim() || "1-2 Sessions",
+    creatorName: input.creatorName?.trim() || input.author?.trim() || "Dungeon Master",
+    changeNotes: input.changeNotes?.trim() || "",
+    visibility: input.visibility ?? "private",
+    ownership: input.ownership ?? "creator",
+    requiredPacks: Array.isArray(input.requiredPacks) ? input.requiredPacks.map((packId) => normalizePackId(packId)).filter(isString) : []
+  };
+}
+
+function normalizeCampaignPackage(campaignPackage: CampaignPackage): CampaignPackage {
+  const metadata = buildCampaignMetadata(campaignPackage.metadata);
+  const state = campaignPackage.state;
+  const sessionMaps = Array.isArray(state.sessionMaps) ? state.sessionMaps : [];
+
+  if (!sessionMaps.length) {
+    throw new Error("Campaign package must include at least one session map.");
+  }
+
+  return {
+    metadata,
+    state: {
+      campaignDifficulty: normalizeCampaignDifficulty(state.campaignDifficulty) ?? "casual",
+      timeOfDay: normalizeTimeOfDay(state.timeOfDay) ?? "morning",
+      weather: normalizeWeather(state.weather) ?? "clear",
+      factionReputation: typeof state.factionReputation === "object" && state.factionReputation ? state.factionReputation : {},
+      sessionMaps: sessionMaps.map((map) => ({
+        key: normalizeMapSlotKey(map.key) ?? "starting",
+        label: typeof map.label === "string" ? map.label : "Area",
+        mapId: typeof map.mapId === "string" ? map.mapId : "tavern",
+        notes: typeof map.notes === "string" ? map.notes : "",
+        spawnSlots: map.spawnSlots ?? {},
+        fogAreas: Array.isArray(map.fogAreas) ? map.fogAreas : [],
+        revealAll: Boolean(map.revealAll)
+      })),
+      currentMapKey: normalizeMapSlotKey(state.currentMapKey) ?? "starting",
+      worldEntities: Array.isArray(state.worldEntities) ? state.worldEntities : [],
+      npcs: Array.isArray(state.npcs) ? state.npcs : [],
+      shops: Array.isArray(state.shops) ? state.shops : [],
+      quests: Array.isArray(state.quests) ? state.quests : [],
+      secrets: Array.isArray(state.secrets) ? state.secrets : [],
+      encounterGroups: Array.isArray(state.encounterGroups) ? state.encounterGroups : [],
+      triggerZones: Array.isArray(state.triggerZones) ? state.triggerZones : [],
+      dynamicEvents: Array.isArray(state.dynamicEvents) ? state.dynamicEvents : [],
+      patrolRoutes: Array.isArray(state.patrolRoutes) ? state.patrolRoutes : [],
+      journalEntries: Array.isArray(state.journalEntries) ? state.journalEntries : [],
+      sessionNotes: Array.isArray(state.sessionNotes) ? state.sessionNotes : [],
+      rewardHistory: Array.isArray(state.rewardHistory) ? state.rewardHistory : []
+    },
+    assets: campaignPackage.assets
+  };
 }
 
 function loadContentPacks(): ContentPackDefinition[] {
