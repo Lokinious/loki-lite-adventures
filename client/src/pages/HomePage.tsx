@@ -128,9 +128,13 @@ export function HomePage() {
   const gameBridgeRef = useRef<GameBridge | null>(null);
 
   useEffect(() => {
-    gameBridgeRef.current = createGameBridge(phaserContainerId, (x, y) => {
-      joinedRoomRef.current?.send("requestMove", { x, y });
-    });
+    gameBridgeRef.current = createGameBridge(
+      phaserContainerId,
+      (x, y) => {
+        joinedRoomRef.current?.send("requestMove", { x, y });
+      },
+      () => {}
+    );
 
     return () => {
       gameBridgeRef.current?.destroy();

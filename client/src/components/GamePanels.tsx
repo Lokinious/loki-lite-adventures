@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import type {
+  AutomationEffectType,
   EnemyView,
   InventoryItemView,
   JoinRole,
@@ -103,6 +104,8 @@ type ActionHotbarProps = {
 
 type WorldEntityPanelProps = {
   entities: WorldEntityView[];
+  onInteract?: (entityId: string) => void;
+  canInteract?: (entity: WorldEntityView) => boolean;
 };
 
 type ShopPanelProps = {
@@ -293,7 +296,7 @@ export function InventoryPanel({ player, onEquip, onUse, canEquip, canUse }: Inv
   );
 }
 
-export function WorldEntityPanel({ entities }: WorldEntityPanelProps) {
+export function WorldEntityPanel({ entities, onInteract, canInteract }: WorldEntityPanelProps) {
   const [selectedEntityId, setSelectedEntityId] = useState<string>("");
   const selectedEntity = entities.find((entity) => entity.id === selectedEntityId) ?? entities[0] ?? null;
 
@@ -319,6 +322,16 @@ export function WorldEntityPanel({ entities }: WorldEntityPanelProps) {
                 >
                   View
                 </button>
+                {onInteract ? (
+                  <button
+                    type="button"
+                    data-testid={`entity-interact-${entity.id}`}
+                    onClick={() => onInteract(entity.id)}
+                    disabled={!canInteract?.(entity)}
+                  >
+                    Interact
+                  </button>
+                ) : null}
                 <span className="meta-copy">Tile {entity.x + 1},{entity.y + 1}</span>
               </div>
             </article>
@@ -331,6 +344,12 @@ export function WorldEntityPanel({ entities }: WorldEntityPanelProps) {
         <article className="player-card top-gap" data-testid="entity-detail-card">
           <strong data-testid="entity-detail-name">{selectedEntity.name}</strong>
           <p data-testid="entity-detail-text">{selectedEntity.publicDetails}</p>
+          {selectedEntity.interaction ? (
+            <p className="meta-copy" data-testid="entity-detail-interaction">
+              {capitalizeCheck(selectedEntity.interaction.checkType)} DC {selectedEntity.interaction.dc}
+            </p>
+          ) : null}
+          {selectedEntity.dmNotes ? <p className="meta-copy" data-testid="entity-detail-dm-notes">{selectedEntity.dmNotes}</p> : null}
         </article>
       ) : null}
     </section>
@@ -426,6 +445,7 @@ export function PlayerSkillChecksPanel({ checks, onRoll }: PlayerSkillChecksPane
             <article key={check.id} className="player-card" data-testid={`player-check-${check.id}`}>
               <div>
                 <strong>{check.title}</strong>
+                <p>{check.description}</p>
                 <p>{capitalizeCheck(check.checkType)}{check.showDc && check.dc ? ` DC ${check.dc}` : ""}</p>
               </div>
               <div className="button-row">
@@ -769,10 +789,20 @@ export function DmWorldToolsPanel({ lobby, onRunTool }: DmWorldToolsPanelProps) 
   const [checkType, setCheckType] = useState<SkillCheckType>("insight");
   const [checkDc, setCheckDc] = useState("14");
   const [checkTarget, setCheckTarget] = useState("party");
+  const [selectedCheckPlayers, setSelectedCheckPlayers] = useState<string[]>([]);
   const [checkVisibility, setCheckVisibility] = useState<SkillCheckVisibility>("targeted");
   const [checkTitle, setCheckTitle] = useState("Read the room");
+  const [checkDescription, setCheckDescription] = useState("Investigate the scene for hidden clues.");
   const [checkSuccess, setCheckSuccess] = useState("A hidden clue is revealed.");
   const [checkFailure, setCheckFailure] = useState("Nothing useful is uncovered.");
+  const [successEffectType, setSuccessEffectType] = useState<AutomationEffectType>("none");
+  const [failureEffectType, setFailureEffectType] = useState<AutomationEffectType>("none");
+  const [effectDiscountPercent, setEffectDiscountPercent] = useState("15");
+  const [effectNarration, setEffectNarration] = useState("The result changes the scene.");
+  const [selectedInteractionEntityId, setSelectedInteractionEntityId] = useState("");
+  const [interactionTitle, setInteractionTitle] = useState("Inspect the object");
+  const [interactionDescription, setInteractionDescription] = useState("A closer look may reveal something important.");
+  const [interactionNotes, setInteractionNotes] = useState("");
 
   const latestShop = lobby.shops.at(-1) ?? null;
   const latestQuest = lobby.quests.at(-1) ?? null;
@@ -780,6 +810,17 @@ export function DmWorldToolsPanel({ lobby, onRunTool }: DmWorldToolsPanelProps) 
 
   const npcOptions = useMemo(() => lobby.npcs, [lobby.npcs]);
   const entityOptions = useMemo(() => lobby.worldEntities, [lobby.worldEntities]);
+  const quickActionButtons = [
+    { id: "skill-check", label: "Skill Check", run: () => setActiveTab("secrets") },
+    { id: "reveal-secret", label: "Reveal Secret", run: () => latestSecret && onRunTool({ tool: "revealSecret", secretId: latestSecret.id }) },
+    { id: "spawn-enemy", label: "Spawn Enemy", run: () => onRunTool({ tool: "createEncounterGroup", name: encounterName, enemyId: encounterEnemyId, x: Number(encounterX), y: Number(encounterY), mapKey: selectedMapKey }) },
+    { id: "give-gold", label: "Give Gold", run: () => onRunTool({ tool: "giveReward", name: "gold", target: "party", amount: Number(rewardAmount) || 5 }) },
+    { id: "give-item", label: "Give Item", run: () => onRunTool({ tool: "giveReward", name: "item", target: rewardPlayerId === "party" ? "party" : "player", playerName: rewardPlayerId, itemId: rewardItemId }) },
+    { id: "narrate", label: "Narrate", run: () => onRunTool({ tool: "addSessionNote", note: effectNarration }) },
+    { id: "start-encounter", label: "Start Encounter", run: () => onRunTool({ tool: "activateEncounterGroup", encounterId: "encounter-1" }) },
+    { id: "move-map", label: "Move Map", run: () => onRunTool({ tool: "setMap", mapKey: selectedMapKey }) },
+    { id: "complete-quest", label: "Complete Quest", run: () => latestQuest && onRunTool({ tool: "setQuestStatus", questId: latestQuest.id, name: "completed" }) }
+  ];
 
   return (
     <section className="panel" data-testid="dm-world-tools-panel">
@@ -789,6 +830,17 @@ export function DmWorldToolsPanel({ lobby, onRunTool }: DmWorldToolsPanelProps) 
           {lobby.roomPhase.toUpperCase()} · {lobby.currentMapKey} · {lobby.npcs.length} NPCs · {lobby.shops.length} shops
         </span>
       </div>
+
+      <section className="dm-control-group" data-testid="dm-quick-actions">
+        <h3>Quick Actions</h3>
+        <div className="button-row">
+          {quickActionButtons.map((action) => (
+            <button key={action.id} type="button" data-testid={`dm-quick-${action.id}`} onClick={action.run}>
+              {action.label}
+            </button>
+          ))}
+        </div>
+      </section>
 
       <section className="dm-control-group" data-testid="dm-skill-check-panel">
         <h3>Skill Check Panel</h3>
@@ -807,7 +859,7 @@ export function DmWorldToolsPanel({ lobby, onRunTool }: DmWorldToolsPanelProps) 
             <span>Target</span>
             <select data-testid="dm-check-target" value={checkTarget} onChange={(event) => setCheckTarget(event.target.value)}>
               <option value="party">Party</option>
-              <option value="all">All</option>
+              <option value="selected">Selected Players</option>
               {lobby.players.map((player) => <option key={player.id} value={player.name}>{player.name}</option>)}
             </select>
           </label>
@@ -820,9 +872,20 @@ export function DmWorldToolsPanel({ lobby, onRunTool }: DmWorldToolsPanelProps) 
             </select>
           </label>
         </div>
+        <div className="button-row">
+          {[5, 10, 12, 15, 18, 20, 25].map((preset) => (
+            <button key={preset} type="button" className="secondary-button" data-testid={`dm-check-preset-${preset}`} onClick={() => setCheckDc(String(preset))}>
+              {preset}
+            </button>
+          ))}
+        </div>
         <label className="field">
           <span>Title</span>
           <input data-testid="dm-check-title" value={checkTitle} onChange={(event) => setCheckTitle(event.target.value)} />
+        </label>
+        <label className="field">
+          <span>Description</span>
+          <input data-testid="dm-check-description" value={checkDescription} onChange={(event) => setCheckDescription(event.target.value)} />
         </label>
         <label className="field">
           <span>Success message</span>
@@ -832,6 +895,56 @@ export function DmWorldToolsPanel({ lobby, onRunTool }: DmWorldToolsPanelProps) 
           <span>Failure message</span>
           <input data-testid="dm-check-failure" value={checkFailure} onChange={(event) => setCheckFailure(event.target.value)} />
         </label>
+        {checkTarget === "selected" ? (
+          <div className="player-list">
+            {lobby.players.map((player) => (
+              <label key={player.id} className="role-option">
+                <input
+                  type="checkbox"
+                  checked={selectedCheckPlayers.includes(player.id)}
+                  onChange={(event) =>
+                    setSelectedCheckPlayers((current) =>
+                      event.target.checked ? [...current, player.id] : current.filter((entry) => entry !== player.id)
+                    )
+                  }
+                />
+                <span>{player.name}</span>
+              </label>
+            ))}
+          </div>
+        ) : null}
+        <div className="two-column-grid">
+          <label className="field">
+            <span>Success effect</span>
+            <select data-testid="dm-check-success-effect" value={successEffectType} onChange={(event) => setSuccessEffectType(event.target.value as AutomationEffectType)}>
+              <option value="none">None</option>
+              <option value="reveal_secret">Reveal Secret</option>
+              <option value="reward">Give Reward</option>
+              <option value="quest_progress">Quest Progress</option>
+              <option value="shop_discount">Shop Discount</option>
+              <option value="trigger_event">Trigger Event</option>
+              <option value="trigger_combat">Trigger Combat</option>
+              <option value="narration">Narration</option>
+            </select>
+          </label>
+          <label className="field">
+            <span>Failure effect</span>
+            <select data-testid="dm-check-failure-effect" value={failureEffectType} onChange={(event) => setFailureEffectType(event.target.value as AutomationEffectType)}>
+              <option value="none">None</option>
+              <option value="trigger_event">Trigger Event</option>
+              <option value="trigger_combat">Trigger Combat</option>
+              <option value="narration">Narration</option>
+            </select>
+          </label>
+          <label className="field">
+            <span>Discount %</span>
+            <input data-testid="dm-check-discount" value={effectDiscountPercent} onChange={(event) => setEffectDiscountPercent(event.target.value)} />
+          </label>
+          <label className="field">
+            <span>Effect narration</span>
+            <input data-testid="dm-check-effect-note" value={effectNarration} onChange={(event) => setEffectNarration(event.target.value)} />
+          </label>
+        </div>
         <div className="button-row">
           <button
             type="button"
@@ -842,12 +955,20 @@ export function DmWorldToolsPanel({ lobby, onRunTool }: DmWorldToolsPanelProps) 
                 checkType,
                 dc: Number(checkDc),
                 title: checkTitle,
-                target: checkTarget === "party" || checkTarget === "all" ? checkTarget : "player",
-                playerName: checkTarget,
+                description: checkDescription,
+                target: checkTarget === "party" ? "party" : checkTarget === "selected" ? "player" : "player",
+                playerName: checkTarget === "selected" ? undefined : checkTarget,
+                targetPlayerIds: checkTarget === "selected" ? selectedCheckPlayers : undefined,
                 visibility: checkVisibility,
                 successMessage: checkSuccess,
                 failureMessage: checkFailure,
-                linkedSecretId: latestSecret?.id
+                linkedSecretId: latestSecret?.id,
+                effectType: successEffectType,
+                failureEffectType,
+                linkedShopId: latestShop?.id,
+                questId: latestQuest?.id,
+                discountPercent: Number(effectDiscountPercent),
+                note: effectNarration
               })
             }
           >
@@ -1074,6 +1195,57 @@ export function DmWorldToolsPanel({ lobby, onRunTool }: DmWorldToolsPanelProps) 
             </label>
           </div>
           <button type="button" data-testid="dm-place-object" onClick={() => onRunTool({ tool: "placeEntity", entityType, x: Number(entityX), y: Number(entityY), mapKey: selectedMapKey, visibilityState: entityType === "secret_marker" || entityType === "trap_marker" ? "dm_only" : "hidden" })}>Place Object</button>
+          <label className="field">
+            <span>Configure object</span>
+            <select data-testid="dm-interaction-entity" value={selectedInteractionEntityId} onChange={(event) => setSelectedInteractionEntityId(event.target.value)}>
+              <option value="">Choose object</option>
+              {entityOptions.map((entity) => <option key={entity.id} value={entity.id}>{entity.name}</option>)}
+            </select>
+          </label>
+          <label className="field">
+            <span>Interaction title</span>
+            <input data-testid="dm-interaction-title" value={interactionTitle} onChange={(event) => setInteractionTitle(event.target.value)} />
+          </label>
+          <label className="field">
+            <span>Interaction description</span>
+            <input data-testid="dm-interaction-description" value={interactionDescription} onChange={(event) => setInteractionDescription(event.target.value)} />
+          </label>
+          <label className="field">
+            <span>DM notes</span>
+            <textarea data-testid="dm-interaction-notes" value={interactionNotes} onChange={(event) => setInteractionNotes(event.target.value)} rows={2} />
+          </label>
+          <div className="button-row">
+            <button
+              type="button"
+              data-testid="dm-configure-interaction"
+              onClick={() =>
+                onRunTool({
+                  tool: "configureEntityInteraction",
+                  entityId: selectedInteractionEntityId,
+                  interactionTitle,
+                  description: interactionDescription,
+                  checkType,
+                  dc: Number(checkDc),
+                  visibility: checkVisibility,
+                  successMessage: checkSuccess,
+                  failureMessage: checkFailure,
+                  effectType: successEffectType,
+                  failureEffectType,
+                  linkedSecretId: latestSecret?.id,
+                  linkedShopId: latestShop?.id,
+                  questId: latestQuest?.id,
+                  discountPercent: Number(effectDiscountPercent),
+                  note: effectNarration,
+                  targetPlayerMode: "single"
+                })
+              }
+            >
+              Save Interaction
+            </button>
+            <button type="button" data-testid="dm-save-entity-notes" onClick={() => onRunTool({ tool: "setEntityNotes", entityId: selectedInteractionEntityId, note: interactionNotes })}>
+              Save Notes
+            </button>
+          </div>
         </div>
       ) : null}
 

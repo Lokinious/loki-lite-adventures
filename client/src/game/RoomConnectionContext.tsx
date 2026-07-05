@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { Client, Room } from "colyseus.js";
 import type {
+  AutomationEffectType,
   CampaignDifficulty,
   JoinMode,
   JoinRole,
@@ -51,6 +52,8 @@ type DmToolMessage = {
     | "createEncounterGroup"
     | "activateEncounterGroup"
     | "addSessionNote"
+    | "configureEntityInteraction"
+    | "setEntityNotes"
     | "createNpc"
     | "placeEntity"
     | "setEntityVisibility"
@@ -75,6 +78,12 @@ type DmToolMessage = {
   itemId?: string;
   playerId?: string;
   status?: "alive" | "downed" | "dead" | "permanentlyDead";
+  interactionTitle?: string;
+  targetPlayerMode?: "single" | "selected" | "party";
+  effectType?: AutomationEffectType;
+  failureEffectType?: AutomationEffectType;
+  discountPercent?: number;
+  sourceEntityId?: string;
   playerName?: string;
   name?: string;
   role?: string;
@@ -99,8 +108,14 @@ type DmToolMessage = {
   successMessage?: string;
   failureMessage?: string;
   linkedEntityId?: string;
+  linkedQuestId?: string;
+  linkedShopId?: string;
+  linkedItemId?: string;
+  linkedSecretId?: string;
   stock?: number;
   price?: number;
+  targetPlayerIds?: string[];
+  assignTo?: "party" | string;
   mapKey?: MapSlotKey;
   mapId?: string;
   note?: string;
@@ -135,6 +150,7 @@ type RoomConnectionContextValue = {
   equipItem(itemId: string): void;
   useItem(itemId: string): void;
   rollSkillCheck(checkId: string): void;
+  interactEntity(entityId: string): void;
   useCampService(serviceId: "heal" | "revive"): void;
   sceneAction(actionId: string): void;
   runDmAction(message: DmActionMessage): void;
@@ -307,6 +323,10 @@ export function RoomConnectionProvider({ children }: { children: React.ReactNode
     roomRef.current?.send("requestRollSkillCheck", { checkId });
   }
 
+  function interactEntity(entityId: string) {
+    roomRef.current?.send("requestInteractEntity", { entityId });
+  }
+
   function useCampService(serviceId: "heal" | "revive") {
     roomRef.current?.send("requestCampService", { serviceId });
   }
@@ -347,6 +367,7 @@ export function RoomConnectionProvider({ children }: { children: React.ReactNode
         equipItem(itemId: string): void;
         useItem(itemId: string): void;
         rollSkillCheck(checkId: string): void;
+        interactEntity(entityId: string): void;
         useCampService(serviceId: "heal" | "revive"): void;
         sceneAction(actionId: string): void;
         runDmTool(message: DmToolMessage): void;
@@ -368,6 +389,7 @@ export function RoomConnectionProvider({ children }: { children: React.ReactNode
       equipItem,
       useItem,
       rollSkillCheck,
+      interactEntity,
       useCampService,
       sceneAction,
       runDmTool,
@@ -377,7 +399,7 @@ export function RoomConnectionProvider({ children }: { children: React.ReactNode
     return () => {
       delete debugWindow.__lokiDebug;
     };
-  }, [attack, confirmCharacter, endTurn, equipItem, move, purchase, purchaseFromShop, rollSkillCheck, runDmCommand, runDmTool, sceneAction, selectClass, selectProfile, selectRace, useAbility, useCampService, useItem]);
+  }, [attack, confirmCharacter, endTurn, equipItem, interactEntity, move, purchase, purchaseFromShop, rollSkillCheck, runDmCommand, runDmTool, sceneAction, selectClass, selectProfile, selectRace, useAbility, useCampService, useItem]);
 
   const value = useMemo<RoomConnectionContextValue>(
     () => ({
@@ -404,6 +426,7 @@ export function RoomConnectionProvider({ children }: { children: React.ReactNode
       equipItem,
       useItem,
       rollSkillCheck,
+      interactEntity,
       useCampService,
       sceneAction,
       runDmAction,

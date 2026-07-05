@@ -20,7 +20,7 @@ import {
 } from "../components/GamePanels";
 import { useRoomConnection } from "../game/RoomConnectionContext";
 import type { EnemyView } from "../game/types";
-import { createGameBridge, type TacticalSnapshot } from "../phaser/createPhaserConfig";
+import { createGameBridge, type TacticalContextRequest, type TacticalSnapshot } from "../phaser/createPhaserConfig";
 
 const phaserContainerId = "battlefield-preview";
 
@@ -45,6 +45,7 @@ export function PlayPage() {
     equipItem,
     useItem,
     rollSkillCheck,
+    interactEntity,
     useCampService,
     sceneAction,
     runDmAction,
@@ -57,6 +58,7 @@ export function PlayPage() {
   const [dmCommand, setDmCommand] = useState("");
   const [activeLogTab, setActiveLogTab] = useState<"public" | "dm">("public");
   const [activeTargetMode, setActiveTargetMode] = useState<"attack" | "ability">("attack");
+  const [contextRequest, setContextRequest] = useState<TacticalContextRequest | null>(null);
   const gameBridgeRef = useRef<ReturnType<typeof createGameBridge> | null>(null);
 
   useEffect(() => {
@@ -133,17 +135,25 @@ export function PlayPage() {
       return;
     }
 
-    gameBridgeRef.current = createGameBridge(phaserContainerId, (x, y) => {
-      if (lobby.roomPhase === "live") {
-        move(x, y);
+    gameBridgeRef.current = createGameBridge(
+      phaserContainerId,
+      (x, y) => {
+        if (lobby.roomPhase === "live") {
+          move(x, y);
+        }
+      },
+      (request) => {
+        if (role === "dm") {
+          setContextRequest(request);
+        }
       }
-    });
+    );
 
     return () => {
       gameBridgeRef.current?.destroy();
       gameBridgeRef.current = null;
     };
-  }, [isConnected, lobby?.roomCode, lobby?.roomPhase, move, roomCode, routeRoomCode]);
+  }, [isConnected, lobby?.roomCode, lobby?.roomPhase, move, role, roomCode, routeRoomCode]);
 
   useEffect(() => {
     if (!lobby) {
@@ -308,6 +318,21 @@ export function PlayPage() {
     return Boolean(role === "player" && activeLobby.roomPhase === "live" && currentPlayer && shop?.accessible && currentPlayer.gold >= price);
   }
 
+  const contextEntity =
+    contextRequest?.tokenKind === "entity"
+      ? activeLobby.worldEntities.find((entity) => entity.id === contextRequest.tokenId) ?? null
+      : null;
+
+  function canInteractWithEntity(entity: (typeof activeLobby.worldEntities)[number]) {
+    return Boolean(
+      role === "player" &&
+        activeLobby.roomPhase === "live" &&
+        currentPlayer &&
+        entity.interaction &&
+        Math.abs(currentPlayer.x - entity.x) + Math.abs(currentPlayer.y - entity.y) <= 1
+    );
+  }
+
   return (
     <main className="play-shell">
       <section className="play-header">
@@ -345,6 +370,84 @@ export function PlayPage() {
             <div className="map-shell" data-testid="map-shell">
               <div id={phaserContainerId} className="phaser-surface play-phaser-surface" />
             </div>
+            {role === "dm" && contextRequest ? (
+              <section className="panel top-gap" data-testid="dm-context-menu">
+                <div className="section-header">
+                  <h2>Context Menu</h2>
+                  <span>
+                    Tile {contextRequest.x + 1},{contextRequest.y + 1}
+                  </span>
+                </div>
+                <div className="button-row">
+                  <button type="button" data-testid="context-spawn-npc" onClick={() => runDmTool({ tool: "placeEntity", entityType: "npc", x: contextRequest.x, y: contextRequest.y, visibilityState: "hidden" })}>
+                    Spawn NPC
+                  </button>
+                  <button type="button" data-testid="context-spawn-enemy" onClick={() => runDmTool({ tool: "createEncounterGroup", name: "Context Encounter", enemyId: "goblin", x: contextRequest.x, y: contextRequest.y, mapKey: lobby.currentMapKey })}>
+                    Spawn Enemy
+                  </button>
+                  <button type="button" data-testid="context-place-secret" onClick={() => runDmTool({ tool: "placeEntity", entityType: "secret_passage_marker", x: contextRequest.x, y: contextRequest.y, visibilityState: "dm_only" })}>
+                    Place Secret
+                  </button>
+                  <button type="button" data-testid="context-place-trap" onClick={() => runDmTool({ tool: "placeEntity", entityType: "trap_marker", x: contextRequest.x, y: contextRequest.y, visibilityState: "dm_only" })}>
+                    Place Trap
+                  </button>
+                  <button type="button" data-testid="context-place-object" onClick={() => runDmTool({ tool: "placeEntity", entityType: "chest", x: contextRequest.x, y: contextRequest.y, visibilityState: "hidden" })}>
+                    Create Object
+                  </button>
+                  <button type="button" data-testid="context-add-note" onClick={() => contextEntity && runDmTool({ tool: "setEntityNotes", entityId: contextEntity.id, note: "Context note" })} disabled={!contextEntity}>
+                    Add Note
+                  </button>
+                </div>
+                {contextEntity ? (
+                  <div className="button-row top-gap">
+                    <button type="button" data-testid="context-hide-entity" onClick={() => runDmTool({ tool: "setEntityVisibility", entityId: contextEntity.id, visibleToPlayers: false })}>
+                      Hide
+                    </button>
+                    <button type="button" data-testid="context-reveal-entity" onClick={() => runDmTool({ tool: "setEntityVisibility", entityId: contextEntity.id, visibleToPlayers: true })}>
+                      Reveal
+                    </button>
+                    <button
+                      type="button"
+                      data-testid="context-create-shop"
+                      onClick={() =>
+                        runDmTool({
+                          tool: "createShop",
+                          name: `${contextEntity.name} Wares`,
+                          ...(contextEntity.linkedNpcId ? { npcId: contextEntity.linkedNpcId } : {})
+                        })
+                      }
+                    >
+                      Create Shop
+                    </button>
+                    <button
+                      type="button"
+                      data-testid="context-add-skill-check"
+                      onClick={() =>
+                        runDmTool({
+                          tool: "configureEntityInteraction",
+                          entityId: contextEntity.id,
+                          interactionTitle: `Inspect ${contextEntity.name}`,
+                          description: "Study the object closely.",
+                          checkType: "investigation",
+                          dc: 12,
+                          visibility: "targeted",
+                          successMessage: "A hidden passage is discovered.",
+                          failureMessage: "Nothing else stands out.",
+                          effectType: "reveal_secret",
+                          ...(contextEntity.linkedSecretId ? { linkedSecretId: contextEntity.linkedSecretId } : {}),
+                          targetPlayerMode: "single"
+                        })
+                      }
+                    >
+                      Add Skill Check
+                    </button>
+                    <button type="button" data-testid="context-close" onClick={() => setContextRequest(null)}>
+                      Close
+                    </button>
+                  </div>
+                ) : null}
+              </section>
+            ) : null}
             {role === "player" ? (
               <ActionHotbar
                 currentPlayer={currentPlayer}
@@ -413,7 +516,7 @@ export function PlayPage() {
             </section>
           ) : null}
 
-          <WorldEntityPanel entities={lobby.worldEntities} />
+          <WorldEntityPanel entities={lobby.worldEntities} onInteract={interactEntity} canInteract={canInteractWithEntity} />
 
           <QuestPanel quests={lobby.quests} />
 

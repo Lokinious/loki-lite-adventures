@@ -9,7 +9,9 @@ export type VisibilityState = "hidden" | "visible" | "revealed" | "dm_only";
 export type WorldEntityType =
   | "npc"
   | "shopkeeper"
+  | "wall"
   | "chest"
+  | "bookshelf"
   | "barrel"
   | "door"
   | "lever"
@@ -35,6 +37,7 @@ export type SkillCheckType =
 
 export type SkillCheckVisibility = "public" | "dm" | "targeted";
 export type QuestStatus = "hidden" | "offered" | "active" | "completed" | "failed";
+export type AutomationEffectType = "none" | "reveal_secret" | "reward" | "quest_progress" | "shop_discount" | "trigger_event" | "trigger_combat" | "narration";
 
 export type InventoryItemView = {
   entryId: string;
@@ -74,6 +77,15 @@ export type WorldEntityView = {
   linkedNpcId?: string;
   linkedSecretId?: string;
   publicDetails: string;
+  interaction: {
+    title: string;
+    checkType: SkillCheckType;
+    dc: number;
+    successText: string;
+    failureText: string;
+    targetMode: "single" | "selected" | "party";
+  } | null;
+  dmNotes?: string;
 };
 
 export type NpcView = {
@@ -130,6 +142,7 @@ export type SecretView = {
 export type SkillCheckView = {
   id: string;
   title: string;
+  description: string;
   checkType: SkillCheckType;
   dc: number;
   targetPlayerIds: string[];
@@ -152,6 +165,7 @@ export type SkillCheckView = {
 export type PlayerSkillCheckView = {
   id: string;
   title: string;
+  description: string;
   checkType: SkillCheckType;
   visibility: SkillCheckVisibility;
   status: "pending" | "completed";

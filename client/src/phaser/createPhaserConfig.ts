@@ -21,6 +21,13 @@ export type TacticalSnapshot = {
   tokens: TacticalToken[];
 };
 
+export type TacticalContextRequest = {
+  x: number;
+  y: number;
+  tokenId?: string;
+  tokenKind?: TacticalToken["tokenKind"];
+};
+
 type TokenSprite = {
   body: Phaser.GameObjects.Ellipse | Phaser.GameObjects.Rectangle;
   border: Phaser.GameObjects.Ellipse | Phaser.GameObjects.Rectangle;
@@ -59,7 +66,10 @@ class TacticalScene extends Phaser.Scene {
   private isReady = false;
   private sceneLabel?: Phaser.GameObjects.Text;
 
-  constructor(private readonly onTileSelected: (x: number, y: number) => void) {
+  constructor(
+    private readonly onTileSelected: (x: number, y: number) => void,
+    private readonly onContextRequest: (request: TacticalContextRequest) => void
+  ) {
     super("tactical-scene");
   }
 
@@ -73,11 +83,23 @@ class TacticalScene extends Phaser.Scene {
       fontSize: "14px"
     });
     this.sceneLabel.setDepth(5);
+    this.input.mouse?.disableContextMenu();
     this.input.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
       const x = Math.floor(pointer.x / tileSize);
       const y = Math.floor(pointer.y / tileSize);
 
       if (x < 0 || y < 0 || x >= this.snapshot.width || y >= this.snapshot.height) {
+        return;
+      }
+
+      const token = this.snapshot.tokens.find((entry) => entry.x === x && entry.y === y);
+
+      if (pointer.button === 2 || pointer.rightButtonDown()) {
+        this.onContextRequest({
+          x,
+          y,
+          ...(token ? { tokenId: token.id, tokenKind: token.tokenKind } : {})
+        });
         return;
       }
 
@@ -178,9 +200,10 @@ class TacticalScene extends Phaser.Scene {
 
 export function createGameBridge(
   parent: string,
-  onTileSelected: (x: number, y: number) => void
+  onTileSelected: (x: number, y: number) => void,
+  onContextRequest: (request: TacticalContextRequest) => void
 ): GameBridge {
-  const scene = new TacticalScene(onTileSelected);
+  const scene = new TacticalScene(onTileSelected, onContextRequest);
   const game = new Phaser.Game({
     type: Phaser.AUTO,
     width: tileSize * 10,

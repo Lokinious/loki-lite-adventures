@@ -66,6 +66,10 @@ type RollSkillCheckMessage = {
   checkId: string;
 };
 
+type InteractEntityMessage = {
+  entityId: string;
+};
+
 type SelectProfileMessage = {
   profileId: string;
 };
@@ -105,7 +109,9 @@ type DmToolMessage = {
     | "generateNpc"
     | "generateQuest"
     | "generateShop"
-    | "generateSecret";
+    | "generateSecret"
+    | "configureEntityInteraction"
+    | "setEntityNotes";
   entityType?: WorldEntityType;
   entityId?: string;
   npcId?: string;
@@ -159,6 +165,12 @@ type DmToolMessage = {
   visibilityState?: VisibilityState;
   playerProfileId?: string;
   status?: PlayerLifeStatus;
+  interactionTitle?: string;
+  targetPlayerMode?: "single" | "selected" | "party";
+  effectType?: AutomationEffectType;
+  failureEffectType?: AutomationEffectType;
+  discountPercent?: number;
+  sourceEntityId?: string;
 };
 
 type DmActionMessage = {
@@ -293,7 +305,9 @@ type WorldEntityType =
   | "npc"
   | "shopkeeper"
   | "treasure_chest"
+  | "wall"
   | "chest"
+  | "bookshelf"
   | "barrel"
   | "door"
   | "lever"
@@ -319,6 +333,15 @@ type SkillCheckType =
   | "stealth";
 
 type RewardType = "gold" | "item" | "xp" | "healing" | "quest_progress";
+type AutomationEffectType =
+  | "none"
+  | "reveal_secret"
+  | "reward"
+  | "quest_progress"
+  | "shop_discount"
+  | "trigger_event"
+  | "trigger_combat"
+  | "narration";
 
 type Point = {
   x: number;
@@ -407,6 +430,8 @@ type WorldEntityView = {
   linkedNpcId: string | undefined;
   linkedSecretId: string | undefined;
   publicDetails: string;
+  interaction: EntityInteractionView | null;
+  dmNotes: string | undefined;
 };
 
 type NpcView = {
@@ -460,9 +485,19 @@ type SecretView = {
   linkedEntityId: string | undefined;
 };
 
+type EntityInteractionView = {
+  title: string;
+  checkType: SkillCheckType;
+  dc: number;
+  successText: string;
+  failureText: string;
+  targetMode: "single" | "selected" | "party";
+};
+
 type SkillCheckView = {
   id: string;
   title: string;
+  description: string;
   checkType: SkillCheckType;
   dc: number;
   targetPlayerIds: string[];
@@ -485,6 +520,7 @@ type SkillCheckView = {
 type PlayerSkillCheckView = {
   id: string;
   title: string;
+  description: string;
   checkType: SkillCheckType;
   visibility: SkillCheckVisibility;
   status: "pending" | "completed";
@@ -567,6 +603,7 @@ type WorldEntityRecord = {
   type: WorldEntityType;
   name: string;
   description: string;
+  dmNotes: string | undefined;
   x: number;
   y: number;
   visibilityState: VisibilityState;
@@ -576,6 +613,7 @@ type WorldEntityRecord = {
   linkedItemId: string | undefined;
   linkedNpcId: string | undefined;
   linkedSecretId: string | undefined;
+  interaction: EntityInteractionRecord | undefined;
 };
 
 type NpcRecord = {
@@ -645,6 +683,30 @@ type RewardGrant = {
   targetPlayerIds: string[] | undefined;
 };
 
+type AutomationEffect = {
+  type: AutomationEffectType;
+  reward: RewardGrant | undefined;
+  linkedSecretId: string | undefined;
+  questId: string | undefined;
+  linkedShopId: string | undefined;
+  discountPercent: number | undefined;
+  encounterId: string | undefined;
+  narration: string | undefined;
+};
+
+type EntityInteractionRecord = {
+  title: string;
+  description: string;
+  checkType: SkillCheckType;
+  dc: number;
+  targetMode: "single" | "selected" | "party";
+  visibility: SkillCheckVisibility;
+  successText: string;
+  failureText: string;
+  successEffect: AutomationEffect;
+  failureEffect: AutomationEffect;
+};
+
 type SessionMapRecord = {
   key: MapSlotKey;
   label: string;
@@ -706,6 +768,7 @@ type SessionTemplateRecord = {
 type SkillCheckRecord = {
   id: string;
   title: string;
+  description: string;
   checkType: SkillCheckType;
   dc: number;
   targetPlayerIds: string[];
@@ -717,6 +780,9 @@ type SkillCheckRecord = {
   linkedSecretId: string | undefined;
   successReward: RewardGrant | undefined;
   failureReward: RewardGrant | undefined;
+  successEffect: AutomationEffect | undefined;
+  failureEffect: AutomationEffect | undefined;
+  sourceEntityId: string | undefined;
 };
 
 type RoomSnapshot = {
@@ -900,7 +966,9 @@ const encounterSpawnBySceneId: Record<string, Array<{ enemyId: string; position:
 const availableEntityTypes: Array<{ id: WorldEntityType; label: string }> = [
   { id: "npc", label: "NPC" },
   { id: "shopkeeper", label: "Shopkeeper" },
+  { id: "wall", label: "Wall" },
   { id: "chest", label: "Chest" },
+  { id: "bookshelf", label: "Bookshelf" },
   { id: "barrel", label: "Barrel" },
   { id: "door", label: "Door" },
   { id: "lever", label: "Lever" },
@@ -1022,6 +1090,10 @@ export class LobbyRoom extends Room<LobbyState> {
       this.handleSkillCheckRoll(client, message);
     });
 
+    this.onMessage("requestInteractEntity", (client, message: InteractEntityMessage) => {
+      this.handleEntityInteraction(client, message);
+    });
+
     this.onMessage("requestCampService", (client, message: CampServiceMessage) => {
       this.handleCampService(client, message);
     });
@@ -1061,6 +1133,17 @@ export class LobbyRoom extends Room<LobbyState> {
     }
 
     const player = this.createPlayerState(client.sessionId, playerName, defaultClass, defaultRace);
+    const existingProfiles = persistentCharacterProfiles.get(normalizeProfileOwner(playerName)) ?? [];
+    const latestProfile = existingProfiles[existingProfiles.length - 1];
+
+    if (this.roomPhase !== "preparation" && latestProfile) {
+      if (this.campaignDifficulty === "legendary" && latestProfile.status === "permanentlyDead") {
+        throw new Error(`${latestProfile.name} is permanently dead and cannot rejoin this legendary campaign.`);
+      }
+
+      this.applyProfileToPlayer(player, latestProfile);
+    }
+
     this.state.players.set(client.sessionId, player);
     this.state.turnOrder.push(client.sessionId);
     this.repositionPlayers();
@@ -1270,6 +1353,11 @@ export class LobbyRoom extends Room<LobbyState> {
 
     if (!profile) {
       this.rejectAction(client, "That character profile is no longer available.");
+      return;
+    }
+
+    if (this.campaignDifficulty === "legendary" && profile.status === "permanentlyDead") {
+      this.rejectAction(client, `${profile.name} is permanently dead and cannot rejoin this legendary campaign.`);
       return;
     }
 
@@ -1918,18 +2006,88 @@ export class LobbyRoom extends Room<LobbyState> {
     const resultMessage = `${player.name} rolled ${capitalizeCheckType(skillCheck.checkType)}: d20 (${roll}) + ${modifier} = ${total} vs DC ${skillCheck.dc}. ${messageText}`;
     this.publishSkillCheckResult(skillCheck, player, resultMessage, success);
 
-    if (success && skillCheck.linkedSecretId) {
-      this.revealSecretRecord(skillCheck.linkedSecretId, `${player.name} uncovers a hidden clue.`);
-    }
-
-    if (success && skillCheck.successReward) {
-      this.applyRewardGrant(skillCheck.successReward, `${player.name} succeeds on ${skillCheck.title}.`);
-    } else if (!success && skillCheck.failureReward) {
-      this.applyRewardGrant(skillCheck.failureReward, `${player.name} fails ${skillCheck.title}.`);
+    if (success) {
+      this.applyAutomationEffect(skillCheck.successEffect, player, skillCheck.title);
+      if (skillCheck.linkedSecretId) {
+        this.revealSecretRecord(skillCheck.linkedSecretId, `${player.name} uncovers a hidden clue.`);
+      }
+      if (skillCheck.successReward) {
+        this.applyRewardGrant(skillCheck.successReward, `${player.name} succeeds on ${skillCheck.title}.`);
+      }
+    } else {
+      this.applyAutomationEffect(skillCheck.failureEffect, player, skillCheck.title);
+      if (skillCheck.failureReward) {
+        this.applyRewardGrant(skillCheck.failureReward, `${player.name} fails ${skillCheck.title}.`);
+      }
     }
 
     this.syncState();
     this.publishSnapshots();
+  }
+
+  private handleEntityInteraction(client: Client, message: InteractEntityMessage) {
+    if (this.roomPhase !== "live") {
+      this.rejectAction(client, "Interactive objects unlock once the session is live.");
+      return;
+    }
+
+    if (this.isDmSession(client.sessionId)) {
+      this.rejectAction(client, "Dungeon Masters configure interactions; players resolve them.");
+      return;
+    }
+
+    const player = this.state.players.get(client.sessionId);
+    const entity = message.entityId ? this.worldEntities.get(message.entityId) : undefined;
+
+    if (!player || !entity || entity.mapKey !== this.currentMapKey || !isEntityVisibleToPlayers(entity)) {
+      this.rejectAction(client, "That interaction is not available.");
+      return;
+    }
+
+    if (calculateDistance(player.x, player.y, entity.x, entity.y) > 1) {
+      this.rejectAction(client, "Move adjacent to interact with that object.");
+      return;
+    }
+
+    if (!entity.interaction) {
+      this.rejectAction(client, "That object does not have an interaction yet.");
+      return;
+    }
+
+    const existing = [...this.skillChecks.values()].find((check) =>
+      check.sourceEntityId === entity.id &&
+      check.status === "pending" &&
+      check.targetPlayerIds.includes(client.sessionId)
+    );
+
+    if (existing) {
+      this.rejectAction(client, "That interaction is already waiting for your roll.");
+      return;
+    }
+
+    this.createSkillCheckFromDm({
+      tool: "createSkillCheck",
+      checkType: entity.interaction.checkType,
+      dc: entity.interaction.dc,
+      title: entity.interaction.title,
+      description: entity.interaction.description,
+      target: "player",
+      playerId: client.sessionId,
+      visibility: entity.interaction.visibility,
+      successMessage: entity.interaction.successText,
+      failureMessage: entity.interaction.failureText,
+      linkedSecretId: entity.interaction.successEffect.linkedSecretId,
+      effectType: entity.interaction.successEffect.type,
+      failureEffectType: entity.interaction.failureEffect.type,
+      amount: entity.interaction.successEffect.reward?.amount,
+      itemId: entity.interaction.successEffect.reward?.itemId,
+      questId: entity.interaction.successEffect.questId,
+      linkedShopId: entity.interaction.successEffect.linkedShopId,
+      discountPercent: entity.interaction.successEffect.discountPercent,
+      encounterId: entity.interaction.successEffect.encounterId,
+      note: entity.interaction.successEffect.narration,
+      sourceEntityId: entity.id
+    } as DmToolMessage);
   }
 
   private handleCampService(client: Client, message: CampServiceMessage) {
@@ -2123,6 +2281,12 @@ export class LobbyRoom extends Room<LobbyState> {
           return;
         case "generateSecret":
           this.generateSecretTemplate();
+          return;
+        case "configureEntityInteraction":
+          this.configureEntityInteractionFromDm(message);
+          return;
+        case "setEntityNotes":
+          this.setEntityNotesFromDm(message.entityId, message.note);
           return;
         default:
           this.addDmLog("Unknown DM world tool.");
@@ -2438,6 +2602,7 @@ export class LobbyRoom extends Room<LobbyState> {
       type: entityType,
       name,
       description,
+      dmNotes: sanitizeWorldText(message.note, ""),
       x,
       y,
       visibilityState: message.visibilityState ?? (message.visibleToPlayers ? "visible" : "hidden"),
@@ -2446,7 +2611,8 @@ export class LobbyRoom extends Room<LobbyState> {
       linkedShopId,
       linkedItemId: message.linkedItemId,
       linkedNpcId,
-      linkedSecretId: message.linkedSecretId
+      linkedSecretId: message.linkedSecretId,
+      interaction: undefined
     };
 
     this.worldEntities.set(entityId, entity);
@@ -2492,6 +2658,54 @@ export class LobbyRoom extends Room<LobbyState> {
     }
 
     this.addDmLog(`${visibilityState === "hidden" ? "Hid" : "Updated"} ${entity.name} (${visibilityState}).`);
+    this.syncState();
+    this.publishSnapshots();
+  }
+
+  private setEntityNotesFromDm(entityId: string | undefined, note: string | undefined) {
+    const entity = entityId ? this.worldEntities.get(entityId) : undefined;
+
+    if (!entity) {
+      this.addDmLog(`Unknown entity: ${entityId ?? ""}`);
+      this.syncState();
+      this.publishSnapshots();
+      return;
+    }
+
+    entity.dmNotes = sanitizeWorldText(note, "");
+    this.addDmLog(`Updated DM notes for ${entity.name}.`);
+    this.syncState();
+    this.publishSnapshots();
+  }
+
+  private configureEntityInteractionFromDm(message: DmToolMessage) {
+    const entity = message.entityId ? this.worldEntities.get(message.entityId) : undefined;
+
+    if (!entity) {
+      this.addDmLog(`Unknown entity: ${message.entityId ?? ""}`);
+      this.syncState();
+      this.publishSnapshots();
+      return;
+    }
+
+    entity.interaction = {
+      title: sanitizeWorldText(message.interactionTitle, `${entity.name} interaction`),
+      description: sanitizeWorldText(message.description, `Interact with ${entity.name}.`),
+      checkType: normalizeSkillCheckType(message.checkType),
+      dc: Math.max(1, Math.floor(message.dc ?? 10)),
+      targetMode: message.targetPlayerMode ?? "single",
+      visibility: message.visibility ?? "targeted",
+      successText: sanitizeWorldText(message.successMessage, "Success."),
+      failureText: sanitizeWorldText(message.failureMessage, "Failure."),
+      successEffect: buildAutomationEffect(message, "success"),
+      failureEffect: buildAutomationEffect(message, "failure")
+    };
+
+    if (message.note !== undefined) {
+      entity.dmNotes = sanitizeWorldText(message.note, entity.dmNotes ?? "");
+    }
+
+    this.addDmLog(`Configured interaction for ${entity.name}.`);
     this.syncState();
     this.publishSnapshots();
   }
@@ -2707,6 +2921,7 @@ export class LobbyRoom extends Room<LobbyState> {
     const skillCheck: SkillCheckRecord = {
       id: checkId,
       title: sanitizeWorldText(message.title, `${capitalizeCheckType(checkType)} check`),
+      description: sanitizeWorldText(message.description, "Roll to resolve the situation."),
       checkType,
       dc,
       targetPlayerIds,
@@ -2717,7 +2932,10 @@ export class LobbyRoom extends Room<LobbyState> {
       results,
       linkedSecretId: message.linkedSecretId,
       successReward: undefined,
-      failureReward: undefined
+      failureReward: undefined,
+      successEffect: buildAutomationEffect(message, "success"),
+      failureEffect: buildAutomationEffect(message, "failure"),
+      sourceEntityId: message.sourceEntityId
     };
 
     this.skillChecks.set(checkId, skillCheck);
@@ -3200,6 +3418,48 @@ export class LobbyRoom extends Room<LobbyState> {
       case "quest_progress":
         if (reward.questId) {
           this.setQuestStatusFromDm(reward.questId, "active");
+        }
+        return;
+    }
+  }
+
+  private applyAutomationEffect(effect: AutomationEffect | undefined, player: PlayerState, sourceTitle: string) {
+    if (!effect || effect.type === "none") {
+      return;
+    }
+
+    switch (effect.type) {
+      case "reveal_secret":
+        this.revealSecretRecord(effect.linkedSecretId, `${player.name} reveals a secret through ${sourceTitle}.`);
+        return;
+      case "reward":
+        if (effect.reward) {
+          this.applyRewardGrant(effect.reward, `${player.name} resolves ${sourceTitle}.`);
+        }
+        return;
+      case "quest_progress":
+        if (effect.questId) {
+          this.setQuestStatusFromDm(effect.questId, "completed");
+        }
+        return;
+      case "shop_discount":
+        if (effect.linkedShopId) {
+          const shop = this.shops.get(effect.linkedShopId);
+          if (shop) {
+            shop.discountPercent = Math.max(shop.discountPercent, effect.discountPercent ?? 15);
+            this.addPublicLog(`${shop.name} offers a ${shop.discountPercent}% discount after ${player.name}'s success.`);
+          }
+        }
+        return;
+      case "trigger_event":
+      case "narration":
+        if (effect.narration) {
+          this.addPublicLog(effect.narration);
+        }
+        return;
+      case "trigger_combat":
+        if (effect.encounterId) {
+          this.activateEncounterGroupFromDm(effect.encounterId);
         }
         return;
     }
@@ -4183,7 +4443,18 @@ export class LobbyRoom extends Room<LobbyState> {
         linkedItemId: entity.linkedItemId,
         linkedNpcId: entity.linkedNpcId,
         linkedSecretId: entity.linkedSecretId,
-        publicDetails: this.buildEntityPublicDetails(entity)
+        publicDetails: this.buildEntityPublicDetails(entity),
+        interaction: entity.interaction
+          ? {
+              title: entity.interaction.title,
+              checkType: entity.interaction.checkType,
+              dc: entity.interaction.dc,
+              successText: entity.interaction.successText,
+              failureText: entity.interaction.failureText,
+              targetMode: entity.interaction.targetMode
+            }
+          : null,
+        dmNotes: isDm ? entity.dmNotes : undefined
       }));
   }
 
@@ -4306,6 +4577,7 @@ export class LobbyRoom extends Room<LobbyState> {
     return [...this.skillChecks.values()].map((check) => ({
       id: check.id,
       title: check.title,
+      description: check.description,
       checkType: check.checkType,
       dc: check.dc,
       targetPlayerIds: check.targetPlayerIds,
@@ -4342,6 +4614,7 @@ export class LobbyRoom extends Room<LobbyState> {
         return {
           id: check.id,
           title: check.title,
+          description: check.description,
           checkType: check.checkType,
           visibility: check.visibility,
           status: check.status,
@@ -4996,6 +5269,46 @@ function normalizeRewardType(value: string | undefined): RewardType | null {
     default:
       return null;
   }
+}
+
+function normalizeAutomationEffectType(value: string | undefined): AutomationEffectType {
+  switch (value?.trim().toLowerCase()) {
+    case "reveal_secret":
+    case "reward":
+    case "quest_progress":
+    case "shop_discount":
+    case "trigger_event":
+    case "trigger_combat":
+    case "narration":
+      return value.trim().toLowerCase() as AutomationEffectType;
+    default:
+      return "none";
+  }
+}
+
+function buildAutomationEffect(message: DmToolMessage, branch: "success" | "failure"): AutomationEffect {
+  const effectType = normalizeAutomationEffectType(branch === "success" ? message.effectType : message.failureEffectType);
+  const rewardType = normalizeRewardType(message.name);
+
+  return {
+    type: effectType,
+    reward:
+      effectType === "reward" && rewardType
+        ? {
+            type: rewardType,
+            amount: message.amount,
+            itemId: message.itemId,
+            questId: message.questId,
+            targetPlayerIds: message.targetPlayerIds
+          }
+        : undefined,
+    linkedSecretId: message.linkedSecretId,
+    questId: message.questId,
+    linkedShopId: message.linkedShopId,
+    discountPercent: message.discountPercent,
+    encounterId: message.encounterId,
+    narration: message.note
+  };
 }
 
 function normalizeQuestStatus(value: string | undefined): QuestStatus {

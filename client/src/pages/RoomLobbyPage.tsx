@@ -154,7 +154,17 @@ export function RoomLobbyPage() {
                 <p className="meta-copy">Load an existing character profile or leave this blank to create a new one.</p>
                 {lobby.characterProfiles.length ? (
                   lobby.characterProfiles.map((profile) => (
-                    <button key={profile.id} type="button" className="player-card" data-testid={`profile-load-${profile.id}`} onClick={() => selectProfile(profile.id)} disabled={lobby.roomPhase !== "preparation"}>
+                    <button
+                      key={profile.id}
+                      type="button"
+                      className="player-card"
+                      data-testid={`profile-load-${profile.id}`}
+                      onClick={() => selectProfile(profile.id)}
+                      disabled={
+                        lobby.roomPhase !== "preparation" ||
+                        (lobby.campaignDifficulty === "legendary" && profile.status === "permanentlyDead")
+                      }
+                    >
                       <strong>{profile.name}</strong>
                       <span>{profile.raceName} {profile.className}</span>
                       <span>Level {profile.level} · XP {profile.xp} · {profile.status}</span>
