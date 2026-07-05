@@ -19,5 +19,12 @@
     "width": 10,
     "height": 8,
     "fogOfWar": false
+  },
+  {
+    "id": "camp",
+    "name": "Camp",
+    "width": 12,
+    "height": 8,
+    "fogOfWar": false
   }
 ]

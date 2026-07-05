@@ -178,9 +178,7 @@ function PlayerCard({
         <span data-testid={`player-level-${player.id}`}>Level {player.level}</span>
         <span data-testid={`player-defense-${player.id}`}>Defense {player.defense}</span>
         <span data-testid={`player-attack-${player.id}`}>Attack +{player.attackBonus}</span>
-        <span data-testid={`player-state-${player.id}`}>
-          {player.alive ? (player.confirmedCharacter ? "Ready" : "Unconfirmed") : "Knocked out"}
-        </span>
+        <span data-testid={`player-state-${player.id}`}>{player.confirmedCharacter ? player.status : "unconfirmed"}</span>
       </div>
       <p data-testid={`player-inventory-${player.id}`}>
         Inventory: {player.inventory.length ? player.inventory.map((item) => item.name).join(", ") : "Empty"}
@@ -219,6 +217,8 @@ export function CharacterSheetPanel({ player }: CharacterSheetPanelProps) {
         <span data-testid="character-confirmed">{player.confirmedCharacter ? "Confirmed" : "Awaiting confirmation"}</span>
         <span data-testid="character-level">Level {player.level}</span>
         <span data-testid="character-xp">XP {player.xp}</span>
+        <span data-testid="character-status">{player.status}</span>
+        <span data-testid="character-ability-slots">Ability Slots {player.abilitySlots}</span>
         <span data-testid="character-defense">Defense {player.defense}</span>
         <span data-testid="character-attack-bonus">Attack +{player.attackBonus}</span>
         <span data-testid="character-range">Range {player.attackRange}</span>
@@ -731,13 +731,19 @@ export function DmPanel({
 }
 
 export function DmWorldToolsPanel({ lobby, onRunTool }: DmWorldToolsPanelProps) {
-  const [activeTab, setActiveTab] = useState<"npcs" | "shops" | "quests" | "secrets" | "rewards" | "notes">("npcs");
+  const [activeTab, setActiveTab] = useState<"maps" | "players" | "npcs" | "objects" | "shops" | "quests" | "encounters" | "secrets" | "rewards" | "notes">("maps");
+  const [selectedMapKey, setSelectedMapKey] = useState(lobby.currentMapKey);
+  const [selectedMapId, setSelectedMapId] = useState(lobby.sessionMaps.find((map) => map.key === lobby.currentMapKey)?.mapId ?? lobby.currentScene.mapId);
   const [npcName, setNpcName] = useState("Gatekeeper");
   const [npcRole, setNpcRole] = useState("guard");
   const [placeNpcId, setPlaceNpcId] = useState("");
   const [entityType, setEntityType] = useState<WorldEntityType>("npc");
   const [entityX, setEntityX] = useState("1");
   const [entityY, setEntityY] = useState("1");
+  const [spawnPlayerId, setSpawnPlayerId] = useState("");
+  const [spawnX, setSpawnX] = useState("1");
+  const [spawnY, setSpawnY] = useState("1");
+  const [playerStatus, setPlayerStatus] = useState("alive");
   const [shopName, setShopName] = useState("Camp Supply");
   const [shopNpcId, setShopNpcId] = useState("");
   const [shopItemId, setShopItemId] = useState("healing_potion");
@@ -754,6 +760,12 @@ export function DmWorldToolsPanel({ lobby, onRunTool }: DmWorldToolsPanelProps) 
   const [rewardAmount, setRewardAmount] = useState("5");
   const [rewardPlayerId, setRewardPlayerId] = useState("party");
   const [rewardItemId, setRewardItemId] = useState("healing_potion");
+  const [encounterName, setEncounterName] = useState("Forest Ambush");
+  const [encounterEnemyId, setEncounterEnemyId] = useState("goblin");
+  const [encounterX, setEncounterX] = useState("4");
+  const [encounterY, setEncounterY] = useState("2");
+  const [templateName, setTemplateName] = useState("Prepared Expedition");
+  const [sessionNote, setSessionNote] = useState("");
   const [checkType, setCheckType] = useState<SkillCheckType>("insight");
   const [checkDc, setCheckDc] = useState("14");
   const [checkTarget, setCheckTarget] = useState("party");
@@ -774,7 +786,7 @@ export function DmWorldToolsPanel({ lobby, onRunTool }: DmWorldToolsPanelProps) 
       <div className="section-header">
         <h2>DM World Tools</h2>
         <span data-testid="dm-world-summary">
-          {lobby.npcs.length} NPCs · {lobby.shops.length} shops · {lobby.quests.length} quests
+          {lobby.roomPhase.toUpperCase()} · {lobby.currentMapKey} · {lobby.npcs.length} NPCs · {lobby.shops.length} shops
         </span>
       </div>
 
@@ -845,7 +857,7 @@ export function DmWorldToolsPanel({ lobby, onRunTool }: DmWorldToolsPanelProps) 
       </section>
 
       <div className="tab-row">
-        {(["npcs", "shops", "quests", "secrets", "rewards", "notes"] as const).map((tab) => (
+        {(["maps", "players", "npcs", "objects", "shops", "quests", "encounters", "secrets", "rewards", "notes"] as const).map((tab) => (
           <button
             key={tab}
             type="button"
@@ -857,6 +869,114 @@ export function DmWorldToolsPanel({ lobby, onRunTool }: DmWorldToolsPanelProps) 
           </button>
         ))}
       </div>
+
+      {activeTab === "maps" ? (
+        <div className="player-list">
+          <div className="two-column-grid">
+            <label className="field">
+              <span>Session map</span>
+              <select data-testid="dm-session-map-select" value={selectedMapKey} onChange={(event) => setSelectedMapKey(event.target.value as typeof selectedMapKey)}>
+                {lobby.sessionMaps.map((sessionMap) => <option key={sessionMap.key} value={sessionMap.key}>{sessionMap.label}</option>)}
+              </select>
+            </label>
+            <label className="field">
+              <span>Base map</span>
+              <select data-testid="dm-map-definition-select" value={selectedMapId} onChange={(event) => setSelectedMapId(event.target.value)}>
+                {lobby.availableMaps.map((map) => <option key={map.id} value={map.id}>{map.name}</option>)}
+              </select>
+            </label>
+          </div>
+          <div className="button-row">
+            <button type="button" data-testid="dm-set-current-map" onClick={() => onRunTool({ tool: "setMap", mapKey: selectedMapKey })}>Open Map</button>
+            <button type="button" data-testid="dm-save-map-definition" onClick={() => onRunTool({ tool: "setMapDefinition", mapKey: selectedMapKey, mapId: selectedMapId })}>Assign Base Map</button>
+          </div>
+          <label className="field">
+            <span>Template name</span>
+            <input data-testid="dm-template-name" value={templateName} onChange={(event) => setTemplateName(event.target.value)} />
+          </label>
+          <div className="button-row">
+            <button type="button" data-testid="dm-save-template" onClick={() => onRunTool({ tool: "saveTemplate", templateName })}>Save Template</button>
+            <select data-testid="dm-load-template-select" value={templateName} onChange={(event) => setTemplateName(event.target.value)}>
+              {lobby.savedTemplates.length ? lobby.savedTemplates.map((template) => <option key={template.id} value={template.name}>{template.name}</option>) : <option value={templateName}>{templateName}</option>}
+            </select>
+            <button type="button" data-testid="dm-load-template" onClick={() => onRunTool({ tool: "loadTemplate", templateName })}>Load Template</button>
+          </div>
+          <label className="field">
+            <span>Campaign difficulty</span>
+            <select data-testid="dm-campaign-difficulty" value={lobby.campaignDifficulty} onChange={(event) => onRunTool({ tool: "setCampaignDifficulty", difficulty: event.target.value })}>
+              <option value="casual">Casual</option>
+              <option value="hardcore">Hardcore</option>
+              <option value="legendary">Legendary</option>
+            </select>
+          </label>
+          <div className="player-list">
+            {lobby.sessionMaps.map((sessionMap) => (
+              <article key={sessionMap.key} className="player-card" data-testid={`session-map-${sessionMap.key}`}>
+                <div>
+                  <strong>{sessionMap.label}</strong>
+                  <p>{sessionMap.mapName}</p>
+                </div>
+                <div className="player-stats">
+                  <span>Spawns {sessionMap.spawnCount}</span>
+                  <span>Encounters {sessionMap.encounterCount}</span>
+                  <span>Entities {sessionMap.entityCount}</span>
+                </div>
+              </article>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
+      {activeTab === "players" ? (
+        <div className="player-list">
+          <div className="two-column-grid">
+            <label className="field">
+              <span>Player</span>
+              <select data-testid="dm-player-spawn-select" value={spawnPlayerId} onChange={(event) => setSpawnPlayerId(event.target.value)}>
+                <option value="">Choose player</option>
+                {lobby.players.map((player) => <option key={player.id} value={player.id}>{player.name}</option>)}
+              </select>
+            </label>
+            <label className="field">
+              <span>Map</span>
+              <select data-testid="dm-player-spawn-map" value={selectedMapKey} onChange={(event) => setSelectedMapKey(event.target.value as typeof selectedMapKey)}>
+                {lobby.sessionMaps.map((sessionMap) => <option key={sessionMap.key} value={sessionMap.key}>{sessionMap.label}</option>)}
+              </select>
+            </label>
+            <label className="field">
+              <span>Spawn X</span>
+              <input data-testid="dm-player-spawn-x" value={spawnX} onChange={(event) => setSpawnX(event.target.value)} />
+            </label>
+            <label className="field">
+              <span>Spawn Y</span>
+              <input data-testid="dm-player-spawn-y" value={spawnY} onChange={(event) => setSpawnY(event.target.value)} />
+            </label>
+          </div>
+          <button type="button" data-testid="dm-save-player-spawn" onClick={() => onRunTool({ tool: "setPlayerSpawn", playerId: spawnPlayerId, mapKey: selectedMapKey, x: Number(spawnX), y: Number(spawnY) })}>Save Spawn</button>
+          <div className="button-row">
+            <select data-testid="dm-player-status" value={playerStatus} onChange={(event) => setPlayerStatus(event.target.value)}>
+              <option value="alive">Alive</option>
+              <option value="downed">Downed</option>
+              <option value="dead">Dead</option>
+              <option value="permanentlyDead">Permanently Dead</option>
+            </select>
+            <button type="button" data-testid="dm-set-player-status" onClick={() => onRunTool({ tool: "setPlayerStatus", playerId: spawnPlayerId, status: playerStatus })}>Apply Status</button>
+          </div>
+          {lobby.players.map((player) => (
+            <article key={player.id} className="player-card" data-testid={`dm-player-prep-${player.id}`}>
+              <div>
+                <strong>{player.name}</strong>
+                <p>{player.characterIdentity}</p>
+              </div>
+              <div className="player-stats">
+                <span>{player.status}</span>
+                <span>Level {player.level}</span>
+                <span>Adventures {player.completedAdventures}</span>
+              </div>
+            </article>
+          ))}
+        </div>
+      ) : null}
 
       {activeTab === "npcs" ? (
         <div className="player-list">
@@ -906,7 +1026,8 @@ export function DmWorldToolsPanel({ lobby, onRunTool }: DmWorldToolsPanelProps) 
                   npcId: placeNpcId,
                   x: Number(entityX),
                   y: Number(entityY),
-                  visibleToPlayers: false
+                  visibilityState: "hidden",
+                  mapKey: selectedMapKey
                 })
               }
             >
@@ -925,6 +1046,34 @@ export function DmWorldToolsPanel({ lobby, onRunTool }: DmWorldToolsPanelProps) 
               </div>
             </article>
           ))}
+        </div>
+      ) : null}
+
+      {activeTab === "objects" ? (
+        <div className="player-list">
+          <div className="two-column-grid">
+            <label className="field">
+              <span>Object type</span>
+              <select data-testid="dm-object-type" value={entityType} onChange={(event) => setEntityType(event.target.value as WorldEntityType)}>
+                {lobby.availableEntityTypes.filter((type) => type.id !== "npc" && type.id !== "shopkeeper").map((type) => <option key={type.id} value={type.id}>{type.label}</option>)}
+              </select>
+            </label>
+            <label className="field">
+              <span>Map</span>
+              <select data-testid="dm-object-map" value={selectedMapKey} onChange={(event) => setSelectedMapKey(event.target.value as typeof selectedMapKey)}>
+                {lobby.sessionMaps.map((sessionMap) => <option key={sessionMap.key} value={sessionMap.key}>{sessionMap.label}</option>)}
+              </select>
+            </label>
+            <label className="field">
+              <span>X</span>
+              <input data-testid="dm-object-x" value={entityX} onChange={(event) => setEntityX(event.target.value)} />
+            </label>
+            <label className="field">
+              <span>Y</span>
+              <input data-testid="dm-object-y" value={entityY} onChange={(event) => setEntityY(event.target.value)} />
+            </label>
+          </div>
+          <button type="button" data-testid="dm-place-object" onClick={() => onRunTool({ tool: "placeEntity", entityType, x: Number(entityX), y: Number(entityY), mapKey: selectedMapKey, visibilityState: entityType === "secret_marker" || entityType === "trap_marker" ? "dm_only" : "hidden" })}>Place Object</button>
         </div>
       ) : null}
 
@@ -992,6 +1141,38 @@ export function DmWorldToolsPanel({ lobby, onRunTool }: DmWorldToolsPanelProps) 
             <button type="button" data-testid="dm-offer-latest-quest" onClick={() => latestQuest && onRunTool({ tool: "setQuestStatus", questId: latestQuest.id, name: "offered" })} disabled={!latestQuest}>Offer Latest</button>
             <button type="button" data-testid="dm-complete-latest-quest" onClick={() => latestQuest && onRunTool({ tool: "setQuestStatus", questId: latestQuest.id, name: "completed" })} disabled={!latestQuest}>Complete Latest</button>
           </div>
+        </div>
+      ) : null}
+
+      {activeTab === "encounters" ? (
+        <div className="player-list">
+          <label className="field">
+            <span>Encounter name</span>
+            <input data-testid="dm-encounter-name" value={encounterName} onChange={(event) => setEncounterName(event.target.value)} />
+          </label>
+          <div className="two-column-grid">
+            <label className="field">
+              <span>Enemy</span>
+              <select data-testid="dm-encounter-enemy" value={encounterEnemyId} onChange={(event) => setEncounterEnemyId(event.target.value)}>
+                {["goblin", "goblin_chief", "wolf", "skeleton"].map((enemyId) => <option key={enemyId} value={enemyId}>{enemyId}</option>)}
+              </select>
+            </label>
+            <label className="field">
+              <span>Map</span>
+              <select data-testid="dm-encounter-map" value={selectedMapKey} onChange={(event) => setSelectedMapKey(event.target.value as typeof selectedMapKey)}>
+                {lobby.sessionMaps.map((sessionMap) => <option key={sessionMap.key} value={sessionMap.key}>{sessionMap.label}</option>)}
+              </select>
+            </label>
+            <label className="field">
+              <span>Trigger X</span>
+              <input data-testid="dm-encounter-x" value={encounterX} onChange={(event) => setEncounterX(event.target.value)} />
+            </label>
+            <label className="field">
+              <span>Trigger Y</span>
+              <input data-testid="dm-encounter-y" value={encounterY} onChange={(event) => setEncounterY(event.target.value)} />
+            </label>
+          </div>
+          <button type="button" data-testid="dm-create-encounter" onClick={() => onRunTool({ tool: "createEncounterGroup", name: encounterName, enemyId: encounterEnemyId, x: Number(encounterX), y: Number(encounterY), mapKey: selectedMapKey })}>Stage Encounter</button>
         </div>
       ) : null}
 
@@ -1080,6 +1261,20 @@ export function DmWorldToolsPanel({ lobby, onRunTool }: DmWorldToolsPanelProps) 
 
       {activeTab === "notes" ? (
         <div className="player-list">
+          <label className="field">
+            <span>Session note</span>
+            <textarea data-testid="dm-session-note-input" value={sessionNote} onChange={(event) => setSessionNote(event.target.value)} rows={3} />
+          </label>
+          <button type="button" data-testid="dm-save-session-note" onClick={() => onRunTool({ tool: "addSessionNote", note: sessionNote })}>Save Session Note</button>
+          <section className="panel">
+            <div className="section-header">
+              <h2>Session Notes</h2>
+              <span data-testid="dm-session-notes-count">{lobby.sessionNotes.length} entries</span>
+            </div>
+            <div className="combat-log" data-testid="dm-session-notes-log">
+              {lobby.sessionNotes.length ? lobby.sessionNotes.map((entry) => <p key={entry.id} data-testid={`dm-session-note-entry-${entry.id}`}>{entry.message}</p>) : <p className="meta-copy">No session notes yet.</p>}
+            </div>
+          </section>
           <LogPanel title="DM Notes" logs={lobby.dmLog} testId="dm-notes-log" countTestId="dm-notes-count" entryPrefix="dm-note-entry-" />
         </div>
       ) : null}

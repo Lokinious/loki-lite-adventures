@@ -17,6 +17,8 @@ export class LogEntryState extends Schema {
 export class PlayerState extends Schema {
   @type("string") id = "";
   @type("string") name = "";
+  @type("string") characterName = "";
+  @type("string") profileId = "";
   @type("string") role = "player";
   @type("string") raceId = "human";
   @type("string") raceName = "Human";
@@ -24,6 +26,7 @@ export class PlayerState extends Schema {
   @type("string") className = "";
   @type("string") characterIdentity = "";
   @type("boolean") confirmedCharacter = false;
+  @type("string") status = "alive";
   @type("number") x = 0;
   @type("number") y = 0;
   @type("number") health = 0;
@@ -47,10 +50,14 @@ export class PlayerState extends Schema {
   @type("string") equippedArmor = "";
   @type("number") xp = 0;
   @type("number") level = 1;
+  @type("number") abilitySlots = 1;
+  @type("number") completedAdventures = 0;
   @type("boolean") actionUsed = false;
   @type("boolean") adaptableUsed = false;
   @type("boolean") luckyFailureUsed = false;
   @type(["string"]) inventory = new ArraySchema<string>();
+  @type(["string"]) completedQuestIds = new ArraySchema<string>();
+  @type(["string"]) learnedAbilities = new ArraySchema<string>();
 }
 
 export class EnemyState extends Schema {

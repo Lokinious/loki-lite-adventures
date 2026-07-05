@@ -110,5 +110,21 @@
     "maxHealthBonus": 0,
     "movementBonus": 0,
     "healDice": ""
+  },
+  {
+    "id": "revive_scroll",
+    "name": "Revive Scroll",
+    "rarity": "uncommon",
+    "price": 40,
+    "effect": "A ritual scroll used by camp priests to call a fallen ally back to life.",
+    "itemType": "trinket",
+    "slot": "",
+    "attackBonus": 0,
+    "defenseBonus": 0,
+    "spellDamageBonus": 0,
+    "attackRangeBonus": 0,
+    "maxHealthBonus": 0,
+    "movementBonus": 0,
+    "healDice": ""
   }
 ]

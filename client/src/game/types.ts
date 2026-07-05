@@ -1,12 +1,24 @@
 export type JoinMode = "create" | "join";
 export type JoinRole = "player" | "dm";
+export type RoomPhase = "preparation" | "live" | "completed";
+export type CampaignDifficulty = "casual" | "hardcore" | "legendary";
+export type MapSlotKey = "starting" | "adventure" | "boss" | "camp";
+export type PlayerLifeStatus = "alive" | "downed" | "dead" | "permanentlyDead";
+export type VisibilityState = "hidden" | "visible" | "revealed" | "dm_only";
 
 export type WorldEntityType =
   | "npc"
   | "shopkeeper"
+  | "chest"
+  | "barrel"
+  | "door"
+  | "lever"
+  | "campfire"
+  | "statue"
   | "treasure_chest"
   | "hidden_object"
   | "quest_marker"
+  | "secret_marker"
   | "trap_marker"
   | "secret_passage_marker";
 
@@ -155,9 +167,39 @@ export type RewardHistoryView = {
   message: string;
 };
 
+export type SessionMapView = {
+  key: MapSlotKey;
+  label: string;
+  mapId: string;
+  mapName: string;
+  notes: string;
+  spawnCount: number;
+  encounterCount: number;
+  entityCount: number;
+};
+
+export type CharacterProfileView = {
+  id: string;
+  name: string;
+  raceName: string;
+  className: string;
+  level: number;
+  xp: number;
+  gold: number;
+  status: PlayerLifeStatus;
+  completedAdventures: number;
+};
+
+export type SessionTemplateView = {
+  id: string;
+  name: string;
+};
+
 export type PlayerView = {
   id: string;
   name: string;
+  characterName: string;
+  profileId: string;
   role: "player";
   raceId: string;
   raceName: string;
@@ -165,6 +207,7 @@ export type PlayerView = {
   className: string;
   characterIdentity: string;
   confirmedCharacter: boolean;
+  status: PlayerLifeStatus;
   x: number;
   y: number;
   health: number;
@@ -188,6 +231,10 @@ export type PlayerView = {
   equippedArmor: string;
   xp: number;
   level: number;
+  abilitySlots: number;
+  completedAdventures: number;
+  completedQuestIds: string[];
+  learnedAbilities: string[];
   actionReady: boolean;
 };
 
@@ -287,6 +334,13 @@ export type LobbyView = {
   selfRole: JoinRole;
   dmSessionId: string;
   dmName: string;
+  roomPhase: RoomPhase;
+  controlsLocked: boolean;
+  campaignDifficulty: CampaignDifficulty;
+  currentMapKey: MapSlotKey;
+  sessionMaps: SessionMapView[];
+  availableMaps: Array<{ id: string; name: string }>;
+  savedTemplates: SessionTemplateView[];
   adventureStarted: boolean;
   availableRaces: RaceOptionView[];
   availableClasses: ClassOptionView[];
@@ -313,6 +367,8 @@ export type LobbyView = {
   skillChecks: SkillCheckView[];
   playerSkillChecks: PlayerSkillCheckView[];
   rewardHistory: RewardHistoryView[];
+  sessionNotes: RewardHistoryView[];
+  characterProfiles: CharacterProfileView[];
   players: PlayerView[];
   enemies: EnemyView[];
   publicLog: LogEntryView[];

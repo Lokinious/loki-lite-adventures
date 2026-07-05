@@ -66,12 +66,31 @@ type RollSkillCheckMessage = {
   checkId: string;
 };
 
+type SelectProfileMessage = {
+  profileId: string;
+};
+
+type CampServiceMessage = {
+  serviceId: "heal" | "revive";
+};
+
 type DmCommandMessage = {
   command: string;
 };
 
 type DmToolMessage = {
   tool:
+    | "setMap"
+    | "setMapDefinition"
+    | "setPlayerSpawn"
+    | "setPlayerStatus"
+    | "setCampaignDifficulty"
+    | "saveTemplate"
+    | "loadTemplate"
+    | "resetPreparation"
+    | "createEncounterGroup"
+    | "activateEncounterGroup"
+    | "addSessionNote"
     | "createNpc"
     | "placeEntity"
     | "setEntityVisibility"
@@ -129,6 +148,17 @@ type DmToolMessage = {
   price?: number;
   targetPlayerIds?: string[];
   assignTo?: "party" | string;
+  mapKey?: MapSlotKey;
+  mapId?: string;
+  note?: string;
+  templateName?: string;
+  encounterId?: string;
+  enemyId?: string;
+  enemyIds?: string[];
+  difficulty?: CampaignDifficulty;
+  visibilityState?: VisibilityState;
+  playerProfileId?: string;
+  status?: PlayerLifeStatus;
 };
 
 type DmActionMessage = {
@@ -141,10 +171,13 @@ type DmActionMessage = {
     | "spawnGoblin"
     | "spawnGoblinChief"
     | "awardPartyGold"
-    | "addPublicLogMessage";
+    | "addPublicLogMessage"
+    | "setMap"
+    | "completeSession";
   sceneId?: string;
   amount?: number;
   message?: string;
+  mapKey?: MapSlotKey;
 };
 
 type CharacterDefinition = {
@@ -250,12 +283,25 @@ type SceneDefinition = {
   objective?: string;
 };
 
+type RoomPhase = "preparation" | "live" | "completed";
+type CampaignDifficulty = "casual" | "hardcore" | "legendary";
+type MapSlotKey = "starting" | "adventure" | "boss" | "camp";
+type PlayerLifeStatus = "alive" | "downed" | "dead" | "permanentlyDead";
+type VisibilityState = "hidden" | "visible" | "revealed" | "dm_only";
+
 type WorldEntityType =
   | "npc"
   | "shopkeeper"
   | "treasure_chest"
+  | "chest"
+  | "barrel"
+  | "door"
+  | "lever"
+  | "campfire"
+  | "statue"
   | "hidden_object"
   | "quest_marker"
+  | "secret_marker"
   | "trap_marker"
   | "secret_passage_marker";
 
@@ -454,6 +500,34 @@ type RewardHistoryView = {
   message: string;
 };
 
+type SessionMapView = {
+  key: MapSlotKey;
+  label: string;
+  mapId: string;
+  mapName: string;
+  notes: string;
+  spawnCount: number;
+  encounterCount: number;
+  entityCount: number;
+};
+
+type CharacterProfileView = {
+  id: string;
+  name: string;
+  raceName: string;
+  className: string;
+  level: number;
+  xp: number;
+  gold: number;
+  status: PlayerLifeStatus;
+  completedAdventures: number;
+};
+
+type SessionTemplateView = {
+  id: string;
+  name: string;
+};
+
 type RaceOptionView = {
   id: string;
   name: string;
@@ -489,13 +563,13 @@ type AbilityView = {
 
 type WorldEntityRecord = {
   id: string;
-  sceneId: string;
+  mapKey: MapSlotKey;
   type: WorldEntityType;
   name: string;
   description: string;
   x: number;
   y: number;
-  visibleToPlayers: boolean;
+  visibilityState: VisibilityState;
   discovered: boolean;
   linkedQuestId: string | undefined;
   linkedShopId: string | undefined;
@@ -545,14 +619,14 @@ type QuestRecord = {
 
 type SecretRecord = {
   id: string;
-  sceneId: string;
+  mapKey: MapSlotKey;
   checkType: SkillCheckType;
   dc: number;
   revealText: string;
   privateNotes: string;
   revealed: boolean;
   linkedEntityId: string | undefined;
-  unlockSceneId: string | undefined;
+  unlockMapKey: MapSlotKey | undefined;
 };
 
 type SkillCheckResult = {
@@ -569,6 +643,64 @@ type RewardGrant = {
   itemId: string | undefined;
   questId: string | undefined;
   targetPlayerIds: string[] | undefined;
+};
+
+type SessionMapRecord = {
+  key: MapSlotKey;
+  label: string;
+  mapId: string;
+  notes: string;
+  spawnPoints: Record<string, Point>;
+};
+
+type EncounterGroupRecord = {
+  id: string;
+  mapKey: MapSlotKey;
+  name: string;
+  enemyIds: string[];
+  trigger: Point;
+  active: boolean;
+  notes: string;
+};
+
+type PersistentCharacterRecord = {
+  id: string;
+  ownerName: string;
+  name: string;
+  raceId: string;
+  raceName: string;
+  classId: string;
+  className: string;
+  characterIdentity: string;
+  level: number;
+  xp: number;
+  gold: number;
+  inventory: string[];
+  equippedWeapon: string;
+  equippedArmor: string;
+  status: PlayerLifeStatus;
+  health: number;
+  maxHealth: number;
+  attackBonus: number;
+  defense: number;
+  movement: number;
+  completedAdventures: number;
+  completedQuestIds: string[];
+  learnedAbilities: string[];
+};
+
+type SessionTemplateRecord = {
+  id: string;
+  name: string;
+  campaignDifficulty: CampaignDifficulty;
+  maps: SessionMapRecord[];
+  worldEntities: WorldEntityRecord[];
+  npcs: NpcRecord[];
+  shops: ShopRecord[];
+  quests: QuestRecord[];
+  secrets: SecretRecord[];
+  encounterGroups: EncounterGroupRecord[];
+  sessionNotes: RewardHistoryView[];
 };
 
 type SkillCheckRecord = {
@@ -592,6 +724,13 @@ type RoomSnapshot = {
   selfRole: JoinRole;
   dmSessionId: string;
   dmName: string;
+  roomPhase: RoomPhase;
+  controlsLocked: boolean;
+  campaignDifficulty: CampaignDifficulty;
+  currentMapKey: MapSlotKey;
+  sessionMaps: SessionMapView[];
+  availableMaps: Array<{ id: string; name: string }>;
+  savedTemplates: SessionTemplateView[];
   adventureStarted: boolean;
   availableRaces: RaceOptionView[];
   availableClasses: ClassOptionView[];
@@ -618,9 +757,13 @@ type RoomSnapshot = {
   skillChecks: SkillCheckView[];
   playerSkillChecks: PlayerSkillCheckView[];
   rewardHistory: RewardHistoryView[];
+  sessionNotes: RewardHistoryView[];
+  characterProfiles: CharacterProfileView[];
   players: Array<{
     id: string;
     name: string;
+    characterName: string;
+    profileId: string;
     role: "player";
     raceId: string;
     raceName: string;
@@ -628,6 +771,7 @@ type RoomSnapshot = {
     className: string;
     characterIdentity: string;
     confirmedCharacter: boolean;
+    status: PlayerLifeStatus;
     x: number;
     y: number;
     health: number;
@@ -651,6 +795,10 @@ type RoomSnapshot = {
     equippedArmor: string;
     xp: number;
     level: number;
+    abilitySlots: number;
+    completedAdventures: number;
+    completedQuestIds: string[];
+    learnedAbilities: string[];
     actionReady: boolean;
   }>;
   enemies: Array<{
@@ -752,9 +900,16 @@ const encounterSpawnBySceneId: Record<string, Array<{ enemyId: string; position:
 const availableEntityTypes: Array<{ id: WorldEntityType; label: string }> = [
   { id: "npc", label: "NPC" },
   { id: "shopkeeper", label: "Shopkeeper" },
+  { id: "chest", label: "Chest" },
+  { id: "barrel", label: "Barrel" },
+  { id: "door", label: "Door" },
+  { id: "lever", label: "Lever" },
+  { id: "campfire", label: "Campfire" },
+  { id: "statue", label: "Statue" },
   { id: "treasure_chest", label: "Treasure Chest" },
   { id: "hidden_object", label: "Hidden Object" },
   { id: "quest_marker", label: "Quest Marker" },
+  { id: "secret_marker", label: "Secret Marker" },
   { id: "trap_marker", label: "Trap Marker" },
   { id: "secret_passage_marker", label: "Secret Passage" }
 ];
@@ -771,17 +926,35 @@ const availableSkillChecks: SkillCheckType[] = [
   "stealth"
 ];
 
+const availableMapSlots: Array<{ key: MapSlotKey; label: string; defaultMapId: string }> = [
+  { key: "starting", label: "Starting Area", defaultMapId: "tavern" },
+  { key: "adventure", label: "Adventure Area", defaultMapId: "forest" },
+  { key: "boss", label: "Boss Area", defaultMapId: "goblin_camp" },
+  { key: "camp", label: "Camp", defaultMapId: "camp" }
+];
+
+const levelThresholds = [0, 100, 250, 500, 1000];
+
+const persistentCharacterProfiles = new Map<string, PersistentCharacterRecord[]>();
+const persistentSessionTemplates = new Map<string, SessionTemplateRecord>();
+
 export class LobbyRoom extends Room<LobbyState> {
   override maxClients = maxClients;
   private logIndex = 0;
+  private roomPhase: RoomPhase = "preparation";
+  private currentMapKey: MapSlotKey = "starting";
+  private campaignDifficulty: CampaignDifficulty = "casual";
   private rewardHistory: RewardHistoryView[] = [];
   private dmNotes: RewardHistoryView[] = [];
+  private sessionNotes: RewardHistoryView[] = [];
+  private sessionMaps = new Map<MapSlotKey, SessionMapRecord>();
   private worldEntities = new Map<string, WorldEntityRecord>();
   private npcs = new Map<string, NpcRecord>();
   private shops = new Map<string, ShopRecord>();
   private quests = new Map<string, QuestRecord>();
   private secrets = new Map<string, SecretRecord>();
   private skillChecks = new Map<string, SkillCheckRecord>();
+  private encounterGroups = new Map<string, EncounterGroupRecord>();
   private generatorIndex = 0;
 
   override onCreate(options: JoinOptions) {
@@ -789,7 +962,8 @@ export class LobbyRoom extends Room<LobbyState> {
     state.roomCode = normalizeRoomCode(options.roomCode);
     this.setState(state);
     this.setMetadata({ roomCode: state.roomCode });
-    this.applySceneState("tavern");
+    this.initializeSessionMaps();
+    this.applyMapState("starting");
     this.syncState();
 
     this.onMessage("selectCharacter", (client, message: SelectCharacterMessage) => {
@@ -802,6 +976,10 @@ export class LobbyRoom extends Room<LobbyState> {
 
     this.onMessage("confirmCharacter", (client) => {
       this.handleCharacterConfirmation(client);
+    });
+
+    this.onMessage("selectProfile", (client, message: SelectProfileMessage) => {
+      this.handleProfileSelection(client, message);
     });
 
     this.onMessage("requestMove", (client, message: MoveMessage) => {
@@ -842,6 +1020,10 @@ export class LobbyRoom extends Room<LobbyState> {
 
     this.onMessage("requestRollSkillCheck", (client, message: RollSkillCheckMessage) => {
       this.handleSkillCheckRoll(client, message);
+    });
+
+    this.onMessage("requestCampService", (client, message: CampServiceMessage) => {
+      this.handleCampService(client, message);
     });
 
     this.onMessage("requestDmAction", (client, message: DmActionMessage) => {
@@ -945,8 +1127,29 @@ export class LobbyRoom extends Room<LobbyState> {
     this.quests.clear();
     this.secrets.clear();
     this.skillChecks.clear();
+    this.encounterGroups.clear();
+    this.sessionMaps.clear();
     this.rewardHistory = [];
     this.dmNotes = [];
+    this.sessionNotes = [];
+  }
+
+  private initializeSessionMaps() {
+    this.sessionMaps.clear();
+
+    for (const slot of availableMapSlots) {
+      this.sessionMaps.set(slot.key, {
+        key: slot.key,
+        label: slot.label,
+        mapId: slot.defaultMapId,
+        notes: slot.key === "camp" ? "A safe hub between adventures." : "",
+        spawnPoints: {}
+      });
+    }
+  }
+
+  private getSessionMap(mapKey: MapSlotKey = this.currentMapKey) {
+    return this.sessionMaps.get(mapKey) ?? defaultSessionMapRecord(mapKey);
   }
 
   private handleCharacterSelection(client: Client, message: SelectCharacterMessage) {
@@ -956,13 +1159,11 @@ export class LobbyRoom extends Room<LobbyState> {
     }
 
     const player = this.state.players.get(client.sessionId);
-    const currentScene = this.getCurrentScene();
-
     if (!player) {
       return;
     }
 
-    if (currentScene.id !== "tavern" || this.isAdventureStarted()) {
+    if (this.roomPhase !== "preparation") {
       this.rejectAction(client, "Classes can only be changed in the room lobby.");
       return;
     }
@@ -994,13 +1195,11 @@ export class LobbyRoom extends Room<LobbyState> {
     }
 
     const player = this.state.players.get(client.sessionId);
-    const currentScene = this.getCurrentScene();
-
     if (!player) {
       return;
     }
 
-    if (currentScene.id !== "tavern" || this.isAdventureStarted()) {
+    if (this.roomPhase !== "preparation") {
       this.rejectAction(client, "Races can only be changed in the room lobby.");
       return;
     }
@@ -1033,14 +1232,49 @@ export class LobbyRoom extends Room<LobbyState> {
       return;
     }
 
-    if (this.getCurrentScene().id !== "tavern" || this.isAdventureStarted()) {
+    if (this.roomPhase !== "preparation") {
       this.rejectAction(client, "Characters can only be confirmed in the room lobby.");
       return;
     }
 
     player.confirmedCharacter = true;
     applyDerivedStatsToPlayer(player, { healToFull: true, resetTurnResources: true });
+    if (!player.characterName) {
+      player.characterName = `${player.name} ${player.className}`.slice(0, 24);
+    }
+    this.persistCharacterProfile(player);
     this.addPublicLog(`${player.name} confirms ${player.characterIdentity}.`);
+    this.syncState();
+    this.publishSnapshots();
+  }
+
+  private handleProfileSelection(client: Client, message: SelectProfileMessage) {
+    if (this.isDmSession(client.sessionId)) {
+      this.rejectAction(client, "Dungeon Masters do not load player characters.");
+      return;
+    }
+
+    if (this.roomPhase !== "preparation") {
+      this.rejectAction(client, "Profiles can only be changed during preparation.");
+      return;
+    }
+
+    const player = this.state.players.get(client.sessionId);
+
+    if (!player) {
+      return;
+    }
+
+    const profiles = persistentCharacterProfiles.get(normalizeProfileOwner(player.name)) ?? [];
+    const profile = profiles.find((entry) => entry.id === message.profileId);
+
+    if (!profile) {
+      this.rejectAction(client, "That character profile is no longer available.");
+      return;
+    }
+
+    this.applyProfileToPlayer(player, profile);
+    this.addPublicLog(`${player.name} loads ${profile.name}.`);
     this.syncState();
     this.publishSnapshots();
   }
@@ -1054,6 +1288,11 @@ export class LobbyRoom extends Room<LobbyState> {
     const player = this.state.players.get(client.sessionId);
 
     if (!player) {
+      return;
+    }
+
+    if (this.roomPhase !== "live") {
+      this.rejectAction(client, "The session is still in preparation mode.");
       return;
     }
 
@@ -1115,6 +1354,11 @@ export class LobbyRoom extends Room<LobbyState> {
   }
 
   private handleAttackRequest(client: Client, message: AttackMessage) {
+    if (this.roomPhase !== "live") {
+      this.rejectAction(client, "The session has not launched yet.");
+      return;
+    }
+
     if (this.isDmSession(client.sessionId)) {
       this.rejectAction(client, "Dungeon Masters do not take player attack actions.");
       return;
@@ -1202,6 +1446,11 @@ export class LobbyRoom extends Room<LobbyState> {
   }
 
   private handleAbilityRequest(client: Client, message: UseAbilityMessage) {
+    if (this.roomPhase !== "live") {
+      this.rejectAction(client, "The session has not launched yet.");
+      return;
+    }
+
     if (this.isDmSession(client.sessionId)) {
       this.rejectAction(client, "Dungeon Masters do not use player abilities.");
       return;
@@ -1321,15 +1570,23 @@ export class LobbyRoom extends Room<LobbyState> {
     player.actionUsed = true;
     const healTotal = calculateHealingAmount(ability.healingDice);
     targetPlayer.health = Math.min(targetPlayer.maxHealth, targetPlayer.health + healTotal);
+    targetPlayer.status = "alive";
+    targetPlayer.alive = true;
     this.addPublicLog(`${player.name} uses ${ability.name} on ${targetPlayer.name}.`);
     this.addPublicLog(
       `${ability.name} restores ${healTotal} HP. ${targetPlayer.name} is now at ${targetPlayer.health}/${targetPlayer.maxHealth} HP.`
     );
+    this.persistCharacterProfile(targetPlayer);
     this.syncState();
     this.publishSnapshots();
   }
 
   private handleEquipItemRequest(client: Client, message: EquipItemMessage) {
+    if (this.roomPhase !== "live") {
+      this.rejectAction(client, "Equipment changes unlock once the session is live.");
+      return;
+    }
+
     if (this.isDmSession(client.sessionId)) {
       this.rejectAction(client, "Dungeon Masters do not equip player gear.");
       return;
@@ -1366,11 +1623,17 @@ export class LobbyRoom extends Room<LobbyState> {
 
     applyDerivedStatsToPlayer(player);
     this.addPublicLog(`${player.name} equips ${item.name}.`);
+    this.persistCharacterProfile(player);
     this.syncState();
     this.publishSnapshots();
   }
 
   private handleUseItemRequest(client: Client, message: UseItemMessage) {
+    if (this.roomPhase !== "live") {
+      this.rejectAction(client, "Items cannot be used until the session is live.");
+      return;
+    }
+
     if (this.isDmSession(client.sessionId)) {
       this.rejectAction(client, "Dungeon Masters do not use player items.");
       return;
@@ -1416,6 +1679,8 @@ export class LobbyRoom extends Room<LobbyState> {
     removeInventoryItem(player.inventory, inventoryIndex);
     const healTotal = calculateHealingAmount(item.healDice);
     player.health = Math.min(player.maxHealth, player.health + healTotal);
+    player.status = "alive";
+    player.alive = true;
 
     if (this.getCurrentScene().sceneType === "encounter") {
       player.actionUsed = true;
@@ -1424,11 +1689,17 @@ export class LobbyRoom extends Room<LobbyState> {
     this.addPublicLog(
       `${player.name} drinks ${item.name} and restores ${healTotal} HP (${player.health}/${player.maxHealth}).`
     );
+    this.persistCharacterProfile(player);
     this.syncState();
     this.publishSnapshots();
   }
 
   private handleEndTurn(client: Client) {
+    if (this.roomPhase !== "live") {
+      this.rejectAction(client, "Turns begin once the session launches.");
+      return;
+    }
+
     if (this.isDmSession(client.sessionId)) {
       this.rejectAction(client, "Dungeon Masters do not participate in turn order.");
       return;
@@ -1449,6 +1720,11 @@ export class LobbyRoom extends Room<LobbyState> {
   }
 
   private handleSceneAction(client: Client, message: SceneActionMessage) {
+    if (this.roomPhase !== "live") {
+      this.rejectAction(client, "Story actions unlock once the session is live.");
+      return;
+    }
+
     if (this.isDmSession(client.sessionId)) {
       this.rejectAction(client, "Use the Dungeon Master controls for story flow.");
       return;
@@ -1463,44 +1739,25 @@ export class LobbyRoom extends Room<LobbyState> {
       return;
     }
 
-    switch (this.getCurrentScene().id) {
-      case "tavern":
-        if (message.actionId === "accept_quest") {
-          if (!this.allPlayersConfirmed()) {
-            this.rejectAction(client, "All players must confirm their race and class before the adventure begins.");
-            return;
-          }
-          this.ensureAdventureStarted();
-          this.addPublicLog("The party accepts the goblin quest.");
-          this.transitionToScene("forest", "The party leaves the tavern for the forest road.");
-          return;
-        }
-
-        if (message.actionId === "leave") {
-          this.addPublicLog("The party decides to stay at the tavern for now.");
-          this.syncState();
-          this.publishSnapshots();
-        }
+    switch (message.actionId) {
+      case "accept_quest":
+        this.addPublicLog("The party steps out from the starting area into the adventure map.");
+        this.setMapFromDm("adventure");
         return;
-
-      case "merchant":
-        if (message.actionId === "continue_to_boss") {
-          this.transitionToScene("boss", "The party follows the merchant's directions to the goblin camp.");
-        }
+      case "return_to_lobby":
+        this.resetAdventure();
         return;
-
-      case "victory":
-        if (message.actionId === "return_to_lobby") {
-          this.resetAdventure();
-        }
-        return;
-
       default:
         return;
     }
   }
 
   private handlePurchaseRequest(client: Client, message: PurchaseMessage) {
+    if (this.roomPhase !== "live") {
+      this.rejectAction(client, "Shopping is only available during live play.");
+      return;
+    }
+
     if (this.isDmSession(client.sessionId)) {
       this.rejectAction(client, "Dungeon Masters do not shop as player characters.");
       return;
@@ -1535,11 +1792,17 @@ export class LobbyRoom extends Room<LobbyState> {
     this.recalculatePartyGold();
 
     this.addPublicLog(`${player.name} buys ${item.name} for ${item.price} gold.`);
+    this.persistCharacterProfile(player);
     this.syncState();
     this.publishSnapshots();
   }
 
   private handleDynamicShopPurchase(client: Client, message: ShopPurchaseMessage) {
+    if (this.roomPhase !== "live") {
+      this.rejectAction(client, "Shopping is only available during live play.");
+      return;
+    }
+
     if (this.isDmSession(client.sessionId)) {
       this.rejectAction(client, "Dungeon Masters do not shop as player characters.");
       return;
@@ -1559,7 +1822,7 @@ export class LobbyRoom extends Room<LobbyState> {
 
     const entity = shop.linkedEntityId ? this.worldEntities.get(shop.linkedEntityId) : undefined;
 
-    if (!entity || entity.sceneId !== this.state.currentSceneId || !entity.visibleToPlayers) {
+    if (!entity || entity.mapKey !== this.currentMapKey || !isEntityVisibleToPlayers(entity)) {
       this.rejectAction(client, "That shop is not available here.");
       return;
     }
@@ -1596,11 +1859,17 @@ export class LobbyRoom extends Room<LobbyState> {
     this.recalculatePartyGold();
     this.addPublicLog(`${player.name} buys ${item.name} from ${shop.name} for ${price} gold.`);
     this.addRewardHistory(`${player.name} purchased ${item.name} from ${shop.name}.`);
+    this.persistCharacterProfile(player);
     this.syncState();
     this.publishSnapshots();
   }
 
   private handleSkillCheckRoll(client: Client, message: RollSkillCheckMessage) {
+    if (this.roomPhase !== "live") {
+      this.rejectAction(client, "Skill checks are not active during preparation.");
+      return;
+    }
+
     if (this.isDmSession(client.sessionId)) {
       this.rejectAction(client, "Dungeon Masters do not roll player skill checks.");
       return;
@@ -1663,6 +1932,55 @@ export class LobbyRoom extends Room<LobbyState> {
     this.publishSnapshots();
   }
 
+  private handleCampService(client: Client, message: CampServiceMessage) {
+    if (this.isDmSession(client.sessionId)) {
+      this.rejectAction(client, "Dungeon Masters do not use camp services.");
+      return;
+    }
+
+    const player = this.state.players.get(client.sessionId);
+
+    if (!player) {
+      return;
+    }
+
+    if (this.currentMapKey !== "camp") {
+      this.rejectAction(client, "Camp services are only available while the party is at camp.");
+      return;
+    }
+
+    if (message.serviceId === "heal") {
+      player.health = player.maxHealth;
+      player.status = "alive";
+      player.alive = true;
+      this.addPublicLog(`${player.characterName || player.name} rests at camp and fully recovers.`);
+      this.persistCharacterProfile(player);
+      this.syncState();
+      this.publishSnapshots();
+      return;
+    }
+
+    if (message.serviceId === "revive") {
+      if (this.campaignDifficulty === "legendary" && player.status === "permanentlyDead") {
+        this.rejectAction(client, "Legendary mode permanent death cannot be reversed.");
+        return;
+      }
+
+      if (player.status === "alive") {
+        this.rejectAction(client, "That adventurer is already standing.");
+        return;
+      }
+
+      player.status = "alive";
+      player.alive = true;
+      player.health = Math.max(1, Math.ceil(player.maxHealth / 2));
+      this.addPublicLog(`${player.characterName || player.name} returns from the camp shrine restored.`);
+      this.persistCharacterProfile(player);
+      this.syncState();
+      this.publishSnapshots();
+    }
+  }
+
   private handleDmAction(client: Client, message: DmActionMessage) {
     if (!this.requireDm(client)) {
       return;
@@ -1670,8 +1988,7 @@ export class LobbyRoom extends Room<LobbyState> {
 
     switch (message.actionId) {
       case "startAdventure":
-        this.ensureAdventureStarted();
-        this.transitionToScene("forest", "The Dungeon Master begins the adventure.");
+        this.launchAdventure();
         return;
 
       case "advanceScene":
@@ -1706,6 +2023,14 @@ export class LobbyRoom extends Room<LobbyState> {
         this.addNarrationFromDm(message.message);
         return;
 
+      case "setMap":
+        this.setMapFromDm(message.mapKey);
+        return;
+
+      case "completeSession":
+        this.completeSessionFromDm();
+        return;
+
       default:
         this.addDmLog("Unknown Dungeon Master action.");
         this.syncState();
@@ -1719,6 +2044,39 @@ export class LobbyRoom extends Room<LobbyState> {
     }
 
     switch (message.tool) {
+        case "setMap":
+          this.setMapFromDm(message.mapKey);
+          return;
+        case "setMapDefinition":
+          this.setMapDefinitionFromDm(message.mapKey, message.mapId);
+          return;
+        case "setPlayerSpawn":
+          this.setPlayerSpawnFromDm(message.playerId, message.mapKey, message.x, message.y);
+          return;
+        case "setPlayerStatus":
+          this.setPlayerStatusFromDm(message.playerId, message.status);
+          return;
+        case "setCampaignDifficulty":
+          this.setCampaignDifficultyFromDm(message.difficulty);
+          return;
+        case "saveTemplate":
+          this.saveTemplateFromDm(message.templateName);
+          return;
+        case "loadTemplate":
+          this.loadTemplateFromDm(message.templateName);
+          return;
+        case "resetPreparation":
+          this.resetAdventure();
+          return;
+        case "createEncounterGroup":
+          this.createEncounterGroupFromDm(message);
+          return;
+        case "activateEncounterGroup":
+          this.activateEncounterGroupFromDm(message.encounterId);
+          return;
+        case "addSessionNote":
+          this.addSessionNoteFromDm(message.note);
+          return;
         case "createNpc":
           this.createNpcFromDm(message);
           return;
@@ -1795,6 +2153,10 @@ export class LobbyRoom extends Room<LobbyState> {
     switch (commandName) {
       case "scene":
         this.setSceneFromDm(argumentText, true);
+        return;
+
+      case "map":
+        this.setMapFromDm(normalizeMapSlotKey(argumentText) ?? undefined, true);
         return;
 
       case "spawn":
@@ -1966,16 +2328,19 @@ export class LobbyRoom extends Room<LobbyState> {
     const currentScene = this.getCurrentScene();
     appendUniqueString(this.state.completedEncounters, currentScene.id);
     this.addPublicLog(`${currentScene.title} encounter complete.`);
+    this.restoreDownedPlayersAfterEncounter();
 
     if (this.hasDungeonMaster()) {
-      if (currentScene.id === "forest") {
+      if (this.currentMapKey === "adventure") {
         this.rewardGold(5, "Goblin defeated. Party gains 5 gold.");
-        this.addDmLog("Forest encounter complete. Use Advance Scene or /scene merchant when ready.");
-      } else if (currentScene.id === "boss") {
+        this.rewardExperience(50);
+        this.addDmLog("Adventure encounter complete. Move the party onward when ready.");
+      } else if (this.currentMapKey === "boss") {
         this.rewardGold(20, "Goblin Chief defeated. Party gains 20 gold.");
+        this.rewardExperience(100);
         attacker.inventory.push("iron_sword");
         this.addPublicLog(`${attacker.name} receives an Iron Sword.`);
-        this.addDmLog("Boss encounter complete. Use /victory or move to the victory scene when ready.");
+        this.addDmLog("Boss encounter complete. Move the party to camp or complete the session when ready.");
       }
 
       if (!this.isPlayerTurn(attacker.id)) {
@@ -1986,19 +2351,19 @@ export class LobbyRoom extends Room<LobbyState> {
       return;
     }
 
-    if (currentScene.id === "forest") {
+    if (this.currentMapKey === "adventure") {
       this.rewardGold(5, "Goblin defeated. Party gains 5 gold.");
-      this.transitionToScene("merchant", "The road is clear and a merchant approaches.");
+      this.rewardExperience(50);
+      this.setMapFromDm("boss");
       return;
     }
 
-    if (currentScene.id === "boss") {
+    if (this.currentMapKey === "boss") {
       this.rewardGold(20, "Goblin Chief defeated. Party gains 20 gold.");
+      this.rewardExperience(100);
       attacker.inventory.push("iron_sword");
       this.addPublicLog(`${attacker.name} receives an Iron Sword.`);
-      this.state.adventureCompletedAt = new Date().toISOString();
-      this.addPublicLog("Adventure complete. The goblin threat is broken.");
-      this.transitionToScene("victory", `${defeatedEnemy.name} falls and the adventure is won.`);
+      this.completeSessionFromDm();
       return;
     }
 
@@ -2029,6 +2394,7 @@ export class LobbyRoom extends Room<LobbyState> {
 
   private placeEntityFromDm(message: DmToolMessage) {
     const entityType = message.entityType ?? "npc";
+    const mapKey = message.mapKey ?? this.currentMapKey;
     const x = Number(message.x);
     const y = Number(message.y);
 
@@ -2068,14 +2434,14 @@ export class LobbyRoom extends Room<LobbyState> {
     const entityId = buildRecordId("entity", this.worldEntities.size + 1);
     const entity: WorldEntityRecord = {
       id: entityId,
-      sceneId: this.state.currentSceneId,
+      mapKey,
       type: entityType,
       name,
       description,
       x,
       y,
-      visibleToPlayers: Boolean(message.visibleToPlayers),
-      discovered: Boolean(message.discovered),
+      visibilityState: message.visibilityState ?? (message.visibleToPlayers ? "visible" : "hidden"),
+      discovered: Boolean(message.discovered) || message.visibilityState === "revealed",
       linkedQuestId: message.linkedQuestId,
       linkedShopId,
       linkedItemId: message.linkedItemId,
@@ -2107,6 +2473,10 @@ export class LobbyRoom extends Room<LobbyState> {
   }
 
   private setEntityVisibilityFromDm(entityId: string | undefined, visibleToPlayers: boolean) {
+    this.setEntityVisibilityStateFromDm(entityId, visibleToPlayers ? "revealed" : "hidden");
+  }
+
+  private setEntityVisibilityStateFromDm(entityId: string | undefined, visibilityState: VisibilityState) {
     const entity = entityId ? this.worldEntities.get(entityId) : undefined;
 
     if (!entity) {
@@ -2116,12 +2486,12 @@ export class LobbyRoom extends Room<LobbyState> {
       return;
     }
 
-    entity.visibleToPlayers = visibleToPlayers;
-    if (visibleToPlayers) {
+    entity.visibilityState = visibilityState;
+    if (visibilityState === "revealed" || visibilityState === "visible") {
       entity.discovered = true;
     }
 
-    this.addDmLog(`${visibleToPlayers ? "Revealed" : "Hid"} ${entity.name}.`);
+    this.addDmLog(`${visibilityState === "hidden" ? "Hid" : "Updated"} ${entity.name} (${visibilityState}).`);
     this.syncState();
     this.publishSnapshots();
   }
@@ -2227,6 +2597,10 @@ export class LobbyRoom extends Room<LobbyState> {
       this.addPublicLog(`New quest offered: ${quest.title}. ${quest.publicObjective}`);
     } else if (status === "completed") {
       this.addPublicLog(`Quest complete: ${quest.title}.`);
+      for (const player of this.state.players.values()) {
+        appendUniqueString(player.completedQuestIds, quest.id);
+        this.persistCharacterProfile(player);
+      }
       if (quest.rewardGold > 0) {
         this.rewardGold(quest.rewardGold, `${quest.title} rewards ${quest.rewardGold} gold.`);
       }
@@ -2248,14 +2622,14 @@ export class LobbyRoom extends Room<LobbyState> {
     const secretId = buildRecordId("secret", this.secrets.size + 1);
     const secret: SecretRecord = {
       id: secretId,
-      sceneId: this.state.currentSceneId,
+      mapKey: message.mapKey ?? this.currentMapKey,
       checkType,
       dc,
       revealText,
       privateNotes: sanitizeWorldText(message.privateNotes, "No extra secret notes."),
       revealed: false,
       linkedEntityId: message.linkedEntityId,
-      unlockSceneId: undefined
+      unlockMapKey: undefined
     };
 
     this.secrets.set(secretId, secret);
@@ -2298,7 +2672,7 @@ export class LobbyRoom extends Room<LobbyState> {
       const entity = this.worldEntities.get(secret.linkedEntityId);
 
       if (entity) {
-        entity.visibleToPlayers = true;
+        entity.visibilityState = "revealed";
         entity.discovered = true;
       }
     }
@@ -2582,6 +2956,7 @@ export class LobbyRoom extends Room<LobbyState> {
 
   private transitionToScene(sceneId: string, transitionMessage?: string) {
     const nextScene = scenesById.get(sceneId);
+    const nextMapKey = mapKeyFromSceneId(sceneId);
 
     if (!nextScene) {
       return;
@@ -2593,9 +2968,11 @@ export class LobbyRoom extends Room<LobbyState> {
 
     if (sceneId === "victory" && !this.state.adventureCompletedAt) {
       this.state.adventureCompletedAt = new Date().toISOString();
+      this.roomPhase = "completed";
+      this.completeAdventureProgress();
     }
 
-    this.applySceneState(sceneId);
+    this.applyMapState(nextMapKey);
     this.addPublicLog(`Scene transition: ${nextScene.title}.`);
     this.syncState();
     this.publishSnapshots();
@@ -2603,10 +2980,15 @@ export class LobbyRoom extends Room<LobbyState> {
 
 
   private applySceneState(sceneId: string) {
-    const scene = scenesById.get(sceneId);
-    const map = mapsById.get(scene?.mapId ?? "forest") ?? defaultMapDefinition();
+    this.applyMapState(mapKeyFromSceneId(sceneId));
+  }
 
-    this.state.currentSceneId = sceneId;
+  private applyMapState(mapKey: MapSlotKey, options: { encounterOnEnter?: boolean } = {}) {
+    const sessionMap = this.getSessionMap(mapKey);
+    const map = mapsById.get(sessionMap.mapId) ?? defaultMapDefinition();
+
+    this.currentMapKey = mapKey;
+    this.state.currentSceneId = sceneIdFromMapKey(mapKey);
     this.state.gridWidth = map.width;
     this.state.gridHeight = map.height;
     this.clearEnemies();
@@ -2614,8 +2996,11 @@ export class LobbyRoom extends Room<LobbyState> {
     this.repositionPlayers();
     this.resetEncounterFlags();
 
-    if (scene?.sceneType === "encounter") {
-      this.spawnConfiguredEncounter(sceneId);
+    const liveEncounter = this.roomPhase === "live" && (mapKey === "adventure" || mapKey === "boss");
+
+    if (liveEncounter && options.encounterOnEnter !== false) {
+      this.spawnConfiguredEncounter(this.state.currentSceneId);
+      this.activateMapEncounterGroups(mapKey);
       this.ensureEncounterTurnStarted();
     }
   }
@@ -2707,6 +3092,7 @@ export class LobbyRoom extends Room<LobbyState> {
     for (const player of recipients) {
       const share = baseShare + (remainder > 0 ? 1 : 0);
       player.gold += share;
+      this.persistCharacterProfile(player);
       if (remainder > 0) {
         remainder -= 1;
       }
@@ -2720,7 +3106,9 @@ export class LobbyRoom extends Room<LobbyState> {
   private rewardExperience(amount: number) {
     for (const player of this.state.players.values()) {
       player.xp += amount;
-      player.level = 1 + Math.floor(player.xp / 20);
+      player.level = calculateLevelFromXp(player.xp);
+      applyDerivedStatsToPlayer(player, { healToFull: false, resetTurnResources: false });
+      this.persistCharacterProfile(player);
     }
   }
 
@@ -2737,6 +3125,7 @@ export class LobbyRoom extends Room<LobbyState> {
 
     for (const player of targets) {
       player.inventory.push(item.id);
+      this.persistCharacterProfile(player);
     }
 
     if (targets.length) {
@@ -2761,6 +3150,7 @@ export class LobbyRoom extends Room<LobbyState> {
 
         for (const player of targets) {
           player.gold += amount;
+          this.persistCharacterProfile(player);
         }
 
         this.recalculatePartyGold();
@@ -2780,7 +3170,9 @@ export class LobbyRoom extends Room<LobbyState> {
 
         for (const player of targets) {
           player.xp += amount;
-          player.level = 1 + Math.floor(player.xp / 20);
+          player.level = calculateLevelFromXp(player.xp);
+          applyDerivedStatsToPlayer(player, { healToFull: false, resetTurnResources: false });
+          this.persistCharacterProfile(player);
         }
 
         this.addPublicLog(`${sourceMessage} ${targets.map((player) => player.name).join(", ")} gain ${amount} XP.`);
@@ -2793,7 +3185,11 @@ export class LobbyRoom extends Room<LobbyState> {
 
         for (const player of targets) {
           player.health = Math.min(player.maxHealth, player.health + amount);
-          player.alive = player.health > 0;
+          if (player.health > 0) {
+            player.status = "alive";
+            player.alive = true;
+          }
+          this.persistCharacterProfile(player);
         }
 
         this.addPublicLog(`${sourceMessage} ${targets.map((player) => player.name).join(", ")} recover ${amount} HP.`);
@@ -2841,6 +3237,357 @@ export class LobbyRoom extends Room<LobbyState> {
     return [...this.npcs.values()].at(-1);
   }
 
+  private persistCharacterProfile(player: PlayerState) {
+    const ownerKey = normalizeProfileOwner(player.name);
+    const existingProfiles = persistentCharacterProfiles.get(ownerKey) ?? [];
+    const nextProfile: PersistentCharacterRecord = {
+      id: player.profileId || buildRecordId("profile", existingProfiles.length + 1),
+      ownerName: player.name,
+      name: player.characterName || `${player.name} ${player.className}`.slice(0, 24),
+      raceId: player.raceId,
+      raceName: player.raceName,
+      classId: player.classId,
+      className: player.className,
+      characterIdentity: player.characterIdentity,
+      level: player.level,
+      xp: player.xp,
+      gold: player.gold,
+      inventory: [...player.inventory].filter(isString),
+      equippedWeapon: player.equippedWeapon,
+      equippedArmor: player.equippedArmor,
+      status: normalizePlayerStatus(player.status),
+      health: player.health,
+      maxHealth: player.maxHealth,
+      attackBonus: player.attackBonus,
+      defense: player.defense,
+      movement: player.movement,
+      completedAdventures: player.completedAdventures,
+      completedQuestIds: [...player.completedQuestIds].filter(isString),
+      learnedAbilities: [...player.learnedAbilities].filter(isString)
+    };
+
+    player.profileId = nextProfile.id;
+    player.characterName = nextProfile.name;
+
+    const nextProfiles = existingProfiles.filter((profile) => profile.id !== nextProfile.id);
+    nextProfiles.push(nextProfile);
+    persistentCharacterProfiles.set(ownerKey, nextProfiles);
+  }
+
+  private applyProfileToPlayer(player: PlayerState, profile: PersistentCharacterRecord) {
+    player.profileId = profile.id;
+    player.characterName = profile.name;
+    player.raceId = profile.raceId;
+    player.raceName = profile.raceName;
+    player.classId = profile.classId;
+    player.className = profile.className;
+    player.characterIdentity = profile.characterIdentity;
+    player.level = profile.level;
+    player.xp = profile.xp;
+    player.gold = profile.gold;
+    player.equippedWeapon = profile.equippedWeapon;
+    player.equippedArmor = profile.equippedArmor;
+    player.status = profile.status;
+    player.alive = profile.status === "alive";
+    player.completedAdventures = profile.completedAdventures;
+    resetStringArray(player.inventory, profile.inventory);
+    resetStringArray(player.completedQuestIds, profile.completedQuestIds);
+    resetStringArray(player.learnedAbilities, profile.learnedAbilities.length ? profile.learnedAbilities : [getClassDefinition(profile.classId).abilityId]);
+    applyDerivedStatsToPlayer(player, { healToFull: false, resetTurnResources: true });
+    player.health = Math.min(player.maxHealth, Math.max(0, profile.health || player.maxHealth));
+    player.confirmedCharacter = true;
+  }
+
+  private completeAdventureProgress() {
+    for (const player of this.state.players.values()) {
+      player.completedAdventures += 1;
+      this.persistCharacterProfile(player);
+    }
+  }
+
+  private launchAdventure() {
+    if (!this.allPlayersConfirmed()) {
+      this.addDmLog("Every connected player must confirm a character before launch.");
+      this.syncState();
+      this.publishSnapshots();
+      return;
+    }
+
+    this.roomPhase = "live";
+    this.ensureAdventureStarted();
+    this.applyMapState("starting", { encounterOnEnter: false });
+    this.addPublicLog("The Dungeon Master launches the session.");
+    this.syncState();
+    this.publishSnapshots();
+  }
+
+  private completeSessionFromDm() {
+    if (this.roomPhase === "completed") {
+      return;
+    }
+
+    this.roomPhase = "completed";
+    if (!this.state.adventureCompletedAt) {
+      this.state.adventureCompletedAt = new Date().toISOString();
+    }
+    this.completeAdventureProgress();
+    this.addPublicLog("The session is complete. The party returns to camp with their spoils.");
+    this.applyMapState("camp", { encounterOnEnter: false });
+    this.syncState();
+    this.publishSnapshots();
+  }
+
+  private setMapFromDm(mapKey: MapSlotKey | undefined, fromCommand = false) {
+    const normalizedKey = normalizeMapSlotKey(mapKey);
+
+    if (!normalizedKey) {
+      this.addDmLog(fromCommand ? `Unknown map: ${mapKey ?? ""}` : "Choose a valid map.");
+      this.syncState();
+      this.publishSnapshots();
+      return;
+    }
+
+    this.applyMapState(normalizedKey);
+    this.addPublicLog(`Map transition: ${this.getSessionMap(normalizedKey).label}.`);
+    this.syncState();
+    this.publishSnapshots();
+  }
+
+  private setMapDefinitionFromDm(mapKey: MapSlotKey | undefined, mapId: string | undefined) {
+    const normalizedKey = normalizeMapSlotKey(mapKey);
+    const sessionMap = normalizedKey ? this.sessionMaps.get(normalizedKey) : undefined;
+    const mapDefinition = mapId ? mapsById.get(mapId) : undefined;
+
+    if (!normalizedKey || !sessionMap || !mapDefinition) {
+      this.addDmLog("Choose a valid session map and base map.");
+      this.syncState();
+      this.publishSnapshots();
+      return;
+    }
+
+    sessionMap.mapId = mapDefinition.id;
+
+    if (normalizedKey === this.currentMapKey) {
+      this.applyMapState(normalizedKey, { encounterOnEnter: false });
+    }
+
+    this.addDmLog(`${sessionMap.label} now uses ${mapDefinition.name}.`);
+    this.syncState();
+    this.publishSnapshots();
+  }
+
+  private setPlayerSpawnFromDm(playerId: string | undefined, mapKey: MapSlotKey | undefined, x: number | undefined, y: number | undefined) {
+    const normalizedKey = normalizeMapSlotKey(mapKey);
+    const player = playerId ? this.state.players.get(playerId) : undefined;
+    const sessionMap = normalizedKey ? this.sessionMaps.get(normalizedKey) : undefined;
+
+    if (!player || !normalizedKey || !sessionMap || !isWholeNumber(Number(x)) || !isWholeNumber(Number(y))) {
+      this.addDmLog("Choose a player, map, and valid spawn coordinates.");
+      this.syncState();
+      this.publishSnapshots();
+      return;
+    }
+
+    const nextPoint = { x: Number(x), y: Number(y) };
+    sessionMap.spawnPoints[player.id] = nextPoint;
+
+    if (normalizedKey === this.currentMapKey) {
+      this.repositionPlayers();
+    }
+
+    this.addDmLog(`Set ${player.name}'s ${sessionMap.label} spawn to (${nextPoint.x + 1}, ${nextPoint.y + 1}).`);
+    this.syncState();
+    this.publishSnapshots();
+  }
+
+  private setPlayerStatusFromDm(playerId: string | undefined, status: PlayerLifeStatus | string | undefined) {
+    const player = playerId ? this.state.players.get(playerId) : undefined;
+    const normalizedStatus = normalizePlayerStatus(status);
+
+    if (!player) {
+      this.addDmLog("Choose a player to update.");
+      this.syncState();
+      this.publishSnapshots();
+      return;
+    }
+
+    player.status = normalizedStatus;
+    player.alive = normalizedStatus === "alive";
+    player.health = normalizedStatus === "alive" ? Math.max(1, player.health || player.maxHealth) : 0;
+    this.persistCharacterProfile(player);
+    this.addDmLog(`${player.name} is now ${normalizedStatus}.`);
+    this.syncState();
+    this.publishSnapshots();
+  }
+
+  private setCampaignDifficultyFromDm(difficulty: CampaignDifficulty | undefined) {
+    const normalizedDifficulty = normalizeCampaignDifficulty(difficulty);
+
+    if (!normalizedDifficulty) {
+      this.addDmLog("Choose a valid campaign difficulty.");
+      this.syncState();
+      this.publishSnapshots();
+      return;
+    }
+
+    this.campaignDifficulty = normalizedDifficulty;
+    this.addDmLog(`Campaign difficulty set to ${normalizedDifficulty}.`);
+    this.syncState();
+    this.publishSnapshots();
+  }
+
+  private saveTemplateFromDm(templateName: string | undefined) {
+    const name = sanitizeWorldName(templateName, `${this.state.roomCode}-template`);
+    const template: SessionTemplateRecord = {
+      id: buildRecordId("template", persistentSessionTemplates.size + 1),
+      name,
+      campaignDifficulty: this.campaignDifficulty,
+      maps: [...this.sessionMaps.values()].map((sessionMap) => ({
+        key: sessionMap.key,
+        label: sessionMap.label,
+        mapId: sessionMap.mapId,
+        notes: sessionMap.notes,
+        spawnPoints: { ...sessionMap.spawnPoints }
+      })),
+      worldEntities: [...this.worldEntities.values()].map((entity) => ({ ...entity })),
+      npcs: [...this.npcs.values()].map((npc) => ({ ...npc })),
+      shops: [...this.shops.values()].map((shop) => ({ ...shop, inventory: shop.inventory.map((entry) => ({ ...entry })) })),
+      quests: [...this.quests.values()].map((quest) => ({ ...quest, rewardItems: [...quest.rewardItems] })),
+      secrets: [...this.secrets.values()].map((secret) => ({ ...secret })),
+      encounterGroups: [...this.encounterGroups.values()].map((group) => ({ ...group, enemyIds: [...group.enemyIds], trigger: { ...group.trigger } })),
+      sessionNotes: this.sessionNotes.map((note) => ({ ...note }))
+    };
+
+    persistentSessionTemplates.set(name.toLowerCase(), template);
+    this.addDmLog(`Saved template ${name}.`);
+    this.syncState();
+    this.publishSnapshots();
+  }
+
+  private loadTemplateFromDm(templateName: string | undefined) {
+    const template = templateName ? persistentSessionTemplates.get(templateName.trim().toLowerCase()) : undefined;
+
+    if (!template) {
+      this.addDmLog(`Unknown template: ${templateName ?? ""}`);
+      this.syncState();
+      this.publishSnapshots();
+      return;
+    }
+
+    this.campaignDifficulty = template.campaignDifficulty;
+    this.sessionMaps.clear();
+    for (const sessionMap of template.maps) {
+      this.sessionMaps.set(sessionMap.key, {
+        key: sessionMap.key,
+        label: sessionMap.label,
+        mapId: sessionMap.mapId,
+        notes: sessionMap.notes,
+        spawnPoints: { ...sessionMap.spawnPoints }
+      });
+    }
+
+    this.worldEntities = new Map(template.worldEntities.map((entity) => [entity.id, { ...entity }]));
+    this.npcs = new Map(template.npcs.map((npc) => [npc.id, { ...npc }]));
+    this.shops = new Map(template.shops.map((shop) => [shop.id, { ...shop, inventory: shop.inventory.map((entry) => ({ ...entry })) }]));
+    this.quests = new Map(template.quests.map((quest) => [quest.id, { ...quest, rewardItems: [...quest.rewardItems] }]));
+    this.secrets = new Map(template.secrets.map((secret) => [secret.id, { ...secret }]));
+    this.encounterGroups = new Map(template.encounterGroups.map((group) => [group.id, { ...group, enemyIds: [...group.enemyIds], trigger: { ...group.trigger } }]));
+    this.sessionNotes = template.sessionNotes.map((note) => ({ ...note }));
+    this.applyMapState(this.currentMapKey, { encounterOnEnter: false });
+    this.addDmLog(`Loaded template ${template.name}.`);
+    this.syncState();
+    this.publishSnapshots();
+  }
+
+  private createEncounterGroupFromDm(message: DmToolMessage) {
+    const enemyIds = (message.enemyIds?.length ? message.enemyIds : [message.enemyId ?? "goblin"]).filter(isString);
+    const x = Number(message.x ?? 1);
+    const y = Number(message.y ?? 1);
+
+    if (!enemyIds.length || !isWholeNumber(x) || !isWholeNumber(y)) {
+      this.addDmLog("Choose valid encounter enemies and trigger coordinates.");
+      this.syncState();
+      this.publishSnapshots();
+      return;
+    }
+
+    const encounterId = buildRecordId("encounter", this.encounterGroups.size + 1);
+    this.encounterGroups.set(encounterId, {
+      id: encounterId,
+      mapKey: message.mapKey ?? this.currentMapKey,
+      name: sanitizeWorldName(message.name, `Encounter ${this.encounterGroups.size + 1}`),
+      enemyIds,
+      trigger: { x, y },
+      active: false,
+      notes: sanitizeWorldText(message.description, "Encounter trigger.")
+    });
+    this.addDmLog(`Created encounter group ${encounterId}.`);
+    this.syncState();
+    this.publishSnapshots();
+  }
+
+  private activateEncounterGroupFromDm(encounterId: string | undefined) {
+    const encounter = encounterId ? this.encounterGroups.get(encounterId) : undefined;
+
+    if (!encounter) {
+      this.addDmLog(`Unknown encounter group: ${encounterId ?? ""}`);
+      this.syncState();
+      this.publishSnapshots();
+      return;
+    }
+
+    encounter.active = true;
+
+    if (encounter.mapKey === this.currentMapKey) {
+      this.activateMapEncounterGroups(encounter.mapKey);
+      this.ensureEncounterTurnStarted();
+    }
+
+    this.addDmLog(`Activated ${encounter.name}.`);
+    this.syncState();
+    this.publishSnapshots();
+  }
+
+  private activateMapEncounterGroups(mapKey: MapSlotKey) {
+    for (const encounter of this.encounterGroups.values()) {
+      if (!encounter.active || encounter.mapKey !== mapKey) {
+        continue;
+      }
+
+      for (const enemyId of encounter.enemyIds) {
+        const definition = enemiesById.get(enemyId);
+        if (!definition) {
+          continue;
+        }
+
+        const spawnPosition = this.findOpenPointNear(encounter.trigger);
+        const enemy = this.createEnemyState(definition, spawnPosition);
+        this.state.enemies.set(enemy.id, enemy);
+      }
+
+      encounter.active = false;
+    }
+  }
+
+  private addSessionNoteFromDm(note: string | undefined) {
+    const message = sanitizeWorldText(note, "");
+
+    if (!message) {
+      this.addDmLog("Write a session note before saving it.");
+      this.syncState();
+      this.publishSnapshots();
+      return;
+    }
+
+    this.sessionNotes.push({ id: buildRecordId("note", this.sessionNotes.length + 1), message });
+    if (this.sessionNotes.length > maxLogEntries) {
+      this.sessionNotes.shift();
+    }
+    this.addDmLog("Saved a DM session note.");
+    this.syncState();
+    this.publishSnapshots();
+  }
+
   private resetAdventure() {
     clearStringArray(this.state.completedEncounters);
     clearLogArray(this.state.publicLog);
@@ -2857,26 +3604,25 @@ export class LobbyRoom extends Room<LobbyState> {
     this.quests.clear();
     this.secrets.clear();
     this.skillChecks.clear();
+    this.encounterGroups.clear();
     this.rewardHistory = [];
     this.dmNotes = [];
+    this.sessionNotes = [];
+    this.roomPhase = "preparation";
+    this.currentMapKey = "starting";
+    this.initializeSessionMaps();
 
     for (const player of this.state.players.values()) {
-      const classDefinition = classesById.get(player.classId) ?? defaultClass;
       player.alive = true;
-      player.gold = startingPlayerGold;
-      player.confirmedCharacter = false;
-      player.equippedWeapon = "";
-      player.equippedArmor = "";
-      player.xp = 0;
-      player.level = 1;
-      resetStringArray(player.inventory, classDefinition.startingInventory ?? []);
+      player.status = "alive";
       applyDerivedStatsToPlayer(player, { healToFull: true, resetTurnResources: true });
+      this.persistCharacterProfile(player);
     }
 
     this.repositionPlayers();
     this.recalculatePartyGold();
-    this.applySceneState("tavern");
-    this.addPublicLog("The party returns to the tavern, ready for another adventure.");
+    this.applyMapState("starting", { encounterOnEnter: false });
+    this.addPublicLog("The room resets to preparation mode for the next adventure.");
     this.syncState();
     this.publishSnapshots();
   }
@@ -3021,8 +3767,13 @@ export class LobbyRoom extends Room<LobbyState> {
 
     if (!target.alive) {
       target.remainingMovement = 0;
-      this.addPublicLog(`${target.name} is knocked out.`);
+      target.status = resolveDefeatStatus(this.campaignDifficulty);
+      this.addPublicLog(`${target.name} is ${formatPlayerStatus(normalizePlayerStatus(target.status))}.`);
+    } else {
+      target.status = "alive";
     }
+
+    this.persistCharacterProfile(target);
   }
 
   private findNearestLivingPlayer(enemy: EnemyState) {
@@ -3069,6 +3820,51 @@ export class LobbyRoom extends Room<LobbyState> {
     return null;
   }
 
+  private findOpenPointNear(anchor: Point) {
+    const candidates: Point[] = [
+      anchor,
+      { x: anchor.x + 1, y: anchor.y },
+      { x: anchor.x, y: anchor.y + 1 },
+      { x: anchor.x - 1, y: anchor.y },
+      { x: anchor.x, y: anchor.y - 1 }
+    ];
+
+    for (const candidate of candidates) {
+      if (
+        candidate.x < 0 ||
+        candidate.y < 0 ||
+        candidate.x >= this.state.gridWidth ||
+        candidate.y >= this.state.gridHeight
+      ) {
+        continue;
+      }
+
+      if (!this.isOccupiedByLivingUnit(candidate.x, candidate.y)) {
+        return candidate;
+      }
+    }
+
+    return this.getNextEnemySpawnPoint();
+  }
+
+  private restoreDownedPlayersAfterEncounter() {
+    if (this.campaignDifficulty !== "casual") {
+      return;
+    }
+
+    for (const player of this.state.players.values()) {
+      if (player.status !== "downed") {
+        continue;
+      }
+
+      player.status = "alive";
+      player.alive = true;
+      player.health = Math.max(1, Math.ceil(player.maxHealth / 2));
+      this.addPublicLog(`${player.characterName || player.name} gets back up after the encounter.`);
+      this.persistCharacterProfile(player);
+    }
+  }
+
   private createPlayerState(
     sessionId: string,
     playerName: string,
@@ -3078,6 +3874,8 @@ export class LobbyRoom extends Room<LobbyState> {
     const player = new PlayerState();
     player.id = sessionId;
     player.name = playerName;
+    player.characterName = `${playerName} ${character.name}`.slice(0, 24);
+    player.profileId = "";
     player.role = "player";
     player.raceId = race.id;
     player.raceName = race.name;
@@ -3085,25 +3883,32 @@ export class LobbyRoom extends Room<LobbyState> {
     player.className = character.name;
     player.characterIdentity = `${race.name} ${character.name}`;
     player.confirmedCharacter = false;
+    player.status = "alive";
     player.alive = true;
     player.gold = startingPlayerGold;
     player.equippedWeapon = "";
     player.equippedArmor = "";
     player.xp = 0;
     player.level = 1;
+    player.abilitySlots = 1;
+    player.completedAdventures = 0;
     player.actionUsed = false;
     player.adaptableUsed = false;
     player.luckyFailureUsed = false;
     resetStringArray(player.inventory, character.startingInventory ?? []);
+    resetStringArray(player.completedQuestIds, []);
+    resetStringArray(player.learnedAbilities, [character.abilityId]);
     applyDerivedStatsToPlayer(player, { healToFull: true, resetTurnResources: true });
     return player;
   }
 
   private repositionPlayers() {
     const players = [...this.state.players.values()];
+    const spawnAssignments = this.getSessionMap().spawnPoints;
 
     players.forEach((player, index) => {
-      const spawnPoint = spawnPoints[index] ?? spawnPoints[spawnPoints.length - 1] ?? { x: 1, y: 1 };
+      const assignedSpawn = spawnAssignments[player.id] ?? spawnAssignments[player.name];
+      const spawnPoint = assignedSpawn ?? spawnPoints[index] ?? spawnPoints[spawnPoints.length - 1] ?? { x: 1, y: 1 };
       player.x = spawnPoint.x;
       player.y = spawnPoint.y;
       player.remainingMovement = player.movement;
@@ -3128,11 +3933,11 @@ export class LobbyRoom extends Room<LobbyState> {
   }
 
   private getCurrentScene() {
-    return scenesById.get(this.state.currentSceneId) ?? defaultSceneDefinition();
+    return buildSceneForMap(this.getSessionMap(), this.currentMapKey, this.roomPhase);
   }
 
   private isAdventureStarted() {
-    return Boolean(this.state.adventureStartedAt);
+    return this.roomPhase !== "preparation";
   }
 
   private hasDungeonMaster() {
@@ -3277,19 +4082,14 @@ export class LobbyRoom extends Room<LobbyState> {
   }
 
   private buildSceneActionsFor(sessionId: string): SceneActionView[] {
-    if (this.hasDungeonMaster() || this.isDmSession(sessionId)) {
+    if (this.hasDungeonMaster() || this.isDmSession(sessionId) || this.roomPhase !== "live") {
       return [];
     }
 
-    switch (this.getCurrentScene().id) {
-      case "tavern":
-        return [
-          { id: "accept_quest", label: "Accept Quest" },
-          { id: "leave", label: "Leave" }
-        ];
-      case "merchant":
-        return [{ id: "continue_to_boss", label: "Continue to Boss" }];
-      case "victory":
+    switch (this.currentMapKey) {
+      case "starting":
+        return [{ id: "accept_quest", label: "Begin Adventure" }];
+      case "camp":
         return [{ id: "return_to_lobby", label: "Return to Lobby" }];
       default:
         return [];
@@ -3315,7 +4115,7 @@ export class LobbyRoom extends Room<LobbyState> {
   }
 
   private buildVictorySummary(): VictorySummaryView | null {
-    if (this.getCurrentScene().sceneType !== "victory") {
+    if (this.roomPhase !== "completed") {
       return null;
     }
 
@@ -3331,12 +4131,44 @@ export class LobbyRoom extends Room<LobbyState> {
     };
   }
 
+  private buildSessionMapViews(): SessionMapView[] {
+    return availableMapSlots.map((slot) => {
+      const sessionMap = this.getSessionMap(slot.key);
+      const mapDefinition = mapsById.get(sessionMap.mapId) ?? defaultMapDefinition();
+
+      return {
+        key: slot.key,
+        label: sessionMap.label,
+        mapId: sessionMap.mapId,
+        mapName: mapDefinition.name,
+        notes: sessionMap.notes,
+        spawnCount: Object.keys(sessionMap.spawnPoints).length,
+        encounterCount: [...this.encounterGroups.values()].filter((group) => group.mapKey === slot.key).length,
+        entityCount: [...this.worldEntities.values()].filter((entity) => entity.mapKey === slot.key).length
+      };
+    });
+  }
+
+  private buildCharacterProfileViews(ownerName: string): CharacterProfileView[] {
+    return (persistentCharacterProfiles.get(normalizeProfileOwner(ownerName)) ?? []).map((profile) => ({
+      id: profile.id,
+      name: profile.name,
+      raceName: profile.raceName,
+      className: profile.className,
+      level: profile.level,
+      xp: profile.xp,
+      gold: profile.gold,
+      status: profile.status,
+      completedAdventures: profile.completedAdventures
+    }));
+  }
+
   private buildWorldEntityViews(sessionId: string): WorldEntityView[] {
     const isDm = this.isDmSession(sessionId);
 
     return [...this.worldEntities.values()]
-      .filter((entity) => entity.sceneId === this.state.currentSceneId)
-      .filter((entity) => isDm || entity.visibleToPlayers)
+      .filter((entity) => entity.mapKey === this.currentMapKey)
+      .filter((entity) => isDm || isEntityVisibleToPlayers(entity))
       .map((entity) => ({
         id: entity.id,
         type: entity.type,
@@ -3344,7 +4176,7 @@ export class LobbyRoom extends Room<LobbyState> {
         description: entity.description,
         x: entity.x,
         y: entity.y,
-        visibleToPlayers: entity.visibleToPlayers,
+        visibleToPlayers: isEntityVisibleToPlayers(entity),
         discovered: entity.discovered,
         linkedQuestId: entity.linkedQuestId,
         linkedShopId: entity.linkedShopId,
@@ -3362,10 +4194,10 @@ export class LobbyRoom extends Room<LobbyState> {
       .filter((npc) => {
         const entity = npc.linkedEntityId ? this.worldEntities.get(npc.linkedEntityId) : undefined;
         if (isDm) {
-          return !entity || entity.sceneId === this.state.currentSceneId;
+          return !entity || entity.mapKey === this.currentMapKey;
         }
 
-        return entity?.sceneId === this.state.currentSceneId && entity.visibleToPlayers;
+        return entity?.mapKey === this.currentMapKey && isEntityVisibleToPlayers(entity);
       })
       .map((npc) => {
         const entity = npc.linkedEntityId ? this.worldEntities.get(npc.linkedEntityId) : undefined;
@@ -3378,7 +4210,7 @@ export class LobbyRoom extends Room<LobbyState> {
           dialoguePrompt: npc.dialoguePrompt,
           questHooks: npc.questHooks,
           linkedEntityId: npc.linkedEntityId,
-          visibleToPlayers: entity?.visibleToPlayers ?? false,
+          visibleToPlayers: entity ? isEntityVisibleToPlayers(entity) : false,
           discovered: entity?.discovered ?? false
         };
       });
@@ -3392,10 +4224,10 @@ export class LobbyRoom extends Room<LobbyState> {
       .filter((shop) => {
         const entity = shop.linkedEntityId ? this.worldEntities.get(shop.linkedEntityId) : undefined;
         if (isDm) {
-          return !entity || entity.sceneId === this.state.currentSceneId;
+          return !entity || entity.mapKey === this.currentMapKey;
         }
 
-        return entity?.sceneId === this.state.currentSceneId && entity.visibleToPlayers;
+        return entity?.mapKey === this.currentMapKey && isEntityVisibleToPlayers(entity);
       })
       .map((shop) => {
         const entity = shop.linkedEntityId ? this.worldEntities.get(shop.linkedEntityId) : undefined;
@@ -3409,7 +4241,7 @@ export class LobbyRoom extends Room<LobbyState> {
           name: shop.name,
           shopkeeperNpcId: shop.shopkeeperNpcId,
           linkedEntityId: shop.linkedEntityId,
-          visibleToPlayers: entity?.visibleToPlayers ?? false,
+          visibleToPlayers: entity ? isEntityVisibleToPlayers(entity) : false,
           accessible,
           discountPercent: shop.discountPercent,
           inventory: shop.inventory
@@ -3454,7 +4286,7 @@ export class LobbyRoom extends Room<LobbyState> {
     const isDm = this.isDmSession(sessionId);
 
     return [...this.secrets.values()]
-      .filter((secret) => secret.sceneId === this.state.currentSceneId)
+      .filter((secret) => secret.mapKey === this.currentMapKey)
       .filter((secret) => isDm || secret.revealed)
       .map((secret) => ({
         id: secret.id,
@@ -3595,6 +4427,13 @@ export class LobbyRoom extends Room<LobbyState> {
       selfRole: this.isDmSession(sessionId) ? "dm" : "player",
       dmSessionId: this.state.dmSessionId,
       dmName: this.state.dmName,
+      roomPhase: this.roomPhase,
+      controlsLocked: this.roomPhase !== "live",
+      campaignDifficulty: this.campaignDifficulty,
+      currentMapKey: this.currentMapKey,
+      sessionMaps: this.buildSessionMapViews(),
+      availableMaps: availableMaps.map((map) => ({ id: map.id, name: map.name })),
+      savedTemplates: [...persistentSessionTemplates.values()].map((template) => ({ id: template.id, name: template.name })),
       adventureStarted: this.isAdventureStarted(),
       availableRaces: availableRaces.map((race) => ({
         id: race.id,
@@ -3671,9 +4510,15 @@ export class LobbyRoom extends Room<LobbyState> {
       skillChecks: this.buildSkillCheckViews(sessionId),
       playerSkillChecks: this.buildPlayerSkillCheckViews(sessionId),
       rewardHistory: this.rewardHistory,
+      sessionNotes: this.isDmSession(sessionId) ? this.sessionNotes : [],
+      characterProfiles: this.isDmSession(sessionId)
+        ? []
+        : this.buildCharacterProfileViews(this.state.players.get(sessionId)?.name ?? ""),
       players: [...this.state.players.values()].map((player) => ({
         id: player.id,
         name: player.name,
+        characterName: player.characterName,
+        profileId: player.profileId,
         role: "player" as const,
         raceId: player.raceId,
         raceName: player.raceName,
@@ -3681,6 +4526,7 @@ export class LobbyRoom extends Room<LobbyState> {
         className: player.className,
         characterIdentity: player.characterIdentity,
         confirmedCharacter: player.confirmedCharacter,
+        status: normalizePlayerStatus(player.status),
         x: player.x,
         y: player.y,
         health: player.health,
@@ -3704,6 +4550,10 @@ export class LobbyRoom extends Room<LobbyState> {
         equippedArmor: player.equippedArmor,
         xp: player.xp,
         level: player.level,
+        abilitySlots: player.abilitySlots,
+        completedAdventures: player.completedAdventures,
+        completedQuestIds: [...player.completedQuestIds].filter(isString),
+        learnedAbilities: [...player.learnedAbilities].filter(isString),
         actionReady: !player.actionUsed
       })),
       enemies: [...this.state.enemies.values()].map((enemy) => ({
@@ -3755,6 +4605,8 @@ function calculateDerivedStats(player: PlayerState) {
   const characterClass = getClassDefinition(player.classId);
   const race = getRaceDefinition(player.raceId);
   const equipment = getEquippedItems(player);
+  const level = Math.max(1, player.level || calculateLevelFromXp(player.xp));
+  const levelBonus = level - 1;
 
   const equipmentBonuses = equipment.reduce(
     (totals, item) => ({
@@ -3779,26 +4631,27 @@ function calculateDerivedStats(player: PlayerState) {
     className: characterClass.name,
     raceName: race.name,
     characterIdentity: `${race.name} ${characterClass.name}`,
-    might: characterClass.coreAttributes.might + race.coreBonuses.might,
-    agility: characterClass.coreAttributes.agility + race.coreBonuses.agility,
-    focus: characterClass.coreAttributes.focus + race.coreBonuses.focus,
-    spirit: characterClass.coreAttributes.spirit + race.coreBonuses.spirit,
+    might: characterClass.coreAttributes.might + race.coreBonuses.might + Math.floor(levelBonus / 2),
+    agility: characterClass.coreAttributes.agility + race.coreBonuses.agility + Math.floor(levelBonus / 3),
+    focus: characterClass.coreAttributes.focus + race.coreBonuses.focus + Math.floor(levelBonus / 2),
+    spirit: characterClass.coreAttributes.spirit + race.coreBonuses.spirit + Math.floor(levelBonus / 2),
     maxHealth:
-      characterClass.health + race.statBonuses.maxHealth + equipmentBonuses.maxHealthBonus,
+      characterClass.health + race.statBonuses.maxHealth + equipmentBonuses.maxHealthBonus + levelBonus * 2,
     movement:
       characterClass.movement + race.statBonuses.movement + equipmentBonuses.movementBonus,
-    defense: characterClass.defense + race.statBonuses.defense + equipmentBonuses.defenseBonus,
+    defense: characterClass.defense + race.statBonuses.defense + equipmentBonuses.defenseBonus + Math.floor(levelBonus / 2),
     attackBonus:
-      characterClass.attackBonus + race.statBonuses.attackBonus + equipmentBonuses.attackBonus,
+      characterClass.attackBonus + race.statBonuses.attackBonus + equipmentBonuses.attackBonus + Math.floor(levelBonus / 2),
     attackRange:
       characterClass.attackRange +
       race.statBonuses.attackRange +
       equipmentBonuses.attackRangeBonus,
     spellDamage:
-      characterClass.spellDamage + race.statBonuses.spellDamage + equipmentBonuses.spellDamageBonus,
+      characterClass.spellDamage + race.statBonuses.spellDamage + equipmentBonuses.spellDamageBonus + Math.floor(levelBonus / 2),
     damageDice: characterClass.damageDice,
     abilityId: characterClass.abilityId,
-    abilityName: getAbilityDefinition(characterClass.abilityId)?.name ?? "Unknown Ability"
+    abilityName: getAbilityDefinition(characterClass.abilityId)?.name ?? "Unknown Ability",
+    abilitySlots: level >= 5 ? 3 : level >= 3 ? 2 : 1
   };
 }
 
@@ -3829,12 +4682,14 @@ function applyDerivedStatsToPlayer(
   player.damageDice = derivedStats.damageDice;
   player.abilityId = derivedStats.abilityId;
   player.abilityName = derivedStats.abilityName;
+  player.abilitySlots = derivedStats.abilitySlots;
 
   if (options.healToFull) {
     player.alive = true;
+    player.status = "alive";
     player.health = player.maxHealth;
   } else {
-    player.alive = player.health > 0;
+    player.alive = player.health > 0 && normalizePlayerStatus(player.status) === "alive";
   }
 
   if (options.resetTurnResources) {
@@ -3945,6 +4800,8 @@ function clonePlayerState(player: PlayerState) {
   const nextPlayer = new PlayerState();
   nextPlayer.id = player.id;
   nextPlayer.name = player.name;
+  nextPlayer.characterName = player.characterName;
+  nextPlayer.profileId = player.profileId;
   nextPlayer.role = player.role;
   nextPlayer.raceId = player.raceId;
   nextPlayer.raceName = player.raceName;
@@ -3952,6 +4809,7 @@ function clonePlayerState(player: PlayerState) {
   nextPlayer.className = player.className;
   nextPlayer.characterIdentity = player.characterIdentity;
   nextPlayer.confirmedCharacter = player.confirmedCharacter;
+  nextPlayer.status = player.status;
   nextPlayer.x = player.x;
   nextPlayer.y = player.y;
   nextPlayer.health = player.health;
@@ -3975,10 +4833,14 @@ function clonePlayerState(player: PlayerState) {
   nextPlayer.equippedArmor = player.equippedArmor;
   nextPlayer.xp = player.xp;
   nextPlayer.level = player.level;
+  nextPlayer.abilitySlots = player.abilitySlots;
+  nextPlayer.completedAdventures = player.completedAdventures;
   nextPlayer.actionUsed = player.actionUsed;
   nextPlayer.adaptableUsed = player.adaptableUsed;
   nextPlayer.luckyFailureUsed = player.luckyFailureUsed;
   resetStringArray(nextPlayer.inventory, [...player.inventory].filter(isString));
+  resetStringArray(nextPlayer.completedQuestIds, [...player.completedQuestIds].filter(isString));
+  resetStringArray(nextPlayer.learnedAbilities, [...player.learnedAbilities].filter(isString));
   return nextPlayer;
 }
 
@@ -4086,6 +4948,20 @@ function buildRecordId(prefix: string, index: number) {
   return `${prefix}-${index}`;
 }
 
+function calculateLevelFromXp(xp: number) {
+  let level = 1;
+
+  for (let index = 0; index < levelThresholds.length; index += 1) {
+    const threshold = levelThresholds[index] ?? Number.MAX_SAFE_INTEGER;
+
+    if (xp >= threshold) {
+      level = index + 1;
+    }
+  }
+
+  return Math.min(5, level);
+}
+
 function sanitizeWorldName(value: string | undefined, fallback: string) {
   const trimmed = value?.trim();
   return trimmed ? trimmed.slice(0, 40) : fallback;
@@ -4135,6 +5011,108 @@ function normalizeQuestStatus(value: string | undefined): QuestStatus {
     default:
       return "hidden";
   }
+}
+
+function normalizeCampaignDifficulty(value: string | undefined): CampaignDifficulty | null {
+  const normalized = value?.trim().toLowerCase();
+
+  switch (normalized) {
+    case "casual":
+    case "hardcore":
+    case "legendary":
+      return normalized;
+    default:
+      return null;
+  }
+}
+
+function normalizeMapSlotKey(value: string | undefined): MapSlotKey | null {
+  const normalized = value?.trim().toLowerCase();
+
+  switch (normalized) {
+    case "starting":
+    case "adventure":
+    case "boss":
+    case "camp":
+      return normalized;
+    default:
+      return null;
+  }
+}
+
+function sceneIdFromMapKey(mapKey: MapSlotKey) {
+  switch (mapKey) {
+    case "starting":
+      return "tavern";
+    case "adventure":
+      return "forest";
+    case "boss":
+      return "boss";
+    case "camp":
+    default:
+      return "merchant";
+  }
+}
+
+function mapKeyFromSceneId(sceneId: string) {
+  switch (sceneId) {
+    case "forest":
+      return "adventure";
+    case "boss":
+      return "boss";
+    case "merchant":
+      return "camp";
+    case "victory":
+      return "camp";
+    case "tavern":
+    default:
+      return "starting";
+  }
+}
+
+function normalizeProfileOwner(name: string) {
+  return name.trim().toLowerCase();
+}
+
+function normalizePlayerStatus(status: string | undefined): PlayerLifeStatus {
+  switch (status) {
+    case "downed":
+    case "dead":
+    case "permanentlyDead":
+    case "alive":
+      return status;
+    default:
+      return "alive";
+  }
+}
+
+function resolveDefeatStatus(difficulty: CampaignDifficulty): PlayerLifeStatus {
+  switch (difficulty) {
+    case "casual":
+      return "downed";
+    case "hardcore":
+      return "dead";
+    case "legendary":
+      return "permanentlyDead";
+  }
+}
+
+function formatPlayerStatus(status: PlayerLifeStatus) {
+  switch (status) {
+    case "downed":
+      return "downed";
+    case "dead":
+      return "dead";
+    case "permanentlyDead":
+      return "lost permanently";
+    case "alive":
+    default:
+      return "standing";
+  }
+}
+
+function isEntityVisibleToPlayers(entity: WorldEntityRecord) {
+  return entity.visibilityState === "visible" || entity.visibilityState === "revealed";
 }
 
 function capitalizeCheckType(value: string) {
@@ -4241,6 +5219,50 @@ function defaultSceneDefinition(): SceneDefinition {
     mapId: "tavern",
     sceneType: "story",
     objective: "Begin the adventure."
+  };
+}
+
+function defaultSessionMapRecord(mapKey: MapSlotKey): SessionMapRecord {
+  const slot = availableMapSlots.find((entry) => entry.key === mapKey) ?? availableMapSlots[0];
+  return {
+    key: mapKey,
+    label: slot?.label ?? "Session Map",
+    mapId: slot?.defaultMapId ?? "forest",
+    notes: "",
+    spawnPoints: {}
+  };
+}
+
+function buildSceneForMap(sessionMap: SessionMapRecord, mapKey: MapSlotKey, roomPhase: RoomPhase): SceneDefinition {
+  const map = mapsById.get(sessionMap.mapId) ?? defaultMapDefinition();
+  const sceneType =
+    roomPhase === "completed"
+      ? "victory"
+      : mapKey === "adventure" || mapKey === "boss"
+        ? "encounter"
+        : mapKey === "camp"
+          ? "shop"
+          : "story";
+
+  return {
+    id: sceneIdFromMapKey(mapKey),
+    title: sessionMap.label,
+    description:
+      roomPhase === "preparation"
+        ? `Preparation mode: ${map.name}.`
+        : `Current location: ${map.name}.`,
+    mapId: sessionMap.mapId,
+    sceneType,
+    objective:
+      roomPhase === "preparation"
+        ? "The Dungeon Master is preparing the session."
+        : mapKey === "camp"
+          ? "Rest, recover, and regroup."
+          : mapKey === "boss"
+            ? "Defeat the boss encounter."
+            : mapKey === "adventure"
+              ? "Overcome the active encounter."
+              : "Wait for the next map transition."
   };
 }
 

@@ -45,6 +45,7 @@ export function PlayPage() {
     equipItem,
     useItem,
     rollSkillCheck,
+    useCampService,
     sceneAction,
     runDmAction,
     runDmTool,
@@ -76,7 +77,7 @@ export function PlayPage() {
     activeTurn.type === "none" ? "Waiting for players" : `${activeTurn.name}'s turn`;
 
   const tacticalSnapshot = useMemo<TacticalSnapshot | null>(() => {
-    if (!lobby || lobby.currentScene.sceneType !== "encounter") {
+    if (!lobby) {
       return null;
     }
 
@@ -133,14 +134,16 @@ export function PlayPage() {
     }
 
     gameBridgeRef.current = createGameBridge(phaserContainerId, (x, y) => {
-      move(x, y);
+      if (lobby.roomPhase === "live") {
+        move(x, y);
+      }
     });
 
     return () => {
       gameBridgeRef.current?.destroy();
       gameBridgeRef.current = null;
     };
-  }, [isConnected, lobby?.roomCode, move, roomCode, routeRoomCode]);
+  }, [isConnected, lobby?.roomCode, lobby?.roomPhase, move, roomCode, routeRoomCode]);
 
   useEffect(() => {
     if (!lobby) {
@@ -176,6 +179,7 @@ export function PlayPage() {
 
   const activeLobby = lobby;
   const currentScene = lobby.currentScene;
+  const canUseCampServices = lobby.currentMapKey === "camp";
 
   function getTargetRange() {
     if (!currentPlayer) {
@@ -301,7 +305,7 @@ export function PlayPage() {
 
   function canBuyFromShop(shopId: string, price: number) {
     const shop = activeLobby.shops.find((entry) => entry.id === shopId);
-    return Boolean(role === "player" && currentPlayer && shop?.accessible && currentPlayer.gold >= price);
+    return Boolean(role === "player" && activeLobby.roomPhase === "live" && currentPlayer && shop?.accessible && currentPlayer.gold >= price);
   }
 
   return (
@@ -316,6 +320,9 @@ export function PlayPage() {
           </p>
           <p className="meta-copy" data-testid="scene-type">
             Type: {currentScene.sceneType}
+          </p>
+          <p className="meta-copy" data-testid="play-phase-summary">
+            {lobby.roomPhase.toUpperCase()} · {lobby.currentMapKey} · {lobby.campaignDifficulty}
           </p>
         </div>
         <div className="status-card" data-testid="status-card">
@@ -345,20 +352,22 @@ export function PlayPage() {
                 onModeChange={setActiveTargetMode}
                 onUsePotion={handleUsePotion}
                 onEndTurn={endTurn}
-                canAttack={Boolean(currentPlayer?.alive && isCurrentPlayersTurn && currentPlayer.actionReady)}
+                canAttack={Boolean(lobby.roomPhase === "live" && currentPlayer?.alive && isCurrentPlayersTurn && currentPlayer.actionReady)}
                 canUseAbility={Boolean(
+                  lobby.roomPhase === "live" &&
                   currentPlayer?.alive &&
                     isCurrentPlayersTurn &&
                     currentPlayer.actionReady &&
                     currentPlayer.ability
                 )}
                 canUsePotion={Boolean(
+                  lobby.roomPhase === "live" &&
                   currentPlayer?.alive &&
                     currentPlayer.inventory.some((item) => item.id === "healing_potion") &&
                     currentPlayer.health < currentPlayer.maxHealth &&
                     (currentScene.sceneType !== "encounter" || (isCurrentPlayersTurn && currentPlayer.actionReady))
                 )}
-                canEndTurn={role === "player" && isCurrentPlayersTurn}
+                canEndTurn={role === "player" && lobby.roomPhase === "live" && isCurrentPlayersTurn}
               />
             ) : (
               <div className="button-row">
@@ -432,7 +441,7 @@ export function PlayPage() {
                         type="button"
                         data-testid={`merchant-buy-${item.id}`}
                         onClick={() => purchase(item.id)}
-                        disabled={role !== "player" || !currentPlayer || currentPlayer.gold < item.price}
+                        disabled={role !== "player" || lobby.roomPhase !== "live" || !currentPlayer || currentPlayer.gold < item.price}
                       >
                         Buy
                       </button>
@@ -533,13 +542,35 @@ export function PlayPage() {
             </>
           ) : null}
           <CharacterSheetPanel player={currentPlayer} />
+          {role === "player" && currentPlayer && canUseCampServices ? (
+            <section className="panel" data-testid="camp-services-panel">
+              <div className="section-header">
+                <h2>Camp Services</h2>
+                <span>{currentPlayer.status}</span>
+              </div>
+              <div className="button-row">
+                <button type="button" data-testid="camp-heal-button" onClick={() => useCampService("heal")}>
+                  Rest
+                </button>
+                <button
+                  type="button"
+                  data-testid="camp-revive-button"
+                  onClick={() => useCampService("revive")}
+                  disabled={currentPlayer.status === "alive" || (lobby.campaignDifficulty === "legendary" && currentPlayer.status === "permanentlyDead")}
+                >
+                  Temple Service
+                </button>
+              </div>
+            </section>
+          ) : null}
           <InventoryPanel
             player={currentPlayer}
             onEquip={equipItem}
             onUse={useItem}
-            canEquip={(item) => currentScene.sceneType !== "encounter" && !item.equipped}
+            canEquip={(item) => lobby.roomPhase === "live" && currentScene.sceneType !== "encounter" && !item.equipped}
             canUse={(item) =>
               Boolean(
+                lobby.roomPhase === "live" &&
                 item.usable &&
                   currentPlayer &&
                   currentPlayer.health < currentPlayer.maxHealth &&

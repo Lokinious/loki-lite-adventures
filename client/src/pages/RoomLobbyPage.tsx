@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { CharacterSheetPanel, DmPanel, EnemyPanel, LogPanel, PartyPanel } from "../components/GamePanels";
+import { CharacterSheetPanel, DmPanel, DmWorldToolsPanel, EnemyPanel, LogPanel, PartyPanel } from "../components/GamePanels";
 import { useRoomConnection } from "../game/RoomConnectionContext";
 import type { EnemyView } from "../game/types";
 
@@ -19,9 +19,11 @@ export function RoomLobbyPage() {
     selectRace,
     selectClass,
     confirmCharacter,
+    selectProfile,
     attack,
     sceneAction,
     runDmAction,
+    runDmTool,
     runDmCommand
   } = useRoomConnection();
   const [selectedClassId, setSelectedClassId] = useState("");
@@ -36,10 +38,10 @@ export function RoomLobbyPage() {
   }, []);
 
   useEffect(() => {
-    if (lobby?.adventureStarted && routeRoomCode) {
+    if (lobby && lobby.roomPhase !== "preparation" && routeRoomCode) {
       navigate(`/room/${routeRoomCode}/play`);
     }
-  }, [lobby?.adventureStarted, navigate, routeRoomCode]);
+  }, [lobby, navigate, routeRoomCode]);
 
   useEffect(() => {
     if (lobby?.availableScenes.length) {
@@ -116,6 +118,9 @@ export function RoomLobbyPage() {
           <span className="status-note" data-testid="connection-summary">
             Connected as {role === "dm" ? lobby.dmName : currentPlayer?.name ?? playerName} in {lobby.roomCode}.
           </span>
+          <span className="status-note" data-testid="room-phase-label">
+            Phase: {lobby.roomPhase} · Map: {lobby.currentMapKey} · Difficulty: {lobby.campaignDifficulty}
+          </span>
         </div>
       </section>
 
@@ -145,6 +150,20 @@ export function RoomLobbyPage() {
                   {currentPlayer?.characterIdentity ?? "Not selected yet"}
                 </span>
               </div>
+              <div className="player-list" data-testid="character-profile-list">
+                <p className="meta-copy">Load an existing character profile or leave this blank to create a new one.</p>
+                {lobby.characterProfiles.length ? (
+                  lobby.characterProfiles.map((profile) => (
+                    <button key={profile.id} type="button" className="player-card" data-testid={`profile-load-${profile.id}`} onClick={() => selectProfile(profile.id)} disabled={lobby.roomPhase !== "preparation"}>
+                      <strong>{profile.name}</strong>
+                      <span>{profile.raceName} {profile.className}</span>
+                      <span>Level {profile.level} · XP {profile.xp} · {profile.status}</span>
+                    </button>
+                  ))
+                ) : (
+                  <p className="meta-copy">No saved profiles for this player name yet.</p>
+                )}
+              </div>
               <h3>Choose a race</h3>
               <div className="class-grid" data-testid="race-grid">
                 {lobby.availableRaces.map((playableRace) => {
@@ -160,7 +179,7 @@ export function RoomLobbyPage() {
                         setSelectedRaceId(playableRace.id);
                         selectRace(playableRace.id);
                       }}
-                      disabled={lobby.adventureStarted}
+                      disabled={lobby.roomPhase !== "preparation"}
                     >
                       <strong>{playableRace.name}</strong>
                       <span>{playableRace.description}</span>
@@ -184,7 +203,7 @@ export function RoomLobbyPage() {
                         setSelectedClassId(playableClass.id);
                         selectClass(playableClass.id);
                       }}
-                      disabled={lobby.adventureStarted}
+                      disabled={lobby.roomPhase !== "preparation"}
                     >
                       <strong>{playableClass.name}</strong>
                       <span>{playableClass.description}</span>
@@ -219,12 +238,12 @@ export function RoomLobbyPage() {
                   type="button"
                   data-testid="confirm-character-button"
                   onClick={confirmCharacter}
-                  disabled={lobby.adventureStarted}
+                  disabled={lobby.roomPhase !== "preparation"}
                 >
                   Confirm Character
                 </button>
                 <span className="meta-copy" data-testid="character-confirmation-state">
-                  {currentPlayer?.confirmedCharacter ? "Character confirmed" : "Choose race and class, then confirm."}
+                  {currentPlayer?.confirmedCharacter ? `Character confirmed as ${currentPlayer.characterName || currentPlayer.characterIdentity}.` : "Choose race and class, then confirm."}
                 </span>
               </div>
             </section>
@@ -263,6 +282,7 @@ export function RoomLobbyPage() {
               setDmCommand("");
             }}
           />
+          {role === "dm" ? <DmWorldToolsPanel lobby={lobby} onRunTool={runDmTool} /> : null}
 
           {playerSceneControlsVisible ? (
             <section className="panel">
