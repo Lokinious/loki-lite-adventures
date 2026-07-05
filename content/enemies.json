@@ -6,11 +6,27 @@
     "armorClass": 5,
     "movement": 4,
     "attacks": [
-      {
-        "name": "Rusty Stab",
-        "toHit": 2,
-        "damage": "1d4+1"
-      }
+      { "name": "Rusty Stab", "toHit": 2, "damage": "1d4+1" }
+    ]
+  },
+  {
+    "id": "goblin_archer",
+    "name": "Goblin Archer",
+    "health": 10,
+    "armorClass": 5,
+    "movement": 4,
+    "attacks": [
+      { "name": "Crooked Shot", "toHit": 3, "damage": "1d6+1" }
+    ]
+  },
+  {
+    "id": "goblin_shaman",
+    "name": "Goblin Shaman",
+    "health": 14,
+    "armorClass": 6,
+    "movement": 4,
+    "attacks": [
+      { "name": "Hex Bolt", "toHit": 4, "damage": "1d6+2" }
     ]
   },
   {
@@ -20,11 +36,17 @@
     "armorClass": 7,
     "movement": 4,
     "attacks": [
-      {
-        "name": "Jagged Cleaver",
-        "toHit": 4,
-        "damage": "1d6+2"
-      }
+      { "name": "Jagged Cleaver", "toHit": 4, "damage": "1d6+2" }
+    ]
+  },
+  {
+    "id": "goblin_king",
+    "name": "Goblin King",
+    "health": 30,
+    "armorClass": 8,
+    "movement": 4,
+    "attacks": [
+      { "name": "Royal Hack", "toHit": 6, "damage": "1d8+3" }
     ]
   },
   {
@@ -34,11 +56,47 @@
     "armorClass": 12,
     "movement": 6,
     "attacks": [
-      {
-        "name": "Bite",
-        "toHit": 4,
-        "damage": "1d6+2"
-      }
+      { "name": "Bite", "toHit": 4, "damage": "1d6+2" }
+    ]
+  },
+  {
+    "id": "dire_wolf",
+    "name": "Dire Wolf",
+    "health": 18,
+    "armorClass": 13,
+    "movement": 6,
+    "attacks": [
+      { "name": "Savage Bite", "toHit": 5, "damage": "1d8+2" }
+    ]
+  },
+  {
+    "id": "bear",
+    "name": "Bear",
+    "health": 24,
+    "armorClass": 13,
+    "movement": 5,
+    "attacks": [
+      { "name": "Maul", "toHit": 5, "damage": "1d8+3" }
+    ]
+  },
+  {
+    "id": "giant_spider",
+    "name": "Giant Spider",
+    "health": 16,
+    "armorClass": 13,
+    "movement": 6,
+    "attacks": [
+      { "name": "Venom Fangs", "toHit": 5, "damage": "1d6+3" }
+    ]
+  },
+  {
+    "id": "treant",
+    "name": "Treant",
+    "health": 34,
+    "armorClass": 15,
+    "movement": 3,
+    "attacks": [
+      { "name": "Crushing Branch", "toHit": 6, "damage": "1d10+3" }
     ]
   },
   {
@@ -48,11 +106,147 @@
     "armorClass": 13,
     "movement": 5,
     "attacks": [
-      {
-        "name": "Rusty Blade",
-        "toHit": 3,
-        "damage": "1d6+1"
-      }
+      { "name": "Rusty Blade", "toHit": 3, "damage": "1d6+1" }
+    ]
+  },
+  {
+    "id": "zombie",
+    "name": "Zombie",
+    "health": 14,
+    "armorClass": 10,
+    "movement": 3,
+    "attacks": [
+      { "name": "Rotting Slam", "toHit": 2, "damage": "1d6+1" }
+    ]
+  },
+  {
+    "id": "ghoul",
+    "name": "Ghoul",
+    "health": 16,
+    "armorClass": 12,
+    "movement": 5,
+    "attacks": [
+      { "name": "Claw", "toHit": 4, "damage": "1d6+2" }
+    ]
+  },
+  {
+    "id": "wraith",
+    "name": "Wraith",
+    "health": 18,
+    "armorClass": 14,
+    "movement": 6,
+    "attacks": [
+      { "name": "Soul Drain", "toHit": 5, "damage": "1d8+2" }
+    ]
+  },
+  {
+    "id": "vampire",
+    "name": "Vampire",
+    "health": 22,
+    "armorClass": 14,
+    "movement": 6,
+    "attacks": [
+      { "name": "Bloodletter", "toHit": 5, "damage": "1d8+2" }
+    ]
+  },
+  {
+    "id": "vampire_lord",
+    "name": "Vampire Lord",
+    "health": 30,
+    "armorClass": 15,
+    "movement": 6,
+    "attacks": [
+      { "name": "Night Throne Strike", "toHit": 6, "damage": "1d10+2" }
+    ]
+  },
+  {
+    "id": "lich",
+    "name": "Lich",
+    "health": 36,
+    "armorClass": 16,
+    "movement": 5,
+    "attacks": [
+      { "name": "Death Bolt", "toHit": 7, "damage": "1d10+4" }
+    ]
+  },
+  {
+    "id": "bandit",
+    "name": "Bandit",
+    "health": 12,
+    "armorClass": 11,
+    "movement": 5,
+    "attacks": [
+      { "name": "Short Blade", "toHit": 3, "damage": "1d6+1" }
+    ]
+  },
+  {
+    "id": "bandit_archer",
+    "name": "Bandit Archer",
+    "health": 11,
+    "armorClass": 11,
+    "movement": 5,
+    "attacks": [
+      { "name": "Quick Shot", "toHit": 4, "damage": "1d6+1" }
+    ]
+  },
+  {
+    "id": "bandit_captain",
+    "name": "Bandit Captain",
+    "health": 20,
+    "armorClass": 13,
+    "movement": 5,
+    "attacks": [
+      { "name": "Commanding Slash", "toHit": 5, "damage": "1d8+2" }
+    ]
+  },
+  {
+    "id": "assassin",
+    "name": "Assassin",
+    "health": 22,
+    "armorClass": 14,
+    "movement": 6,
+    "attacks": [
+      { "name": "Shadow Strike", "toHit": 6, "damage": "1d8+3" }
+    ]
+  },
+  {
+    "id": "cultist",
+    "name": "Cultist",
+    "health": 10,
+    "armorClass": 10,
+    "movement": 5,
+    "attacks": [
+      { "name": "Ritual Knife", "toHit": 3, "damage": "1d4+1" }
+    ]
+  },
+  {
+    "id": "warlock",
+    "name": "Warlock",
+    "health": 16,
+    "armorClass": 12,
+    "movement": 5,
+    "attacks": [
+      { "name": "Shadow Hex", "toHit": 5, "damage": "1d8+1" }
+    ]
+  },
+  {
+    "id": "summoner",
+    "name": "Summoner",
+    "health": 18,
+    "armorClass": 12,
+    "movement": 5,
+    "attacks": [
+      { "name": "Void Lash", "toHit": 5, "damage": "1d8+2" }
+    ]
+  },
+  {
+    "id": "void_mage",
+    "name": "Void Mage",
+    "health": 28,
+    "armorClass": 14,
+    "movement": 5,
+    "attacks": [
+      { "name": "Rift Burst", "toHit": 6, "damage": "1d10+3" }
     ]
   }
 ]

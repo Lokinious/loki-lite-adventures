@@ -1,0 +1,43 @@
+{
+  "id": "bandit",
+  "name": "Bandit Content Pack",
+  "theme": "Bandit",
+  "enemies": ["bandit", "bandit_archer", "bandit_captain", "assassin"],
+  "encounterTemplates": [
+    { "id": "bandit_easy", "name": "Roadside Cutters", "difficulty": "easy", "theme": "Bandit", "enemyIds": ["bandit", "bandit"], "rewardSuggestion": "Coin purses and stolen packs." },
+    { "id": "bandit_medium", "name": "Captain's Ambush", "difficulty": "medium", "theme": "Bandit", "enemyIds": ["bandit_captain", "bandit", "bandit"], "rewardSuggestion": "A map to the hideout and seized goods." },
+    { "id": "bandit_boss", "name": "Assassin Leader", "difficulty": "boss", "theme": "Bandit", "enemyIds": ["assassin"], "rewardSuggestion": "A coded ledger and bounty purse." }
+  ],
+  "adventureTemplates": [
+    {
+      "id": "bandit_ambush",
+      "name": "Bandit Ambush",
+      "theme": "Bandit",
+      "maps": { "starting": "road", "adventure": "bandit_hideout", "boss": "leader_camp", "camp": "camp" },
+      "spawnSlots": {
+        "P1": { "x": 1, "y": 1 },
+        "P2": { "x": 2, "y": 1 },
+        "P3": { "x": 3, "y": 1 },
+        "P4": { "x": 1, "y": 2 },
+        "P5": { "x": 2, "y": 2 },
+        "P6": { "x": 3, "y": 2 }
+      },
+      "encounters": [
+        { "templateId": "bandit_easy", "mapKey": "adventure", "x": 4, "y": 2, "note": "Bandits emerge from the hideout edge." },
+        { "templateId": "bandit_boss", "mapKey": "boss", "x": 5, "y": 2, "note": "The leader waits near the fires." }
+      ],
+      "npcs": [
+        { "presetId": "guard", "mapKey": "starting", "x": 2, "y": 2, "name": "Road Warden Hale" }
+      ],
+      "shops": [
+        { "templateId": "blacksmith", "mapKey": "camp", "x": 3, "y": 2, "name": "Field Armorer", "npcPresetId": "merchant" }
+      ],
+      "quests": [
+        { "title": "Break the Bandit Ring", "objective": "Trace the raiders to their camp and take down the leader.", "rewardGold": 22 }
+      ],
+      "secrets": [
+        { "mapKey": "adventure", "x": 6, "y": 3, "checkType": "investigation", "dc": 13, "description": "A hidden crate of confiscated supplies lies under canvas.", "name": "Hidden Loot Crate" }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,86 @@
+{
+  "id": "core",
+  "name": "Core Adventure Tools",
+  "theme": "General",
+  "npcPresets": [
+    {
+      "id": "merchant",
+      "name": "Merchant",
+      "role": "merchant",
+      "personality": "Warm, practical, and alert for deals.",
+      "publicDescription": "A traveling merchant watches the party with a practiced smile.",
+      "dialoguePrompt": "Ask about prices, gossip, or local rumors.",
+      "questHooks": "Needs guards, delivery help, or a stolen crate recovered."
+    },
+    {
+      "id": "guard",
+      "name": "Guard",
+      "role": "guard",
+      "personality": "Disciplined, skeptical, and duty-bound.",
+      "publicDescription": "A town guard keeps a hand near their weapon.",
+      "dialoguePrompt": "Ask about patrol routes, recent trouble, or local law.",
+      "questHooks": "Needs help chasing raiders or securing a dangerous road."
+    },
+    {
+      "id": "innkeeper",
+      "name": "Innkeeper",
+      "role": "innkeeper",
+      "personality": "Friendly, curious, and quick with names.",
+      "publicDescription": "An innkeeper polishes mugs while watching the common room.",
+      "dialoguePrompt": "Ask about guests, rumors, or spare rooms.",
+      "questHooks": "Has heard rumors of hidden treasure or missing travelers."
+    },
+    {
+      "id": "priest",
+      "name": "Priest",
+      "role": "priest",
+      "personality": "Patient, solemn, and reassuring.",
+      "publicDescription": "A priest tends candles and speaks in a calming tone.",
+      "dialoguePrompt": "Ask about blessings, burial rites, or local omens.",
+      "questHooks": "Needs relics recovered or restless dead laid to rest."
+    },
+    {
+      "id": "noble",
+      "name": "Noble",
+      "role": "noble",
+      "personality": "Refined, guarded, and demanding.",
+      "publicDescription": "A noble studies the room with a cool, measured gaze.",
+      "dialoguePrompt": "Ask about politics, patronage, or family feuds.",
+      "questHooks": "Needs discreet help solving a scandal or protecting an heir."
+    },
+    {
+      "id": "criminal",
+      "name": "Criminal",
+      "role": "criminal",
+      "personality": "Shifty, sharp, and always bargaining.",
+      "publicDescription": "A hooded fixer lingers where the light is weakest.",
+      "dialoguePrompt": "Ask about contraband, rumors, or hidden entrances.",
+      "questHooks": "Knows about smuggling routes, stolen goods, or ambush plans."
+    },
+    {
+      "id": "scholar",
+      "name": "Scholar",
+      "role": "scholar",
+      "personality": "Distracted, brilliant, and eager to explain.",
+      "publicDescription": "A scholar clutches notes covered in urgent markings.",
+      "dialoguePrompt": "Ask about ruins, symbols, or old records.",
+      "questHooks": "Needs escorts to ruins or rare tomes retrieved."
+    },
+    {
+      "id": "hunter",
+      "name": "Hunter",
+      "role": "hunter",
+      "personality": "Quiet, observant, and weathered by the wilds.",
+      "publicDescription": "A hunter watches the treeline for the slightest movement.",
+      "dialoguePrompt": "Ask about tracks, beasts, or hidden trails.",
+      "questHooks": "Needs help following predators or scouting a dangerous forest."
+    }
+  ],
+  "shopTemplates": [
+    { "id": "general_store", "name": "General Store", "itemIds": ["rope", "torch", "rations", "bedroll"] },
+    { "id": "blacksmith", "name": "Blacksmith", "itemIds": ["iron_sword", "shield", "leather_armor", "chain_armor"] },
+    { "id": "alchemist", "name": "Alchemist", "itemIds": ["healing_potion", "antidote", "mana_potion"] },
+    { "id": "magic_vendor", "name": "Magic Vendor", "itemIds": ["scroll_bundle", "oak_wand", "arcane_components"] },
+    { "id": "camp_merchant", "name": "Camp Merchant", "itemIds": ["camp_supplies", "trail_food", "travel_gear"] }
+  ]
+}

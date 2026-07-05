@@ -20,6 +20,7 @@ import type {
   SkillCheckType,
   SkillCheckVisibility,
   SkillCheckView,
+  SpawnSlotId,
   TimeOfDay,
   WeatherType,
   WorldEntityType,
@@ -764,7 +765,7 @@ export function DmWorldToolsPanel({ lobby, onRunTool }: DmWorldToolsPanelProps) 
   const [entityType, setEntityType] = useState<WorldEntityType>("npc");
   const [entityX, setEntityX] = useState("1");
   const [entityY, setEntityY] = useState("1");
-  const [spawnPlayerId, setSpawnPlayerId] = useState("");
+  const [spawnSlotId, setSpawnSlotId] = useState<SpawnSlotId>("P1");
   const [spawnX, setSpawnX] = useState("1");
   const [spawnY, setSpawnY] = useState("1");
   const [playerStatus, setPlayerStatus] = useState("alive");
@@ -789,6 +790,7 @@ export function DmWorldToolsPanel({ lobby, onRunTool }: DmWorldToolsPanelProps) 
   const [encounterX, setEncounterX] = useState("4");
   const [encounterY, setEncounterY] = useState("2");
   const [templateName, setTemplateName] = useState("Prepared Expedition");
+  const [adventureTemplateId, setAdventureTemplateId] = useState(lobby.adventureTemplates[0]?.id ?? "goblin_cave");
   const [sessionNote, setSessionNote] = useState("");
   const [checkType, setCheckType] = useState<SkillCheckType>("insight");
   const [checkDc, setCheckDc] = useState("14");
@@ -1043,6 +1045,12 @@ export function DmWorldToolsPanel({ lobby, onRunTool }: DmWorldToolsPanelProps) 
             </select>
             <button type="button" data-testid="dm-load-template" onClick={() => onRunTool({ tool: "loadTemplate", templateName })}>Load Template</button>
           </div>
+          <div className="button-row">
+            <select data-testid="dm-adventure-template-select" value={adventureTemplateId} onChange={(event) => setAdventureTemplateId(event.target.value)}>
+              {lobby.adventureTemplates.length ? lobby.adventureTemplates.map((template) => <option key={template.id} value={template.id}>{template.name}</option>) : <option value={templateName}>{templateName}</option>}
+            </select>
+            <button type="button" data-testid="dm-apply-adventure-template" onClick={() => onRunTool({ tool: "applyAdventureTemplate", adventureTemplateId })}>Load Adventure Template</button>
+          </div>
           <label className="field">
             <span>Campaign difficulty</span>
             <select data-testid="dm-campaign-difficulty" value={lobby.campaignDifficulty} onChange={(event) => onRunTool({ tool: "setCampaignDifficulty", difficulty: event.target.value })}>
@@ -1073,10 +1081,9 @@ export function DmWorldToolsPanel({ lobby, onRunTool }: DmWorldToolsPanelProps) 
         <div className="player-list">
           <div className="two-column-grid">
             <label className="field">
-              <span>Player</span>
-              <select data-testid="dm-player-spawn-select" value={spawnPlayerId} onChange={(event) => setSpawnPlayerId(event.target.value)}>
-                <option value="">Choose player</option>
-                {lobby.players.map((player) => <option key={player.id} value={player.id}>{player.name}</option>)}
+              <span>Spawn slot</span>
+              <select data-testid="dm-player-spawn-select" value={spawnSlotId} onChange={(event) => setSpawnSlotId(event.target.value as SpawnSlotId)}>
+                {(["P1", "P2", "P3", "P4", "P5", "P6"] as const).map((slotId) => <option key={slotId} value={slotId}>{slotId}</option>)}
               </select>
             </label>
             <label className="field">
@@ -1094,7 +1101,7 @@ export function DmWorldToolsPanel({ lobby, onRunTool }: DmWorldToolsPanelProps) 
               <input data-testid="dm-player-spawn-y" value={spawnY} onChange={(event) => setSpawnY(event.target.value)} />
             </label>
           </div>
-          <button type="button" data-testid="dm-save-player-spawn" onClick={() => onRunTool({ tool: "setPlayerSpawn", playerId: spawnPlayerId, mapKey: selectedMapKey, x: Number(spawnX), y: Number(spawnY) })}>Save Spawn</button>
+          <button type="button" data-testid="dm-save-player-spawn" onClick={() => onRunTool({ tool: "setPlayerSpawn", spawnSlotId, mapKey: selectedMapKey, x: Number(spawnX), y: Number(spawnY) })}>Save Spawn</button>
           <div className="button-row">
             <select data-testid="dm-player-status" value={playerStatus} onChange={(event) => setPlayerStatus(event.target.value)}>
               <option value="alive">Alive</option>
@@ -1102,8 +1109,20 @@ export function DmWorldToolsPanel({ lobby, onRunTool }: DmWorldToolsPanelProps) 
               <option value="dead">Dead</option>
               <option value="permanentlyDead">Permanently Dead</option>
             </select>
-            <button type="button" data-testid="dm-set-player-status" onClick={() => onRunTool({ tool: "setPlayerStatus", playerId: spawnPlayerId, status: playerStatus })}>Apply Status</button>
+            <button type="button" data-testid="dm-set-player-status" onClick={() => lobby.players[0] && onRunTool({ tool: "setPlayerStatus", playerId: lobby.players[0].id, status: playerStatus })}>Apply Status</button>
           </div>
+          {lobby.preparationSpawns.map((spawn) => (
+            <article key={spawn.slotId} className="player-card" data-testid={`dm-spawn-slot-${spawn.slotId}`}>
+              <div>
+                <strong>{spawn.slotId}</strong>
+                <p>{spawn.assignedPlayerName ?? "Unassigned"}</p>
+              </div>
+              <div className="player-stats">
+                <span>X {spawn.x + 1}</span>
+                <span>Y {spawn.y + 1}</span>
+              </div>
+            </article>
+          ))}
           {lobby.players.map((player) => (
             <article key={player.id} className="player-card" data-testid={`dm-player-prep-${player.id}`}>
               <div>

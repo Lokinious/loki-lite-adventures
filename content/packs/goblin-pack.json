@@ -1,0 +1,46 @@
+{
+  "id": "goblin",
+  "name": "Goblin Content Pack",
+  "theme": "Goblin",
+  "enemies": ["goblin", "goblin_archer", "goblin_shaman", "goblin_chief", "goblin_king"],
+  "encounterTemplates": [
+    { "id": "goblin_easy", "name": "Easy Goblin Patrol", "difficulty": "easy", "theme": "Goblin", "enemyIds": ["goblin", "goblin"], "rewardSuggestion": "Coins and scavenged tools." },
+    { "id": "goblin_medium", "name": "Goblin Ambush", "difficulty": "medium", "theme": "Goblin", "enemyIds": ["goblin", "goblin", "goblin_archer"], "rewardSuggestion": "Arrows, traps, and map scraps." },
+    { "id": "goblin_hard", "name": "Chief's Warband", "difficulty": "hard", "theme": "Goblin", "enemyIds": ["goblin_chief", "goblin", "goblin"], "rewardSuggestion": "A locked chest and stolen trade bars." },
+    { "id": "goblin_boss", "name": "Goblin King", "difficulty": "boss", "theme": "Goblin", "enemyIds": ["goblin_king"], "rewardSuggestion": "Boss hoard and captured supplies." }
+  ],
+  "adventureTemplates": [
+    {
+      "id": "goblin_cave",
+      "name": "Goblin Cave",
+      "theme": "Goblin",
+      "maps": { "starting": "tavern", "adventure": "forest", "boss": "goblin_camp", "camp": "camp" },
+      "spawnSlots": {
+        "P1": { "x": 1, "y": 1 },
+        "P2": { "x": 2, "y": 1 },
+        "P3": { "x": 3, "y": 1 },
+        "P4": { "x": 1, "y": 2 },
+        "P5": { "x": 2, "y": 2 },
+        "P6": { "x": 3, "y": 2 }
+      },
+      "encounters": [
+        { "templateId": "goblin_medium", "mapKey": "adventure", "x": 4, "y": 2, "note": "Ambush on the forest road." },
+        { "templateId": "goblin_boss", "mapKey": "boss", "x": 5, "y": 2, "note": "The goblin king holds the inner cave." }
+      ],
+      "npcs": [
+        { "presetId": "innkeeper", "mapKey": "starting", "x": 2, "y": 2, "name": "Mara the Innkeeper" },
+        { "presetId": "hunter", "mapKey": "camp", "x": 2, "y": 2, "name": "Tern the Scout" }
+      ],
+      "shops": [
+        { "templateId": "general_store", "mapKey": "starting", "x": 3, "y": 2, "name": "Wayfarer Supplies", "npcPresetId": "merchant" },
+        { "templateId": "camp_merchant", "mapKey": "camp", "x": 4, "y": 2, "name": "Camp Provisioner", "npcPresetId": "merchant" }
+      ],
+      "quests": [
+        { "title": "Drive Out the Goblins", "objective": "Clear the forest road and defeat the goblin king.", "rewardGold": 20 }
+      ],
+      "secrets": [
+        { "mapKey": "adventure", "x": 6, "y": 3, "checkType": "investigation", "dc": 12, "description": "A stash of stolen satchels is tucked beneath the roots.", "name": "Smuggled Cache" }
+      ]
+    }
+  ]
+}

@@ -5,12 +5,14 @@ export type CampaignDifficulty = "casual" | "hardcore" | "legendary";
 export type MapSlotKey = "starting" | "adventure" | "boss" | "camp";
 export type PlayerLifeStatus = "alive" | "downed" | "dead" | "permanentlyDead";
 export type VisibilityState = "hidden" | "visible" | "revealed" | "dm_only";
+export type SpawnSlotId = "P1" | "P2" | "P3" | "P4" | "P5" | "P6";
 export type TriggerType = "enter_area" | "interact_object" | "encounter_completed" | "skill_check_succeeded" | "map_changed";
 export type DynamicEventKind = "ambush" | "trap" | "discovery" | "dialogue_reveal" | "quest_update" | "map_transition" | "reward_event";
 export type TimeOfDay = "morning" | "afternoon" | "evening" | "night";
 export type WeatherType = "clear" | "rain" | "fog" | "storm" | "snow";
 export type FactionId = "town_guard" | "bandits" | "merchants_guild" | "arcane_circle";
 export type PreparationAssetType = "player_spawn" | "npc" | "shop" | "encounter" | "secret" | "object";
+export type EncounterDifficulty = "easy" | "medium" | "hard" | "boss" | "epic";
 
 export type WorldEntityType =
   | "npc"
@@ -262,8 +264,9 @@ export type CharacterProfileView = {
 };
 
 export type PreparationSpawnView = {
-  playerId: string;
-  playerName: string;
+  slotId: SpawnSlotId;
+  assignedPlayerId?: string;
+  assignedPlayerName?: string;
   x: number;
   y: number;
 };
@@ -276,6 +279,50 @@ export type PreparationEncounterView = {
   enemyCount: number;
   active: boolean;
   notes: string;
+};
+
+export type ContentPackView = {
+  id: string;
+  name: string;
+  theme: string;
+  encounterCount: number;
+  shopTemplateCount: number;
+  npcPresetCount: number;
+  adventureTemplateCount: number;
+};
+
+export type EncounterTemplateView = {
+  id: string;
+  name: string;
+  theme: string;
+  difficulty: EncounterDifficulty;
+  enemyNames: string[];
+  rewardSuggestion: string;
+};
+
+export type ShopTemplateView = {
+  id: string;
+  name: string;
+  itemNames: string[];
+};
+
+export type NpcPresetView = {
+  id: string;
+  name: string;
+  role: string;
+  personality: string;
+  dialoguePrompt: string;
+  questHooks: string;
+};
+
+export type AdventureTemplateView = {
+  id: string;
+  name: string;
+  theme: string;
+  startingMapName: string;
+  adventureMapName: string;
+  bossMapName: string;
+  campMapName: string;
 };
 
 export type SessionTemplateView = {
@@ -429,6 +476,11 @@ export type LobbyView = {
   weather: WeatherType;
   currentMapKey: MapSlotKey;
   sessionMaps: SessionMapView[];
+  contentPacks: ContentPackView[];
+  encounterTemplates: EncounterTemplateView[];
+  shopTemplates: ShopTemplateView[];
+  npcPresets: NpcPresetView[];
+  adventureTemplates: AdventureTemplateView[];
   preparationSpawns: PreparationSpawnView[];
   preparationEncounters: PreparationEncounterView[];
   fogAreas: FogAreaView[];

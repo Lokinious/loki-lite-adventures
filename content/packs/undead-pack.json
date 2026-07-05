@@ -1,0 +1,45 @@
+{
+  "id": "undead",
+  "name": "Undead Content Pack",
+  "theme": "Undead",
+  "enemies": ["zombie", "skeleton", "ghoul", "wraith", "vampire", "vampire_lord", "lich"],
+  "encounterTemplates": [
+    { "id": "undead_easy", "name": "Restless Dead", "difficulty": "easy", "theme": "Undead", "enemyIds": ["zombie", "zombie"], "rewardSuggestion": "Burial charms and grave goods." },
+    { "id": "undead_medium", "name": "Crypt Pack", "difficulty": "medium", "theme": "Undead", "enemyIds": ["zombie", "skeleton", "ghoul"], "rewardSuggestion": "Bone relics and rusted keys." },
+    { "id": "undead_hard", "name": "Night Court", "difficulty": "hard", "theme": "Undead", "enemyIds": ["vampire", "skeleton", "skeleton"], "rewardSuggestion": "Fine jewelry and cursed coin." },
+    { "id": "undead_boss", "name": "Vampire Lord", "difficulty": "boss", "theme": "Undead", "enemyIds": ["vampire_lord"], "rewardSuggestion": "A noble signet and bloodstone." },
+    { "id": "undead_epic", "name": "Lich Ascendant", "difficulty": "epic", "theme": "Undead", "enemyIds": ["lich"], "rewardSuggestion": "Ancient tomes and a soul vessel." }
+  ],
+  "adventureTemplates": [
+    {
+      "id": "haunted_crypt",
+      "name": "Haunted Crypt",
+      "theme": "Undead",
+      "maps": { "starting": "graveyard", "adventure": "crypt", "boss": "necromancer_chamber", "camp": "camp" },
+      "spawnSlots": {
+        "P1": { "x": 1, "y": 1 },
+        "P2": { "x": 2, "y": 1 },
+        "P3": { "x": 3, "y": 1 },
+        "P4": { "x": 1, "y": 2 },
+        "P5": { "x": 2, "y": 2 },
+        "P6": { "x": 3, "y": 2 }
+      },
+      "encounters": [
+        { "templateId": "undead_medium", "mapKey": "adventure", "x": 4, "y": 2, "note": "A wave of undead rises from the crypt." },
+        { "templateId": "undead_boss", "mapKey": "boss", "x": 5, "y": 2, "note": "The crypt master awakens." }
+      ],
+      "npcs": [
+        { "presetId": "priest", "mapKey": "starting", "x": 2, "y": 2, "name": "Father Elric" }
+      ],
+      "shops": [
+        { "templateId": "alchemist", "mapKey": "camp", "x": 3, "y": 2, "name": "Night Remedy Cart", "npcPresetId": "merchant" }
+      ],
+      "quests": [
+        { "title": "Lay the Crypt to Rest", "objective": "Push through the crypt and defeat the undead master.", "rewardGold": 24 }
+      ],
+      "secrets": [
+        { "mapKey": "adventure", "x": 6, "y": 2, "checkType": "perception", "dc": 12, "description": "A loose sarcophagus reveals a hidden reliquary.", "name": "Hidden Reliquary" }
+      ]
+    }
+  ]
+}

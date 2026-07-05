@@ -1,0 +1,43 @@
+{
+  "id": "vampire",
+  "name": "Vampire Content Pack",
+  "theme": "Vampire",
+  "enemies": ["wraith", "vampire", "vampire_lord"],
+  "encounterTemplates": [
+    { "id": "vampire_easy", "name": "Night Stalkers", "difficulty": "easy", "theme": "Vampire", "enemyIds": ["wraith", "wraith"], "rewardSuggestion": "Cold silver and funeral rings." },
+    { "id": "vampire_medium", "name": "Crimson Retinue", "difficulty": "medium", "theme": "Vampire", "enemyIds": ["vampire", "wraith"], "rewardSuggestion": "Fine wine, blood seals, and velvet cloaks." },
+    { "id": "vampire_boss", "name": "Vampire Lord", "difficulty": "boss", "theme": "Vampire", "enemyIds": ["vampire_lord"], "rewardSuggestion": "A noble cache and dark heirlooms." }
+  ],
+  "adventureTemplates": [
+    {
+      "id": "vampire_manor",
+      "name": "Vampire Manor",
+      "theme": "Vampire",
+      "maps": { "starting": "village", "adventure": "manor_grounds", "boss": "throne_room", "camp": "camp" },
+      "spawnSlots": {
+        "P1": { "x": 1, "y": 1 },
+        "P2": { "x": 2, "y": 1 },
+        "P3": { "x": 3, "y": 1 },
+        "P4": { "x": 1, "y": 2 },
+        "P5": { "x": 2, "y": 2 },
+        "P6": { "x": 3, "y": 2 }
+      },
+      "encounters": [
+        { "templateId": "vampire_medium", "mapKey": "adventure", "x": 4, "y": 2, "note": "The manor grounds stir with hungry spirits." },
+        { "templateId": "vampire_boss", "mapKey": "boss", "x": 5, "y": 2, "note": "The lord rises from the throne." }
+      ],
+      "npcs": [
+        { "presetId": "noble", "mapKey": "starting", "x": 2, "y": 2, "name": "Lady Corven" }
+      ],
+      "shops": [
+        { "templateId": "magic_vendor", "mapKey": "camp", "x": 3, "y": 2, "name": "Silver Ward Vendor", "npcPresetId": "merchant" }
+      ],
+      "quests": [
+        { "title": "Break the Manor's Curse", "objective": "Survive the grounds and slay the vampire lord.", "rewardGold": 26 }
+      ],
+      "secrets": [
+        { "mapKey": "adventure", "x": 6, "y": 2, "checkType": "perception", "dc": 12, "description": "A servant passage opens behind the ivy and leads past the guards.", "name": "Servant Passage" }
+      ]
+    }
+  ]
+}

@@ -1,30 +1,15 @@
 [
-  {
-    "id": "tavern",
-    "name": "Wayfarer's Rest",
-    "width": 12,
-    "height": 10,
-    "fogOfWar": false
-  },
-  {
-    "id": "forest",
-    "name": "Forest Road",
-    "width": 10,
-    "height": 8,
-    "fogOfWar": true
-  },
-  {
-    "id": "goblin_camp",
-    "name": "Goblin Camp",
-    "width": 10,
-    "height": 8,
-    "fogOfWar": false
-  },
-  {
-    "id": "camp",
-    "name": "Camp",
-    "width": 12,
-    "height": 8,
-    "fogOfWar": false
-  }
+  { "id": "tavern", "name": "Wayfarer's Rest", "width": 12, "height": 10, "fogOfWar": false },
+  { "id": "forest", "name": "Forest Road", "width": 10, "height": 8, "fogOfWar": true },
+  { "id": "goblin_camp", "name": "Goblin Camp", "width": 10, "height": 8, "fogOfWar": false },
+  { "id": "camp", "name": "Camp", "width": 12, "height": 8, "fogOfWar": false },
+  { "id": "graveyard", "name": "Graveyard", "width": 12, "height": 8, "fogOfWar": true },
+  { "id": "crypt", "name": "Haunted Crypt", "width": 10, "height": 8, "fogOfWar": true },
+  { "id": "necromancer_chamber", "name": "Necromancer Chamber", "width": 10, "height": 8, "fogOfWar": false },
+  { "id": "road", "name": "Old Road", "width": 12, "height": 8, "fogOfWar": false },
+  { "id": "bandit_hideout", "name": "Bandit Hideout", "width": 10, "height": 8, "fogOfWar": true },
+  { "id": "leader_camp", "name": "Leader Camp", "width": 10, "height": 8, "fogOfWar": false },
+  { "id": "village", "name": "Village Square", "width": 12, "height": 8, "fogOfWar": false },
+  { "id": "manor_grounds", "name": "Manor Grounds", "width": 10, "height": 8, "fogOfWar": true },
+  { "id": "throne_room", "name": "Throne Room", "width": 10, "height": 8, "fogOfWar": false }
 ]

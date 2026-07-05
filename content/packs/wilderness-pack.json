@@ -1,0 +1,11 @@
+{
+  "id": "wilderness",
+  "name": "Wilderness Content Pack",
+  "theme": "Wilderness",
+  "enemies": ["wolf", "dire_wolf", "bear", "giant_spider", "treant"],
+  "encounterTemplates": [
+    { "id": "wilderness_easy", "name": "Wolf Pair", "difficulty": "easy", "theme": "Wilderness", "enemyIds": ["wolf", "wolf"], "rewardSuggestion": "Pelts and fresh tracks." },
+    { "id": "wilderness_medium", "name": "Dire Pack", "difficulty": "medium", "theme": "Wilderness", "enemyIds": ["dire_wolf", "wolf", "wolf"], "rewardSuggestion": "Rare herbs and a hunter's satchel." },
+    { "id": "wilderness_boss", "name": "Awakened Treant", "difficulty": "boss", "theme": "Wilderness", "enemyIds": ["treant"], "rewardSuggestion": "Living bark and old druidic tokens." }
+  ]
+}

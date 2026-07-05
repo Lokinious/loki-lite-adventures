@@ -4,12 +4,14 @@ import type {
   AutomationEffectType,
   CampaignDifficulty,
   DynamicEventKind,
+  EncounterDifficulty,
   FactionId,
   JoinMode,
   JoinRole,
   LobbyView,
   MapSlotKey,
   PreparationAssetType,
+  SpawnSlotId,
   SkillCheckType,
   SkillCheckVisibility,
   TimeOfDay,
@@ -49,6 +51,7 @@ type DmToolMessage = {
   tool:
     | "setMap"
     | "setMapDefinition"
+    | "applyAdventureTemplate"
     | "placePreparationAsset"
     | "setPlayerSpawn"
     | "setPlayerStatus"
@@ -91,6 +94,7 @@ type DmToolMessage = {
     | "generateSecret";
   entityType?: WorldEntityType;
   assetType?: PreparationAssetType;
+  spawnSlotId?: SpawnSlotId;
   entityId?: string;
   npcId?: string;
   shopId?: string;
@@ -171,6 +175,12 @@ type DmToolMessage = {
   encounterId?: string;
   enemyId?: string;
   enemyIds?: string[];
+  encounterTemplateId?: string;
+  encounterDifficulty?: EncounterDifficulty;
+  encounterTheme?: string;
+  shopTemplateId?: string;
+  npcPresetId?: string;
+  adventureTemplateId?: string;
   difficulty?: CampaignDifficulty;
 };
 
@@ -420,6 +430,7 @@ export function RoomConnectionProvider({ children }: { children: React.ReactNode
         sceneAction(actionId: string): void;
         runDmTool(message: DmToolMessage): void;
         runDmCommand(command: string): void;
+        getLobbySnapshot(): LobbyView | null;
       };
     };
 
@@ -441,13 +452,14 @@ export function RoomConnectionProvider({ children }: { children: React.ReactNode
       useCampService,
       sceneAction,
       runDmTool,
-      runDmCommand
+      runDmCommand,
+      getLobbySnapshot: () => lobby
     };
 
     return () => {
       delete debugWindow.__lokiDebug;
     };
-  }, [attack, confirmCharacter, endTurn, equipItem, interactEntity, move, purchase, purchaseFromShop, rollSkillCheck, runDmCommand, runDmTool, sceneAction, selectClass, selectProfile, selectRace, useAbility, useCampService, useItem]);
+  }, [attack, confirmCharacter, endTurn, equipItem, interactEntity, lobby, move, purchase, purchaseFromShop, rollSkillCheck, runDmCommand, runDmTool, sceneAction, selectClass, selectProfile, selectRace, useAbility, useCampService, useItem]);
 
   const value = useMemo<RoomConnectionContextValue>(
     () => ({

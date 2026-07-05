@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import type {
+  EncounterDifficulty,
   LobbyView,
   MapSlotKey,
   PreparationAssetType,
+  SpawnSlotId,
   VisibilityState,
   WorldEntityType
 } from "../game/types";
@@ -10,10 +12,17 @@ import type {
 type DmToolMessage = {
   tool: string;
   mapKey?: MapSlotKey;
+  spawnSlotId?: SpawnSlotId;
   assetType?: PreparationAssetType;
   playerId?: string;
   entityId?: string;
   entityType?: WorldEntityType;
+  encounterTemplateId?: string;
+  encounterTheme?: string;
+  encounterDifficulty?: EncounterDifficulty;
+  shopTemplateId?: string;
+  npcPresetId?: string;
+  adventureTemplateId?: string;
   visibilityState?: VisibilityState;
   visibleToPlayers?: boolean;
   note?: string;
@@ -50,6 +59,8 @@ const objectPlacementOptions: WorldEntityType[] = [
 ];
 
 const visibilityOptions: VisibilityState[] = ["hidden", "visible", "revealed", "dm_only"];
+const spawnSlotIds: SpawnSlotId[] = ["P1", "P2", "P3", "P4", "P5", "P6"];
+const encounterDifficultyOptions: EncounterDifficulty[] = ["easy", "medium", "hard", "boss", "epic"];
 
 function titleCase(value: string) {
   return value
@@ -73,27 +84,71 @@ function markerVariantForEntity(type: WorldEntityType) {
 
 export function PreparationCanvas({ lobby, onRunTool }: PreparationCanvasProps) {
   const [activeTool, setActiveTool] = useState<PlacementTool>("inspect");
-  const [selectedPlayerId, setSelectedPlayerId] = useState(lobby.players[0]?.id ?? "");
+  const [selectedSpawnSlot, setSelectedSpawnSlot] = useState<SpawnSlotId>("P1");
   const [objectEntityType, setObjectEntityType] = useState<WorldEntityType>("chest");
+  const [selectedNpcPresetId, setSelectedNpcPresetId] = useState(lobby.npcPresets[0]?.id ?? "merchant");
+  const [selectedShopTemplateId, setSelectedShopTemplateId] = useState(lobby.shopTemplates[0]?.id ?? "general_store");
+  const [selectedAdventureTemplateId, setSelectedAdventureTemplateId] = useState(lobby.adventureTemplates[0]?.id ?? "goblin_cave");
+  const [encounterTheme, setEncounterTheme] = useState(lobby.encounterTemplates[0]?.theme ?? "Goblin");
+  const [encounterDifficulty, setEncounterDifficulty] = useState<EncounterDifficulty>(lobby.encounterTemplates[0]?.difficulty ?? "easy");
   const [selection, setSelection] = useState<Selection>(null);
   const [entityVisibility, setEntityVisibility] = useState<VisibilityState>("visible");
   const [entityNotes, setEntityNotes] = useState("");
 
   useEffect(() => {
-    if (!lobby.players.some((player) => player.id === selectedPlayerId)) {
-      setSelectedPlayerId(lobby.players[0]?.id ?? "");
+    if (!lobby.npcPresets.some((preset) => preset.id === selectedNpcPresetId)) {
+      setSelectedNpcPresetId(lobby.npcPresets[0]?.id ?? "merchant");
     }
-  }, [lobby.players, selectedPlayerId]);
+  }, [lobby.npcPresets, selectedNpcPresetId]);
+
+  useEffect(() => {
+    if (!lobby.shopTemplates.some((template) => template.id === selectedShopTemplateId)) {
+      setSelectedShopTemplateId(lobby.shopTemplates[0]?.id ?? "general_store");
+    }
+  }, [lobby.shopTemplates, selectedShopTemplateId]);
+
+  useEffect(() => {
+    if (!lobby.adventureTemplates.some((template) => template.id === selectedAdventureTemplateId)) {
+      setSelectedAdventureTemplateId(lobby.adventureTemplates[0]?.id ?? "goblin_cave");
+    }
+  }, [lobby.adventureTemplates, selectedAdventureTemplateId]);
+
+  useEffect(() => {
+    if (!lobby.encounterTemplates.some((template) => template.theme === encounterTheme)) {
+      setEncounterTheme(lobby.encounterTemplates[0]?.theme ?? "Goblin");
+    }
+  }, [encounterTheme, lobby.encounterTemplates]);
+
+  useEffect(() => {
+    if (!lobby.encounterTemplates.some((template) => template.theme === encounterTheme && template.difficulty === encounterDifficulty)) {
+      setEncounterDifficulty(
+        lobby.encounterTemplates.find((template) => template.theme === encounterTheme)?.difficulty ??
+          lobby.encounterTemplates[0]?.difficulty ??
+          "easy"
+      );
+    }
+  }, [encounterDifficulty, encounterTheme, lobby.encounterTemplates]);
 
   const currentSessionMap = useMemo(
     () => lobby.sessionMaps.find((map) => map.key === lobby.currentMapKey) ?? lobby.sessionMaps[0] ?? null,
     [lobby.currentMapKey, lobby.sessionMaps]
   );
+  const encounterThemes = useMemo(
+    () => [...new Set(lobby.encounterTemplates.map((template) => template.theme))],
+    [lobby.encounterTemplates]
+  );
+  const matchingEncounterTemplates = useMemo(
+    () =>
+      lobby.encounterTemplates.filter(
+        (template) => template.theme === encounterTheme && template.difficulty === encounterDifficulty
+      ),
+    [encounterDifficulty, encounterTheme, lobby.encounterTemplates]
+  );
 
   const selectedEntity =
     selection?.kind === "entity" ? lobby.worldEntities.find((entity) => entity.id === selection.id) ?? null : null;
   const selectedSpawn =
-    selection?.kind === "spawn" ? lobby.preparationSpawns.find((spawn) => spawn.playerId === selection.id) ?? null : null;
+    selection?.kind === "spawn" ? lobby.preparationSpawns.find((spawn) => spawn.slotId === selection.id) ?? null : null;
   const selectedEncounter =
     selection?.kind === "encounter"
       ? lobby.preparationEncounters.find((encounter) => encounter.id === selection.id) ?? null
@@ -140,10 +195,10 @@ export function PreparationCanvas({ lobby, onRunTool }: PreparationCanvasProps) 
 
     for (const spawn of lobby.preparationSpawns) {
       appendMarker(spawn.x, spawn.y, {
-        key: `spawn-${spawn.playerId}`,
+        key: `spawn-${spawn.slotId}`,
         kind: "spawn",
-        id: spawn.playerId,
-        label: spawn.playerName.slice(0, 2).toUpperCase(),
+        id: spawn.slotId,
+        label: spawn.slotId,
         variant: "spawn"
       });
     }
@@ -177,6 +232,10 @@ export function PreparationCanvas({ lobby, onRunTool }: PreparationCanvasProps) 
     onRunTool({ tool: "setMap", mapKey });
   }
 
+  function applyAdventureTemplate() {
+    onRunTool({ tool: "applyAdventureTemplate", adventureTemplateId: selectedAdventureTemplateId });
+  }
+
   function placeOnTile(x: number, y: number) {
     if (activeTool === "inspect") {
       setSelection(null);
@@ -184,7 +243,7 @@ export function PreparationCanvas({ lobby, onRunTool }: PreparationCanvasProps) 
     }
 
     if (activeTool === "player_spawn") {
-      onRunTool({ tool: "placePreparationAsset", assetType: "player_spawn", mapKey: lobby.currentMapKey, playerId: selectedPlayerId, x, y });
+      onRunTool({ tool: "placePreparationAsset", assetType: "player_spawn", mapKey: lobby.currentMapKey, spawnSlotId: selectedSpawnSlot, x, y });
       return;
     }
 
@@ -192,6 +251,15 @@ export function PreparationCanvas({ lobby, onRunTool }: PreparationCanvasProps) 
       tool: "placePreparationAsset",
       assetType: activeTool,
       mapKey: lobby.currentMapKey,
+      ...(activeTool === "npc" ? { npcPresetId: selectedNpcPresetId } : {}),
+      ...(activeTool === "shop" ? { shopTemplateId: selectedShopTemplateId, npcPresetId: "merchant" } : {}),
+      ...(activeTool === "encounter"
+        ? {
+            encounterTheme,
+            encounterDifficulty,
+            ...(matchingEncounterTemplates[0]?.id ? { encounterTemplateId: matchingEncounterTemplates[0].id } : {})
+          }
+        : {}),
       ...(activeTool === "secret"
         ? { entityType: "secret_marker" as WorldEntityType }
         : activeTool === "object"
@@ -256,6 +324,53 @@ export function PreparationCanvas({ lobby, onRunTool }: PreparationCanvasProps) 
         ))}
       </div>
 
+      <section className="dm-control-group prep-content-pack-panel" data-testid="prep-content-pack-panel">
+        <div className="section-header">
+          <h3>Content Packs</h3>
+          <span className="meta-copy">{lobby.contentPacks.length} loaded</span>
+        </div>
+        <div className="prep-pack-grid">
+          {lobby.contentPacks.map((pack) => (
+            <article key={pack.id} className="prep-pack-card" data-testid={`prep-pack-${pack.id}`}>
+              <strong>{pack.name}</strong>
+              <span>{pack.theme}</span>
+              <span className="meta-copy">
+                {pack.encounterCount} encounters · {pack.shopTemplateCount} shops · {pack.npcPresetCount} NPCs
+              </span>
+            </article>
+          ))}
+        </div>
+        <div className="two-column-grid">
+          <label className="field">
+            <span>Adventure template</span>
+            <select data-testid="prep-adventure-template-select" value={selectedAdventureTemplateId} onChange={(event) => setSelectedAdventureTemplateId(event.target.value)}>
+              {lobby.adventureTemplates.map((template) => (
+                <option key={template.id} value={template.id}>
+                  {template.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <div className="player-list">
+            {lobby.adventureTemplates
+              .filter((template) => template.id === selectedAdventureTemplateId)
+              .map((template) => (
+                <article key={template.id} className="prep-template-summary">
+                  <strong>{template.theme}</strong>
+                  <span className="meta-copy">
+                    {template.startingMapName} · {template.adventureMapName} · {template.bossMapName} · {template.campMapName}
+                  </span>
+                </article>
+              ))}
+          </div>
+        </div>
+        <div className="button-row">
+          <button type="button" data-testid="prep-apply-adventure-template" onClick={applyAdventureTemplate}>
+            Load Adventure Template
+          </button>
+        </div>
+      </section>
+
       <section className="dm-control-group prep-toolbox" data-testid="prep-toolbox">
         <div className="section-header">
           <h3>Placement Tools</h3>
@@ -286,22 +401,18 @@ export function PreparationCanvas({ lobby, onRunTool }: PreparationCanvasProps) 
         </div>
         <div className="two-column-grid">
           <label className="field">
-            <span>Spawn player</span>
+            <span>Spawn slot</span>
             <select
-              data-testid="prep-spawn-player-select"
-              value={selectedPlayerId}
-              onChange={(event) => setSelectedPlayerId(event.target.value)}
+              data-testid="prep-spawn-slot-select"
+              value={selectedSpawnSlot}
+              onChange={(event) => setSelectedSpawnSlot(event.target.value as SpawnSlotId)}
               disabled={activeTool !== "player_spawn"}
             >
-              {lobby.players.length ? (
-                lobby.players.map((player) => (
-                  <option key={player.id} value={player.id}>
-                    {player.name}
-                  </option>
-                ))
-              ) : (
-                <option value="">Waiting for players</option>
-              )}
+              {spawnSlotIds.map((slotId) => (
+                <option key={slotId} value={slotId}>
+                  {slotId}
+                </option>
+              ))}
             </select>
           </label>
           <label className="field">
@@ -319,7 +430,72 @@ export function PreparationCanvas({ lobby, onRunTool }: PreparationCanvasProps) 
               ))}
             </select>
           </label>
+          <label className="field">
+            <span>NPC preset</span>
+            <select
+              data-testid="prep-npc-preset-select"
+              value={selectedNpcPresetId}
+              onChange={(event) => setSelectedNpcPresetId(event.target.value)}
+              disabled={activeTool !== "npc"}
+            >
+              {lobby.npcPresets.map((preset) => (
+                <option key={preset.id} value={preset.id}>
+                  {preset.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="field">
+            <span>Shop template</span>
+            <select
+              data-testid="prep-shop-template-select"
+              value={selectedShopTemplateId}
+              onChange={(event) => setSelectedShopTemplateId(event.target.value)}
+              disabled={activeTool !== "shop"}
+            >
+              {lobby.shopTemplates.map((template) => (
+                <option key={template.id} value={template.id}>
+                  {template.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="field">
+            <span>Encounter theme</span>
+            <select
+              data-testid="prep-encounter-theme-select"
+              value={encounterTheme}
+              onChange={(event) => setEncounterTheme(event.target.value)}
+              disabled={activeTool !== "encounter"}
+            >
+              {encounterThemes.map((theme) => (
+                <option key={theme} value={theme}>
+                  {theme}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="field">
+            <span>Encounter difficulty</span>
+            <select
+              data-testid="prep-encounter-difficulty-select"
+              value={encounterDifficulty}
+              onChange={(event) => setEncounterDifficulty(event.target.value as EncounterDifficulty)}
+              disabled={activeTool !== "encounter"}
+            >
+              {encounterDifficultyOptions.map((difficulty) => (
+                <option key={difficulty} value={difficulty}>
+                  {titleCase(difficulty)}
+                </option>
+              ))}
+            </select>
+          </label>
         </div>
+        {activeTool === "encounter" && matchingEncounterTemplates[0] ? (
+          <p className="meta-copy" data-testid="prep-encounter-template-preview">
+            {matchingEncounterTemplates[0].name}: {matchingEncounterTemplates[0].enemyNames.join(", ")}
+          </p>
+        ) : null}
       </section>
 
       <div
@@ -414,11 +590,11 @@ export function PreparationCanvas({ lobby, onRunTool }: PreparationCanvasProps) 
           </div>
         ) : selectedSpawn ? (
           <div className="player-list">
-            <strong data-testid="prep-selection-name">{selectedSpawn.playerName} spawn</strong>
+            <strong data-testid="prep-selection-name">{selectedSpawn.slotId} spawn</strong>
             <span className="meta-copy">
-              Tile {selectedSpawn.x + 1},{selectedSpawn.y + 1}
+              Tile {selectedSpawn.x + 1},{selectedSpawn.y + 1} · {selectedSpawn.assignedPlayerName ?? "Unassigned"}
             </span>
-            <p className="meta-copy">Choose Player Spawn, then click another tile to move this marker.</p>
+            <p className="meta-copy">Choose a spawn slot, then click another tile to move this marker.</p>
           </div>
         ) : selectedEncounter ? (
           <div className="player-list">

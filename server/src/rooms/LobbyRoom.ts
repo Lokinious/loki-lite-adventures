@@ -1,5 +1,8 @@
 import type { Client } from "colyseus";
 import colyseus from "colyseus";
+import { readdirSync, readFileSync } from "node:fs";
+import { extname } from "node:path";
+import { fileURLToPath } from "node:url";
 import abilityDefinitions from "../../../content/abilities.json" with { type: "json" };
 import classDefinitions from "../../../content/classes.json" with { type: "json" };
 import enemyDefinitions from "../../../content/enemies.json" with { type: "json" };
@@ -13,6 +16,8 @@ const { Room } = colyseus;
 
 type JoinRole = "player" | "dm";
 type PreparationAssetType = "player_spawn" | "npc" | "shop" | "encounter" | "secret" | "object";
+type SpawnSlotId = "P1" | "P2" | "P3" | "P4" | "P5" | "P6";
+type EncounterDifficulty = "easy" | "medium" | "hard" | "boss" | "epic";
 
 type JoinOptions = {
   roomCode?: string;
@@ -87,6 +92,7 @@ type DmToolMessage = {
   tool:
     | "setMap"
     | "setMapDefinition"
+    | "applyAdventureTemplate"
     | "placePreparationAsset"
     | "setPlayerSpawn"
     | "setPlayerStatus"
@@ -129,6 +135,7 @@ type DmToolMessage = {
     | "setEntityNotes";
   entityType?: WorldEntityType;
   assetType?: PreparationAssetType;
+  spawnSlotId?: SpawnSlotId;
   entityId?: string;
   npcId?: string;
   shopId?: string;
@@ -179,6 +186,12 @@ type DmToolMessage = {
   encounterId?: string;
   enemyId?: string;
   enemyIds?: string[];
+  encounterTemplateId?: string;
+  encounterDifficulty?: EncounterDifficulty;
+  encounterTheme?: string;
+  shopTemplateId?: string;
+  npcPresetId?: string;
+  adventureTemplateId?: string;
   difficulty?: CampaignDifficulty;
   triggerType?: TriggerType;
   triggerEffectType?: TriggerEffectType;
@@ -326,6 +339,55 @@ type SceneDefinition = {
   sceneType: "story" | "encounter" | "shop" | "victory";
   nextSceneId?: string;
   objective?: string;
+};
+
+type PackEncounterTemplate = {
+  id: string;
+  name: string;
+  difficulty: EncounterDifficulty;
+  theme: string;
+  enemyIds: string[];
+  rewardSuggestion: string;
+};
+
+type PackShopTemplate = {
+  id: string;
+  name: string;
+  itemIds: string[];
+};
+
+type PackNpcPreset = {
+  id: string;
+  name: string;
+  role: string;
+  personality: string;
+  publicDescription: string;
+  dialoguePrompt: string;
+  questHooks: string;
+};
+
+type PackAdventureTemplate = {
+  id: string;
+  name: string;
+  theme: string;
+  maps: Record<MapSlotKey, string>;
+  spawnSlots?: Partial<Record<SpawnSlotId, Point>>;
+  encounters?: Array<{ templateId: string; mapKey: MapSlotKey; x: number; y: number; note?: string }>;
+  shops?: Array<{ templateId: string; mapKey: MapSlotKey; x: number; y: number; name?: string; npcPresetId?: string }>;
+  npcs?: Array<{ presetId: string; mapKey: MapSlotKey; x: number; y: number; name?: string; entityType?: WorldEntityType }>;
+  quests?: Array<{ title: string; objective: string; rewardGold?: number }>;
+  secrets?: Array<{ mapKey: MapSlotKey; x: number; y: number; checkType: SkillCheckType; dc: number; description: string; name?: string }>;
+};
+
+type ContentPackDefinition = {
+  id: string;
+  name: string;
+  theme: string;
+  enemies?: string[];
+  encounterTemplates?: PackEncounterTemplate[];
+  shopTemplates?: PackShopTemplate[];
+  npcPresets?: PackNpcPreset[];
+  adventureTemplates?: PackAdventureTemplate[];
 };
 
 type RoomPhase = "preparation" | "live" | "completed";
@@ -670,9 +732,54 @@ type SessionTemplateView = {
   name: string;
 };
 
+type ContentPackView = {
+  id: string;
+  name: string;
+  theme: string;
+  encounterCount: number;
+  shopTemplateCount: number;
+  npcPresetCount: number;
+  adventureTemplateCount: number;
+};
+
+type EncounterTemplateView = {
+  id: string;
+  name: string;
+  theme: string;
+  difficulty: EncounterDifficulty;
+  enemyNames: string[];
+  rewardSuggestion: string;
+};
+
+type ShopTemplateView = {
+  id: string;
+  name: string;
+  itemNames: string[];
+};
+
+type NpcPresetView = {
+  id: string;
+  name: string;
+  role: string;
+  personality: string;
+  dialoguePrompt: string;
+  questHooks: string;
+};
+
+type AdventureTemplateView = {
+  id: string;
+  name: string;
+  theme: string;
+  startingMapName: string;
+  adventureMapName: string;
+  bossMapName: string;
+  campMapName: string;
+};
+
 type PreparationSpawnView = {
-  playerId: string;
-  playerName: string;
+  slotId: SpawnSlotId;
+  assignedPlayerId: string | undefined;
+  assignedPlayerName: string | undefined;
   x: number;
   y: number;
 };
@@ -840,7 +947,7 @@ type SessionMapRecord = {
   label: string;
   mapId: string;
   notes: string;
-  spawnPoints: Record<string, Point>;
+  spawnSlots: Partial<Record<SpawnSlotId, Point>>;
   fogAreas: FogAreaRecord[];
   revealAll: boolean;
 };
@@ -982,6 +1089,11 @@ type RoomSnapshot = {
   weather: WeatherType;
   currentMapKey: MapSlotKey;
   sessionMaps: SessionMapView[];
+  contentPacks: ContentPackView[];
+  encounterTemplates: EncounterTemplateView[];
+  shopTemplates: ShopTemplateView[];
+  npcPresets: NpcPresetView[];
+  adventureTemplates: AdventureTemplateView[];
   preparationSpawns: PreparationSpawnView[];
   preparationEncounters: PreparationEncounterView[];
   fogAreas: FogAreaView[];
@@ -1092,6 +1204,7 @@ const availableItems = itemDefinitions as ItemDefinition[];
 const availableMaps = mapDefinitions as MapDefinition[];
 const availableRaces = raceDefinitions as RaceDefinition[];
 const availableScenes = sceneDefinitions as SceneDefinition[];
+const availableContentPacks = loadContentPacks();
 
 const defaultClass = availableClasses[0] ?? {
   id: "guardian",
@@ -1143,10 +1256,20 @@ const itemsById = new Map(availableItems.map((itemDefinition) => [itemDefinition
 const mapsById = new Map(availableMaps.map((mapDefinition) => [mapDefinition.id, mapDefinition]));
 const racesById = new Map(availableRaces.map((raceDefinition) => [raceDefinition.id, raceDefinition]));
 const scenesById = new Map(availableScenes.map((sceneDefinition) => [sceneDefinition.id, sceneDefinition]));
+const contentPacksById = new Map(availableContentPacks.map((pack) => [pack.id, pack]));
+const encounterTemplates = availableContentPacks.flatMap((pack) => pack.encounterTemplates ?? []);
+const encounterTemplatesById = new Map(encounterTemplates.map((template) => [template.id, template]));
+const shopTemplates = availableContentPacks.flatMap((pack) => pack.shopTemplates ?? []);
+const shopTemplatesById = new Map(shopTemplates.map((template) => [template.id, template]));
+const npcPresets = availableContentPacks.flatMap((pack) => pack.npcPresets ?? []);
+const npcPresetsById = new Map(npcPresets.map((preset) => [preset.id, preset]));
+const adventureTemplates = availableContentPacks.flatMap((pack) => pack.adventureTemplates ?? []);
+const adventureTemplatesById = new Map(adventureTemplates.map((template) => [template.id, template]));
 const orderedSceneIds = availableScenes.map((sceneDefinition) => sceneDefinition.id);
 const merchantItemIds = ["healing_potion", "iron_sword", "leather_armor"];
+const spawnSlotIds: SpawnSlotId[] = ["P1", "P2", "P3", "P4", "P5", "P6"];
 
-const spawnPoints: Point[] = [
+const defaultSpawnSlotPoints: Point[] = [
   { x: 1, y: 1 },
   { x: 8, y: 1 },
   { x: 1, y: 6 },
@@ -1436,7 +1559,7 @@ export class LobbyRoom extends Room<LobbyState> {
         label: slot.label,
         mapId: slot.defaultMapId,
         notes: slot.key === "camp" ? "A safe hub between adventures." : "",
-        spawnPoints: {},
+        spawnSlots: {},
         fogAreas: [],
         revealAll: slot.key === "starting"
       });
@@ -2434,11 +2557,14 @@ export class LobbyRoom extends Room<LobbyState> {
         case "setMapDefinition":
           this.setMapDefinitionFromDm(message.mapKey, message.mapId);
           return;
+        case "applyAdventureTemplate":
+          this.applyAdventureTemplateFromDm(message.adventureTemplateId);
+          return;
         case "placePreparationAsset":
           this.placePreparationAssetFromDm(message);
           return;
         case "setPlayerSpawn":
-          this.setPlayerSpawnFromDm(message.playerId, message.mapKey, message.x, message.y);
+          this.setPlayerSpawnFromDm(normalizeSpawnSlotId(message.spawnSlotId), message.mapKey, message.x, message.y);
           return;
         case "setPlayerStatus":
           this.setPlayerStatusFromDm(message.playerId, message.status);
@@ -3943,6 +4069,148 @@ export class LobbyRoom extends Room<LobbyState> {
     this.publishSnapshots();
   }
 
+  private applyAdventureTemplateFromDm(adventureTemplateId: string | undefined) {
+    const template = adventureTemplateId ? adventureTemplatesById.get(adventureTemplateId) : undefined;
+
+    if (!template) {
+      this.addDmLog(`Unknown adventure template: ${adventureTemplateId ?? ""}`);
+      this.syncState();
+      this.publishSnapshots();
+      return;
+    }
+
+    this.roomPhase = "preparation";
+    this.initializeSessionMaps();
+    this.worldEntities.clear();
+    this.npcs.clear();
+    this.shops.clear();
+    this.quests.clear();
+    this.secrets.clear();
+    this.skillChecks.clear();
+    this.encounterGroups.clear();
+    this.triggerZones.clear();
+    this.dynamicEvents.clear();
+    this.patrolRoutes.clear();
+    this.sessionNotes = [];
+    this.rewardHistory = [];
+    this.journalEntries = [];
+
+    for (const mapKey of availableMapSlots.map((slot) => slot.key)) {
+      const sessionMap = this.getSessionMap(mapKey);
+      const nextMapId = template.maps[mapKey];
+
+      if (nextMapId && mapsById.has(nextMapId)) {
+        sessionMap.mapId = nextMapId;
+      }
+
+      sessionMap.notes = `Prepared from ${template.name}.`;
+      sessionMap.spawnSlots = {};
+    }
+
+    for (const slotId of spawnSlotIds) {
+      const point = template.spawnSlots?.[slotId];
+      if (!point) {
+        continue;
+      }
+
+      this.getSessionMap("starting").spawnSlots[slotId] = { ...point };
+    }
+
+    for (const encounter of template.encounters ?? []) {
+      const encounterTemplate = encounterTemplatesById.get(encounter.templateId);
+      if (!encounterTemplate) {
+        continue;
+      }
+
+      this.createEncounterGroupFromDm({
+        tool: "createEncounterGroup",
+        mapKey: encounter.mapKey,
+        x: encounter.x,
+        y: encounter.y,
+        enemyIds: [...encounterTemplate.enemyIds],
+        name: encounterTemplate.name,
+        description: encounter.note ?? encounterTemplate.rewardSuggestion
+      });
+    }
+
+    for (const npc of template.npcs ?? []) {
+      this.placePreparationAssetFromDm({
+        tool: "placePreparationAsset",
+        assetType: "npc",
+        mapKey: npc.mapKey,
+        x: npc.x,
+        y: npc.y,
+        ...(npc.name ? { name: npc.name } : {}),
+        npcPresetId: npc.presetId,
+        ...(npc.entityType ? { entityType: npc.entityType } : {})
+      });
+    }
+
+    for (const shop of template.shops ?? []) {
+      this.placePreparationAssetFromDm({
+        tool: "placePreparationAsset",
+        assetType: "shop",
+        mapKey: shop.mapKey,
+        x: shop.x,
+        y: shop.y,
+        ...(shop.name ? { name: shop.name, title: shop.name } : {}),
+        ...(shop.npcPresetId ? { npcPresetId: shop.npcPresetId } : {}),
+        shopTemplateId: shop.templateId
+      });
+    }
+
+    for (const quest of template.quests ?? []) {
+      this.createQuestFromDm({
+        tool: "createQuest",
+        title: quest.title,
+        objective: quest.objective,
+        rewardGold: quest.rewardGold ?? 0
+      });
+    }
+
+    for (const secret of template.secrets ?? []) {
+      this.placePreparationAssetFromDm({
+        tool: "placePreparationAsset",
+        assetType: "secret",
+        mapKey: secret.mapKey,
+        x: secret.x,
+        y: secret.y,
+        ...(secret.name ? { name: secret.name } : {}),
+        checkType: secret.checkType,
+        dc: secret.dc,
+        description: secret.description
+      });
+    }
+
+    this.applyMapState("starting", { encounterOnEnter: false });
+    this.addDmLog(`Applied adventure template ${template.name}.`);
+    this.syncState();
+    this.publishSnapshots();
+  }
+
+  private applyShopTemplateInventory(shopId: string, shopTemplateId: string) {
+    const shopTemplate = shopTemplatesById.get(shopTemplateId);
+
+    if (!shopTemplate) {
+      return;
+    }
+
+    for (const itemId of shopTemplate.itemIds) {
+      const item = itemsById.get(itemId);
+      if (!item) {
+        continue;
+      }
+
+      this.addShopItemFromDm({
+        tool: "addShopItem",
+        shopId,
+        itemId,
+        price: item.price,
+        stock: 2
+      });
+    }
+  }
+
   private placePreparationAssetFromDm(message: DmToolMessage) {
     const assetType = message.assetType;
     const mapKey = normalizeMapSlotKey(message.mapKey) ?? this.currentMapKey;
@@ -3965,17 +4233,29 @@ export class LobbyRoom extends Room<LobbyState> {
 
     switch (assetType) {
       case "player_spawn":
-        this.setPlayerSpawnFromDm(message.playerId, mapKey, x, y);
+        this.setPlayerSpawnFromDm(normalizeSpawnSlotId(message.spawnSlotId), mapKey, x, y);
         return;
       case "npc": {
-        const npcName = sanitizeWorldName(message.name, `NPC ${this.npcs.size + 1}`);
+        const npcPreset = message.npcPresetId ? npcPresetsById.get(message.npcPresetId) : undefined;
+        if (message.npcPresetId && !npcPreset) {
+          this.addDmLog(`Unknown NPC preset: ${message.npcPresetId}`);
+          this.syncState();
+          this.publishSnapshots();
+          return;
+        }
+
+        const npcName = sanitizeWorldName(message.name, npcPreset?.name ?? `NPC ${this.npcs.size + 1}`);
         const npcId = buildRecordId("npc", this.npcs.size + 1);
         this.createNpcFromDm({
           tool: "createNpc",
           name: npcName,
-          role: message.role ?? "guide",
+          role: message.role ?? npcPreset?.role ?? "guide",
+          ...(message.publicDescription || npcPreset?.publicDescription ? { publicDescription: message.publicDescription ?? npcPreset?.publicDescription ?? "" } : {}),
+          ...(message.dialoguePrompt || npcPreset?.dialoguePrompt ? { dialoguePrompt: message.dialoguePrompt ?? npcPreset?.dialoguePrompt ?? "" } : {}),
+          ...(message.questHooks || npcPreset?.questHooks ? { questHooks: message.questHooks ?? npcPreset?.questHooks ?? "" } : {}),
+          ...(npcPreset?.personality ? { privateNotes: npcPreset.personality } : {}),
           ...(message.description ? { description: message.description } : {}),
-          ...(message.publicDescription ? { publicDescription: message.publicDescription } : {})
+          ...(!message.description && npcPreset?.personality ? { description: npcPreset.personality } : {})
         });
         this.placeEntityFromDm({
           tool: "placeEntity",
@@ -3991,15 +4271,28 @@ export class LobbyRoom extends Room<LobbyState> {
         return;
       }
       case "shop": {
+        const shopTemplate = message.shopTemplateId ? shopTemplatesById.get(message.shopTemplateId) : undefined;
+        if (message.shopTemplateId && !shopTemplate) {
+          this.addDmLog(`Unknown shop template: ${message.shopTemplateId}`);
+          this.syncState();
+          this.publishSnapshots();
+          return;
+        }
+
+        const npcPreset = message.npcPresetId ? npcPresetsById.get(message.npcPresetId) : npcPresetsById.get("merchant");
         const shopNumber = this.shops.size + 1;
-        const shopkeeperName = sanitizeWorldName(message.name, `Shopkeeper ${this.npcs.size + 1}`);
+        const shopkeeperName = sanitizeWorldName(message.name, npcPreset?.name ?? `Shopkeeper ${this.npcs.size + 1}`);
         const npcId = buildRecordId("npc", this.npcs.size + 1);
+        const shopId = buildRecordId("shop", this.shops.size + 1);
         this.createNpcFromDm({
           tool: "createNpc",
           name: shopkeeperName,
-          role: message.role ?? "merchant",
+          role: message.role ?? npcPreset?.role ?? "merchant",
+          ...(npcPreset?.dialoguePrompt ? { dialoguePrompt: npcPreset.dialoguePrompt } : {}),
+          ...(npcPreset?.questHooks ? { questHooks: npcPreset.questHooks } : {}),
+          ...(npcPreset?.personality ? { privateNotes: npcPreset.personality } : {}),
           ...(message.description ? { description: message.description } : {}),
-          publicDescription: message.publicDescription ?? `${shopkeeperName} keeps a careful eye on the stock.`
+          publicDescription: message.publicDescription ?? npcPreset?.publicDescription ?? `${shopkeeperName} keeps a careful eye on the stock.`
         });
         this.placeEntityFromDm({
           tool: "placeEntity",
@@ -4015,21 +4308,41 @@ export class LobbyRoom extends Room<LobbyState> {
         this.createShopFromDm({
           tool: "createShop",
           npcId,
-          name: sanitizeWorldName(message.title, `Shop ${shopNumber}`)
+          name: sanitizeWorldName(message.title, shopTemplate?.name ?? `Shop ${shopNumber}`)
         });
+        if (message.shopTemplateId) {
+          this.applyShopTemplateInventory(shopId, message.shopTemplateId);
+        }
         return;
       }
-      case "encounter":
+      case "encounter": {
+        const encounterTemplate = message.encounterTemplateId
+          ? encounterTemplatesById.get(message.encounterTemplateId)
+          : encounterTemplates.find(
+              (template) =>
+                (!message.encounterTheme || template.theme.toLowerCase() === message.encounterTheme.toLowerCase()) &&
+                (!message.encounterDifficulty || template.difficulty === message.encounterDifficulty)
+            );
+
+        if (message.encounterTemplateId && !encounterTemplate) {
+          this.addDmLog(`Unknown encounter template: ${message.encounterTemplateId}`);
+          this.syncState();
+          this.publishSnapshots();
+          return;
+        }
+
         this.createEncounterGroupFromDm({
           tool: "createEncounterGroup",
           mapKey,
           x,
           y,
-          enemyId: message.enemyId ?? "goblin",
-          name: sanitizeWorldName(message.name, `Encounter ${this.encounterGroups.size + 1}`),
-          description: message.description ?? "Encounter trigger."
+          ...(encounterTemplate ? { enemyIds: [...encounterTemplate.enemyIds] } : message.enemyIds ? { enemyIds: message.enemyIds } : {}),
+          ...(!encounterTemplate ? { enemyId: message.enemyId ?? "goblin" } : {}),
+          name: sanitizeWorldName(message.name, encounterTemplate?.name ?? `Encounter ${this.encounterGroups.size + 1}`),
+          description: message.description ?? encounterTemplate?.rewardSuggestion ?? "Encounter trigger."
         });
         return;
+      }
       case "secret": {
         const entityId = buildRecordId("entity", this.worldEntities.size + 1);
         const secretNumber = this.secrets.size + 1;
@@ -4075,26 +4388,26 @@ export class LobbyRoom extends Room<LobbyState> {
     }
   }
 
-  private setPlayerSpawnFromDm(playerId: string | undefined, mapKey: MapSlotKey | undefined, x: number | undefined, y: number | undefined) {
+  private setPlayerSpawnFromDm(spawnSlotId: SpawnSlotId | undefined, mapKey: MapSlotKey | undefined, x: number | undefined, y: number | undefined) {
     const normalizedKey = normalizeMapSlotKey(mapKey);
-    const player = playerId ? this.state.players.get(playerId) : undefined;
+    const normalizedSlotId = normalizeSpawnSlotId(spawnSlotId);
     const sessionMap = normalizedKey ? this.sessionMaps.get(normalizedKey) : undefined;
 
-    if (!player || !normalizedKey || !sessionMap || !isWholeNumber(Number(x)) || !isWholeNumber(Number(y))) {
-      this.addDmLog("Choose a player, map, and valid spawn coordinates.");
+    if (!normalizedSlotId || !normalizedKey || !sessionMap || !isWholeNumber(Number(x)) || !isWholeNumber(Number(y))) {
+      this.addDmLog("Choose a spawn slot, map, and valid spawn coordinates.");
       this.syncState();
       this.publishSnapshots();
       return;
     }
 
     const nextPoint = { x: Number(x), y: Number(y) };
-    sessionMap.spawnPoints[player.id] = nextPoint;
+    sessionMap.spawnSlots[normalizedSlotId] = nextPoint;
 
     if (normalizedKey === this.currentMapKey) {
       this.repositionPlayers();
     }
 
-    this.addDmLog(`Set ${player.name}'s ${sessionMap.label} spawn to (${nextPoint.x + 1}, ${nextPoint.y + 1}).`);
+    this.addDmLog(`Set ${normalizedSlotId} spawn on ${sessionMap.label} to (${nextPoint.x + 1}, ${nextPoint.y + 1}).`);
     this.syncState();
     this.publishSnapshots();
   }
@@ -4536,7 +4849,7 @@ export class LobbyRoom extends Room<LobbyState> {
         label: sessionMap.label,
         mapId: sessionMap.mapId,
         notes: sessionMap.notes,
-        spawnPoints: { ...sessionMap.spawnPoints },
+        spawnSlots: { ...sessionMap.spawnSlots },
         fogAreas: sessionMap.fogAreas.map((area) => ({ ...area })),
         revealAll: sessionMap.revealAll
       })),
@@ -4580,7 +4893,7 @@ export class LobbyRoom extends Room<LobbyState> {
         label: sessionMap.label,
         mapId: sessionMap.mapId,
         notes: sessionMap.notes,
-        spawnPoints: { ...sessionMap.spawnPoints },
+        spawnSlots: { ...sessionMap.spawnSlots },
         fogAreas: sessionMap.fogAreas.map((area) => ({ ...area })),
         revealAll: sessionMap.revealAll
       });
@@ -5012,11 +5325,16 @@ export class LobbyRoom extends Room<LobbyState> {
 
   private repositionPlayers() {
     const players = [...this.state.players.values()];
-    const spawnAssignments = this.getSessionMap().spawnPoints;
+    const spawnAssignments = this.getSessionMap().spawnSlots;
 
     players.forEach((player, index) => {
-      const assignedSpawn = spawnAssignments[player.id] ?? spawnAssignments[player.name];
-      const spawnPoint = assignedSpawn ?? spawnPoints[index] ?? spawnPoints[spawnPoints.length - 1] ?? { x: 1, y: 1 };
+      const assignedSlot = spawnSlotIds[index];
+      const assignedSpawn = assignedSlot ? spawnAssignments[assignedSlot] : undefined;
+      const spawnPoint =
+        assignedSpawn ??
+        defaultSpawnSlotPoints[index] ??
+        defaultSpawnSlotPoints[defaultSpawnSlotPoints.length - 1] ??
+        { x: 1, y: 1 };
       player.x = spawnPoint.x;
       player.y = spawnPoint.y;
       player.remainingMovement = player.movement;
@@ -5250,7 +5568,7 @@ export class LobbyRoom extends Room<LobbyState> {
         mapId: sessionMap.mapId,
         mapName: mapDefinition.name,
         notes: sessionMap.notes,
-        spawnCount: Object.keys(sessionMap.spawnPoints).length,
+        spawnCount: Object.keys(sessionMap.spawnSlots).length,
         encounterCount: [...this.encounterGroups.values()].filter((group) => group.mapKey === slot.key).length,
         entityCount: [...this.worldEntities.values()].filter((entity) => entity.mapKey === slot.key).length,
         revealedAreaCount: sessionMap.fogAreas.length,
@@ -5265,18 +5583,20 @@ export class LobbyRoom extends Room<LobbyState> {
     }
 
     const sessionMap = this.getSessionMap(this.currentMapKey);
+    const players = [...this.state.players.values()];
 
-    return Object.entries(sessionMap.spawnPoints)
-      .map(([playerId, point]) => {
-        const player = this.state.players.get(playerId);
-
-        if (!player) {
+    return spawnSlotIds
+      .map((slotId, index) => {
+        const point = sessionMap.spawnSlots[slotId];
+        if (!point) {
           return undefined;
         }
 
+        const player = players[index];
         return {
-          playerId,
-          playerName: player.name,
+          slotId,
+          assignedPlayerId: player?.id,
+          assignedPlayerName: player?.name,
           x: point.x,
           y: point.y
         };
@@ -5300,6 +5620,60 @@ export class LobbyRoom extends Room<LobbyState> {
         active: group.active,
         notes: group.notes
       }));
+  }
+
+  private buildContentPackViews() {
+    return availableContentPacks.map((pack) => ({
+      id: pack.id,
+      name: pack.name,
+      theme: pack.theme,
+      encounterCount: pack.encounterTemplates?.length ?? 0,
+      shopTemplateCount: pack.shopTemplates?.length ?? 0,
+      npcPresetCount: pack.npcPresets?.length ?? 0,
+      adventureTemplateCount: pack.adventureTemplates?.length ?? 0
+    }));
+  }
+
+  private buildEncounterTemplateViews() {
+    return encounterTemplates.map((template) => ({
+      id: template.id,
+      name: template.name,
+      theme: template.theme,
+      difficulty: template.difficulty,
+      enemyNames: template.enemyIds.map((enemyId) => enemiesById.get(enemyId)?.name ?? enemyId),
+      rewardSuggestion: template.rewardSuggestion
+    }));
+  }
+
+  private buildShopTemplateViews() {
+    return shopTemplates.map((template) => ({
+      id: template.id,
+      name: template.name,
+      itemNames: template.itemIds.map((itemId) => itemsById.get(itemId)?.name ?? itemId)
+    }));
+  }
+
+  private buildNpcPresetViews() {
+    return npcPresets.map((preset) => ({
+      id: preset.id,
+      name: preset.name,
+      role: preset.role,
+      personality: preset.personality,
+      dialoguePrompt: preset.dialoguePrompt,
+      questHooks: preset.questHooks
+    }));
+  }
+
+  private buildAdventureTemplateViews() {
+    return adventureTemplates.map((template) => ({
+      id: template.id,
+      name: template.name,
+      theme: template.theme,
+      startingMapName: mapsById.get(template.maps.starting)?.name ?? template.maps.starting,
+      adventureMapName: mapsById.get(template.maps.adventure)?.name ?? template.maps.adventure,
+      bossMapName: mapsById.get(template.maps.boss)?.name ?? template.maps.boss,
+      campMapName: mapsById.get(template.maps.camp)?.name ?? template.maps.camp
+    }));
   }
 
   private buildCharacterProfileViews(ownerName: string): CharacterProfileView[] {
@@ -5703,6 +6077,11 @@ export class LobbyRoom extends Room<LobbyState> {
       weather: this.weather,
       currentMapKey: this.currentMapKey,
       sessionMaps: this.buildSessionMapViews(),
+      contentPacks: this.buildContentPackViews(),
+      encounterTemplates: this.buildEncounterTemplateViews(),
+      shopTemplates: this.buildShopTemplateViews(),
+      npcPresets: this.buildNpcPresetViews(),
+      adventureTemplates: this.buildAdventureTemplateViews(),
       preparationSpawns: this.buildPreparationSpawnViews(sessionId),
       preparationEncounters: this.buildPreparationEncounterViews(sessionId),
       fogAreas: this.buildFogAreaViews(sessionId),
@@ -6797,6 +7176,29 @@ function parseWaypointText(waypointText: string | undefined) {
     .map(([x, y]) => ({ x: Math.max(0, Math.floor(x ?? 0)), y: Math.max(0, Math.floor(y ?? 0)) }));
 }
 
+function normalizeSpawnSlotId(value: string | undefined): SpawnSlotId | undefined {
+  switch ((value ?? "").toUpperCase()) {
+    case "P1":
+    case "P2":
+    case "P3":
+    case "P4":
+    case "P5":
+    case "P6":
+      return value?.toUpperCase() as SpawnSlotId;
+    default:
+      return undefined;
+  }
+}
+
+function loadContentPacks(): ContentPackDefinition[] {
+  const packsDirectory = fileURLToPath(new URL("../../../content/packs/", import.meta.url));
+
+  return readdirSync(packsDirectory)
+    .filter((entry) => extname(entry).toLowerCase() === ".json")
+    .sort((left, right) => left.localeCompare(right))
+    .map((entry) => JSON.parse(readFileSync(fileURLToPath(new URL(`../../../content/packs/${entry}`, import.meta.url)), "utf8")) as ContentPackDefinition);
+}
+
 type ColyseusMapLike<T> = {
   values(): IterableIterator<T>;
 };
@@ -6843,7 +7245,7 @@ function defaultSessionMapRecord(mapKey: MapSlotKey): SessionMapRecord {
     label: slot?.label ?? "Session Map",
     mapId: slot?.defaultMapId ?? "forest",
     notes: "",
-    spawnPoints: {},
+    spawnSlots: {},
     fogAreas: [],
     revealAll: mapKey === "starting"
   };

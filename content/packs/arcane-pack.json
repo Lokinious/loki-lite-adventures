@@ -1,0 +1,11 @@
+{
+  "id": "arcane",
+  "name": "Arcane Content Pack",
+  "theme": "Arcane",
+  "enemies": ["cultist", "warlock", "summoner", "void_mage"],
+  "encounterTemplates": [
+    { "id": "arcane_easy", "name": "Cultist Circle", "difficulty": "easy", "theme": "Arcane", "enemyIds": ["cultist", "cultist"], "rewardSuggestion": "Ritual chalk and coded notes." },
+    { "id": "arcane_medium", "name": "Hex Patrol", "difficulty": "medium", "theme": "Arcane", "enemyIds": ["warlock", "cultist", "cultist"], "rewardSuggestion": "Runed charms and ritual ash." },
+    { "id": "arcane_boss", "name": "Void Mage", "difficulty": "boss", "theme": "Arcane", "enemyIds": ["void_mage"], "rewardSuggestion": "Spellbooks and void glass." }
+  ]
+}
