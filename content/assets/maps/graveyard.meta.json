@@ -1,0 +1,27 @@
+{
+  "mapId": "graveyard",
+  "name": "Graveyard",
+  "width": 1024,
+  "height": 768,
+  "backgroundAssetId": "map_graveyard_bg",
+  "walkableBounds": { "x": 72, "y": 72, "width": 880, "height": 620 },
+  "spawnPoints": [
+    { "id": "p1", "x": 120, "y": 630 },
+    { "id": "p2", "x": 165, "y": 630 },
+    { "id": "p3", "x": 210, "y": 630 },
+    { "id": "p4", "x": 255, "y": 630 },
+    { "id": "p5", "x": 145, "y": 675 },
+    { "id": "p6", "x": 235, "y": 675 }
+  ],
+  "npcPositions": [
+    { "npcId": "brother_tomas", "x": 835, "y": 160 }
+  ],
+  "shopPositions": [],
+  "encounterZones": [
+    { "id": "restless_dead", "name": "Restless Dead", "x": 390, "y": 455, "width": 230, "height": 150, "encounterId": "restless_dead" },
+    { "id": "pilgrim_ambush", "name": "Pilgrim Ambush", "x": 650, "y": 195, "width": 210, "height": 160, "encounterId": "pilgrim_ambush" }
+  ],
+  "questMarkers": [
+    { "questId": "missing_pilgrims", "label": "Find Brother Tomas", "x": 835, "y": 160 }
+  ]
+}

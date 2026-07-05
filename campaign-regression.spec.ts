@@ -705,6 +705,58 @@ test("phase11 rejects invalid campaign dependencies and creates new template-bas
   await expect(page.getByTestId("campaign-theme-input")).toHaveValue("Mystery");
 });
 
+test("phase12A journey map metadata resolves backgrounds and stays inside coordinate bounds", async () => {
+  const assetRegistry = JSON.parse(await readFile("content/assets/index.json", "utf8")) as Array<{ id: string; imagePath: string }>;
+  const maps = JSON.parse(await readFile("content/maps.json", "utf8")) as Array<{ id: string }>;
+  const campaigns = JSON.parse(await readFile("content/campaigns.json", "utf8")) as Array<{
+    id: string;
+    packageData?: { state?: { sessionMaps?: Array<{ key: string; mapId: string }> } };
+  }>;
+  const assetIds = new Set(assetRegistry.map((asset) => asset.id));
+  const mapIds = new Set(maps.map((map) => map.id));
+  const journeyMapIds = ["village_square", "graveyard", "crypt_entrance", "forgotten_crypt", "necromancer_sanctum"];
+
+  for (const mapId of journeyMapIds) {
+    const metadata = JSON.parse(await readFile(`content/assets/maps/${mapId}.meta.json`, "utf8")) as {
+      mapId: string;
+      width: number;
+      height: number;
+      backgroundAssetId: string;
+      walkableBounds: { x: number; y: number; width: number; height: number };
+      spawnPoints: Array<{ id: string; x: number; y: number }>;
+      encounterZones: Array<{ x: number; y: number; width: number; height: number }>;
+    };
+
+    expect(metadata.mapId).toBe(mapId);
+    expect(metadata.width).toBe(1024);
+    expect(metadata.height).toBe(768);
+    expect(assetIds.has(metadata.backgroundAssetId)).toBeTruthy();
+    expect(metadata.walkableBounds.x).toBeGreaterThanOrEqual(0);
+    expect(metadata.walkableBounds.y).toBeGreaterThanOrEqual(0);
+    expect(metadata.walkableBounds.x + metadata.walkableBounds.width).toBeLessThanOrEqual(metadata.width);
+    expect(metadata.walkableBounds.y + metadata.walkableBounds.height).toBeLessThanOrEqual(metadata.height);
+    expect(metadata.spawnPoints.map((spawn) => spawn.id).sort()).toEqual(["p1", "p2", "p3", "p4", "p5", "p6"]);
+
+    for (const spawn of metadata.spawnPoints) {
+      expect(spawn.x).toBeGreaterThanOrEqual(metadata.walkableBounds.x);
+      expect(spawn.y).toBeGreaterThanOrEqual(metadata.walkableBounds.y);
+      expect(spawn.x).toBeLessThanOrEqual(metadata.walkableBounds.x + metadata.walkableBounds.width);
+      expect(spawn.y).toBeLessThanOrEqual(metadata.walkableBounds.y + metadata.walkableBounds.height);
+    }
+
+    for (const zone of metadata.encounterZones) {
+      expect(zone.x).toBeGreaterThanOrEqual(0);
+      expect(zone.y).toBeGreaterThanOrEqual(0);
+      expect(zone.x + zone.width).toBeLessThanOrEqual(metadata.width);
+      expect(zone.y + zone.height).toBeLessThanOrEqual(metadata.height);
+    }
+  }
+
+  const journey = campaigns.find((campaign) => campaign.id === "journey-of-the-faithful");
+  expect(mapIds.has("village_square")).toBeTruthy();
+  expect(journey?.packageData?.state?.sessionMaps?.find((entry) => entry.key === "starting")?.mapId).toBe("village_square");
+});
+
 test("phase11 official journey of the faithful loads a complete prepared campaign", async ({ browser }) => {
   const code = roomCode("journey-faithful");
   const context = await browser.newContext();
@@ -725,7 +777,7 @@ test("phase11 official journey of the faithful loads a complete prepared campaig
   await joinAndConfirm(playerPage, code, "Faithful", "human", "guardian", "Human Guardian");
 
   const snapshot = await getLobbySnapshot(dmPage) as {
-    currentCampaign: { name: string; theme: string; visibility: string; levelRange: string; requiredPacks: string[] };
+    currentCampaign: { name: string; theme: string; visibility: string; levelRange: string; requiredPacks: string[]; assetIds: string[] };
     sessionMaps: Array<{ key: string; mapId: string; spawnSlots: Array<{ id: string; x: number; y: number }> }>;
     npcs: Array<{ name: string }>;
     worldEntities: Array<{ name: string; x: number; y: number }>;
@@ -741,10 +793,11 @@ test("phase11 official journey of the faithful loads a complete prepared campaig
   expect(snapshot.currentCampaign.theme).toBe("Undead");
   expect(snapshot.currentCampaign.visibility).toBe("official");
   expect(snapshot.currentCampaign.requiredPacks).toContain("undead");
+  expect(snapshot.currentCampaign.assetIds).toContain("map_village_square_bg");
   expect(snapshot.sessionMaps).toHaveLength(4);
-  expect(snapshot.sessionMaps.find((entry) => entry.key === "starting")?.mapId).toBe("wayfarers-rest");
-  expect(snapshot.sessionMaps.find((entry) => entry.key === "adventure")?.mapId).toBe("faithful-road");
-  expect(snapshot.sessionMaps.find((entry) => entry.key === "starting")?.spawnSlots.some((spawn) => spawn.id === "P1" && spawn.x === 2 && spawn.y === 9)).toBeTruthy();
+  expect(snapshot.sessionMaps.find((entry) => entry.key === "starting")?.mapId).toBe("village_square");
+  expect(snapshot.sessionMaps.find((entry) => entry.key === "adventure")?.mapId).toBe("graveyard");
+  expect(snapshot.sessionMaps.find((entry) => entry.key === "starting")?.spawnSlots.some((spawn) => spawn.id === "P1" && spawn.x === 5 && spawn.y === 7)).toBeTruthy();
   expect(snapshot.worldEntities.some((entity) => entity.name === "Father Alden" && entity.x === 5 && entity.y === 4)).toBeTruthy();
   expect(snapshot.worldEntities.some((entity) => entity.name === "Marta the Merchant" && entity.x === 9 && entity.y === 6)).toBeTruthy();
   expect(snapshot.shops.some((shop) => shop.name === "Wayfarer Supplies" && shop.inventory.some((item) => item.itemId === "healing_potion" && item.stock === 5))).toBeTruthy();
@@ -753,6 +806,12 @@ test("phase11 official journey of the faithful loads a complete prepared campaig
   expect(snapshot.triggerZones.some((trigger) => trigger.id === "accept_quest_trigger" && trigger.triggerType === "interact_object")).toBeTruthy();
   expect(snapshot.journalEntries.some((entry) => entry.message === "Campaign started: The Journey of the Faithful")).toBeTruthy();
   expect(snapshot.rewardHistory.some((entry) => entry.message.includes("25 gold and 100 XP"))).toBeTruthy();
+  await expect(dmPage.getByTestId("prep-map-background")).toBeVisible();
+  await expect(dmPage.getByTestId("prep-debug-spawn-p1")).toBeVisible();
+  await expect(dmPage.getByTestId("prep-debug-npc-father_alden")).toBeVisible();
+  await expect(dmPage.getByTestId("prep-debug-shop-wayfarer_supplies")).toBeVisible();
+  await dmPage.getByTestId("prep-coordinate-debug-toggle").uncheck();
+  await expect(dmPage.getByTestId("prep-coordinate-debug-overlay")).toBeHidden();
 
   await dmPage.getByTestId("dm-start-adventure").click();
   await waitForPlayRoute(dmPage, code);

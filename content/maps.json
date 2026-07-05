@@ -1,4 +1,8 @@
 [
+  { "id": "village_square", "name": "Village Square", "width": 12, "height": 9, "fogOfWar": false },
+  { "id": "crypt_entrance", "name": "Crypt Entrance", "width": 12, "height": 9, "fogOfWar": true },
+  { "id": "forgotten_crypt", "name": "Forgotten Crypt", "width": 12, "height": 9, "fogOfWar": true },
+  { "id": "necromancer_sanctum", "name": "Necromancer Sanctum", "width": 12, "height": 9, "fogOfWar": true },
   { "id": "wayfarers-rest", "name": "Wayfarer's Rest", "width": 12, "height": 12, "fogOfWar": false },
   { "id": "faithful-road", "name": "Faithful Road", "width": 12, "height": 12, "fogOfWar": true },
   { "id": "tavern", "name": "Wayfarer's Rest", "width": 12, "height": 10, "fogOfWar": false },

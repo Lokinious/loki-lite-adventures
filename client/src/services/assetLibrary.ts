@@ -1,11 +1,15 @@
 import assetRegistry from "../../../content/assets/index.json";
-import cryptEntranceMetadata from "../../../content/assets/maps/crypt-entrance.meta.json";
-import forgottenCryptMetadata from "../../../content/assets/maps/forgotten-crypt.meta.json";
-import necromancerSanctumMetadata from "../../../content/assets/maps/necromancer-sanctum.meta.json";
+import cryptEntranceMetadata from "../../../content/assets/maps/crypt_entrance.meta.json";
+import forgottenCryptMetadata from "../../../content/assets/maps/forgotten_crypt.meta.json";
+import graveyardMetadata from "../../../content/assets/maps/graveyard.meta.json";
+import necromancerSanctumMetadata from "../../../content/assets/maps/necromancer_sanctum.meta.json";
+import villageSquareMetadata from "../../../content/assets/maps/village_square.meta.json";
 import type { AssetCategory, AssetDefinition, MapMetadata } from "../../../content/assets/schema";
 
 const officialAssets = assetRegistry as AssetDefinition[];
 const mapMetadata = [
+  villageSquareMetadata,
+  graveyardMetadata,
   cryptEntranceMetadata,
   forgottenCryptMetadata,
   necromancerSanctumMetadata
@@ -34,11 +38,21 @@ export function getAssetById(assetId: string) {
 }
 
 export function getMapMetadataByAssetId(assetId: string) {
-  return mapMetadata.find((metadata) => metadata.assetId === assetId) ?? null;
+  return mapMetadata.find((metadata) => metadata.backgroundAssetId === assetId) ?? null;
 }
 
 export function getMapMetadataByMapId(mapId: string) {
   return mapMetadata.find((metadata) => metadata.mapId === mapId) ?? null;
+}
+
+export function getMapBackgroundBundle(mapId: string) {
+  const metadata = getMapMetadataByMapId(mapId);
+  const backgroundAsset = metadata ? getAssetById(metadata.backgroundAssetId) : null;
+
+  return {
+    metadata,
+    backgroundAsset
+  };
 }
 
 export function resolveCampaignAssets(assetIds: string[] = []) {

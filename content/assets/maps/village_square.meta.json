@@ -1,0 +1,26 @@
+{
+  "mapId": "village_square",
+  "name": "Village Square",
+  "width": 1024,
+  "height": 768,
+  "backgroundAssetId": "map_village_square_bg",
+  "walkableBounds": { "x": 80, "y": 80, "width": 864, "height": 608 },
+  "spawnPoints": [
+    { "id": "p1", "x": 430, "y": 620 },
+    { "id": "p2", "x": 470, "y": 620 },
+    { "id": "p3", "x": 510, "y": 620 },
+    { "id": "p4", "x": 550, "y": 620 },
+    { "id": "p5", "x": 450, "y": 660 },
+    { "id": "p6", "x": 530, "y": 660 }
+  ],
+  "npcPositions": [
+    { "npcId": "father_alden", "x": 480, "y": 310 }
+  ],
+  "shopPositions": [
+    { "shopId": "wayfarer_supplies", "x": 760, "y": 385 }
+  ],
+  "encounterZones": [],
+  "questMarkers": [
+    { "questId": "missing_pilgrims", "label": "Father Alden", "x": 480, "y": 310 }
+  ]
+}

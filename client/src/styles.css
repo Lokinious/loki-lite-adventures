@@ -329,11 +329,38 @@ textarea {
 }
 
 .prep-map-shell {
-  display: grid;
+  position: relative;
   gap: 6px;
   padding: 14px;
   border-radius: 16px;
   background: rgba(2, 6, 23, 0.72);
+  overflow: hidden;
+}
+
+.prep-map-background {
+  position: absolute;
+  inset: 14px;
+  width: calc(100% - 28px);
+  height: calc(100% - 28px);
+  object-fit: cover;
+  opacity: 0.76;
+  border-radius: 10px;
+}
+
+.prep-tile-grid {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  gap: 6px;
+  height: 100%;
+}
+
+.debug-toggle {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  color: #cbd5e1;
+  font-size: 0.9rem;
 }
 
 .prep-tile {
@@ -341,7 +368,7 @@ textarea {
   min-height: 76px;
   border: 1px solid rgba(59, 130, 246, 0.18);
   border-radius: 12px;
-  background: linear-gradient(180deg, rgba(30, 41, 59, 0.88), rgba(15, 23, 42, 0.96));
+  background: rgba(15, 23, 42, 0.28);
   overflow: hidden;
 }
 
@@ -412,6 +439,69 @@ textarea {
 .prep-marker--hidden {
   opacity: 0.78;
   box-shadow: inset 0 0 0 1px rgba(226, 232, 240, 0.35);
+}
+
+.prep-coordinate-debug {
+  position: absolute;
+  inset: 14px;
+  z-index: 3;
+  pointer-events: none;
+}
+
+.prep-walkable-bounds,
+.prep-encounter-zone {
+  position: absolute;
+  border-radius: 8px;
+}
+
+.prep-walkable-bounds {
+  border: 2px dashed rgba(34, 197, 94, 0.75);
+  background: rgba(34, 197, 94, 0.08);
+}
+
+.prep-encounter-zone {
+  border: 2px solid rgba(220, 38, 38, 0.8);
+  background: rgba(220, 38, 38, 0.12);
+}
+
+.prep-encounter-zone span {
+  display: inline-block;
+  margin: 6px;
+  padding: 3px 6px;
+  border-radius: 6px;
+  background: rgba(15, 23, 42, 0.82);
+  color: #fecaca;
+  font-size: 0.72rem;
+}
+
+.prep-coordinate-marker {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  min-width: 28px;
+  padding: 5px 7px;
+  border-radius: 999px;
+  color: #fff;
+  font-size: 0.68rem;
+  font-weight: 800;
+  line-height: 1;
+  text-align: center;
+  box-shadow: 0 0 0 2px rgba(15, 23, 42, 0.8);
+}
+
+.prep-coordinate-marker--spawn {
+  background: #2563eb;
+}
+
+.prep-coordinate-marker--npc {
+  background: #16a34a;
+}
+
+.prep-coordinate-marker--shop {
+  background: #d97706;
+}
+
+.prep-coordinate-marker--quest {
+  background: #7c3aed;
 }
 
 .prep-toolbox,

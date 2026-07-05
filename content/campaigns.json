@@ -25,11 +25,11 @@
       "npc_faithful_guard_01",
       "npc_tavern_keeper_01",
       "npc_merchant_01",
-      "map_village_square_01",
-      "map_graveyard_01",
-      "map_crypt_entrance_01",
-      "map_forgotten_crypt_01",
-      "map_necromancer_sanctum_01",
+      "map_village_square_bg",
+      "map_graveyard_bg",
+      "map_crypt_entrance_bg",
+      "map_forgotten_crypt_bg",
+      "map_necromancer_sanctum_bg",
       "env_tomb_01",
       "env_altar_01",
       "env_ruined_statue_01",
@@ -72,11 +72,11 @@
           "npc_faithful_guard_01",
           "npc_tavern_keeper_01",
           "npc_merchant_01",
-          "map_village_square_01",
-          "map_graveyard_01",
-          "map_crypt_entrance_01",
-          "map_forgotten_crypt_01",
-          "map_necromancer_sanctum_01",
+          "map_village_square_bg",
+          "map_graveyard_bg",
+          "map_crypt_entrance_bg",
+          "map_forgotten_crypt_bg",
+          "map_necromancer_sanctum_bg",
           "env_tomb_01",
           "env_altar_01",
           "env_ruined_statue_01",
@@ -106,15 +106,15 @@
           {
             "key": "starting",
             "label": "Starting Area",
-            "mapId": "wayfarers-rest",
+            "mapId": "village_square",
             "notes": "Quest hub / tutorial / shop.",
             "spawnSlots": {
-              "P1": { "x": 2, "y": 9 },
-              "P2": { "x": 3, "y": 9 },
-              "P3": { "x": 4, "y": 9 },
-              "P4": { "x": 5, "y": 9 },
-              "P5": { "x": 6, "y": 9 },
-              "P6": { "x": 7, "y": 9 }
+              "P1": { "x": 5, "y": 7 },
+              "P2": { "x": 6, "y": 7 },
+              "P3": { "x": 7, "y": 7 },
+              "P4": { "x": 8, "y": 7 },
+              "P5": { "x": 5, "y": 8 },
+              "P6": { "x": 6, "y": 8 }
             },
             "fogAreas": [],
             "revealAll": false
@@ -122,15 +122,15 @@
           {
             "key": "adventure",
             "label": "Adventure Area",
-            "mapId": "faithful-road",
+            "mapId": "graveyard",
             "notes": "Exploration / undead encounters / secret discovery.",
             "spawnSlots": {
-              "P1": { "x": 1, "y": 10 },
-              "P2": { "x": 2, "y": 10 },
-              "P3": { "x": 3, "y": 10 },
-              "P4": { "x": 4, "y": 10 },
-              "P5": { "x": 5, "y": 10 },
-              "P6": { "x": 6, "y": 10 }
+              "P1": { "x": 1, "y": 7 },
+              "P2": { "x": 2, "y": 7 },
+              "P3": { "x": 3, "y": 7 },
+              "P4": { "x": 4, "y": 7 },
+              "P5": { "x": 1, "y": 8 },
+              "P6": { "x": 2, "y": 8 }
             },
             "fogAreas": [
               { "id": "fog-faithful-road", "name": "Faithful Road Mist", "x": 0, "y": 0, "width": 12, "height": 12 }
@@ -140,15 +140,15 @@
           {
             "key": "boss",
             "label": "Boss Area",
-            "mapId": "crypt",
+            "mapId": "necromancer_sanctum",
             "notes": "Dungeon / boss fight.",
             "spawnSlots": {
-              "P1": { "x": 2, "y": 10 },
-              "P2": { "x": 3, "y": 10 },
-              "P3": { "x": 4, "y": 10 },
-              "P4": { "x": 5, "y": 10 },
-              "P5": { "x": 6, "y": 10 },
-              "P6": { "x": 7, "y": 10 }
+              "P1": { "x": 4, "y": 7 },
+              "P2": { "x": 5, "y": 7 },
+              "P3": { "x": 6, "y": 7 },
+              "P4": { "x": 7, "y": 7 },
+              "P5": { "x": 4, "y": 8 },
+              "P6": { "x": 5, "y": 8 }
             },
             "fogAreas": [
               { "id": "fog-crypt", "name": "Crypt Shadows", "x": 0, "y": 0, "width": 12, "height": 12 }

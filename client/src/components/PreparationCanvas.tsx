@@ -8,6 +8,8 @@ import type {
   VisibilityState,
   WorldEntityType
 } from "../game/types";
+import { getMapBackgroundBundle } from "../services/assetLibrary";
+import type { MapMetadata } from "../../../content/assets/schema";
 
 type DmToolMessage = {
   tool: string;
@@ -82,6 +84,55 @@ function markerVariantForEntity(type: WorldEntityType) {
   return "object";
 }
 
+function coordinateStyle(metadata: MapMetadata, x: number, y: number) {
+  return {
+    left: `${(x / metadata.width) * 100}%`,
+    top: `${(y / metadata.height) * 100}%`
+  };
+}
+
+function zoneStyle(metadata: MapMetadata, zone: { x: number; y: number; width: number; height: number }) {
+  return {
+    left: `${(zone.x / metadata.width) * 100}%`,
+    top: `${(zone.y / metadata.height) * 100}%`,
+    width: `${(zone.width / metadata.width) * 100}%`,
+    height: `${(zone.height / metadata.height) * 100}%`
+  };
+}
+
+function MapCoordinateDebugOverlay({ metadata }: { metadata: MapMetadata }) {
+  return (
+    <div className="prep-coordinate-debug" data-testid="prep-coordinate-debug-overlay">
+      <div className="prep-walkable-bounds" data-testid="prep-walkable-bounds" style={zoneStyle(metadata, metadata.walkableBounds)} />
+      {metadata.spawnPoints.map((spawn) => (
+        <span key={spawn.id} className="prep-coordinate-marker prep-coordinate-marker--spawn" data-testid={`prep-debug-spawn-${spawn.id}`} style={coordinateStyle(metadata, spawn.x, spawn.y)}>
+          {spawn.id.toUpperCase()}
+        </span>
+      ))}
+      {metadata.npcPositions.map((npc) => (
+        <span key={npc.npcId} className="prep-coordinate-marker prep-coordinate-marker--npc" data-testid={`prep-debug-npc-${npc.npcId}`} style={coordinateStyle(metadata, npc.x, npc.y)}>
+          NPC
+        </span>
+      ))}
+      {metadata.shopPositions.map((shop) => (
+        <span key={shop.shopId} className="prep-coordinate-marker prep-coordinate-marker--shop" data-testid={`prep-debug-shop-${shop.shopId}`} style={coordinateStyle(metadata, shop.x, shop.y)}>
+          SHOP
+        </span>
+      ))}
+      {metadata.questMarkers.map((quest) => (
+        <span key={`${quest.questId}-${quest.x}-${quest.y}`} className="prep-coordinate-marker prep-coordinate-marker--quest" data-testid={`prep-debug-quest-${quest.questId}`} style={coordinateStyle(metadata, quest.x, quest.y)}>
+          QUEST
+        </span>
+      ))}
+      {metadata.encounterZones.map((zone) => (
+        <div key={zone.id} className="prep-encounter-zone" data-testid={`prep-debug-encounter-${zone.id}`} style={zoneStyle(metadata, zone)}>
+          <span>{zone.name}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function PreparationCanvas({ lobby, onRunTool }: PreparationCanvasProps) {
   const [activeTool, setActiveTool] = useState<PlacementTool>("inspect");
   const [selectedSpawnSlot, setSelectedSpawnSlot] = useState<SpawnSlotId>("P1");
@@ -94,6 +145,7 @@ export function PreparationCanvas({ lobby, onRunTool }: PreparationCanvasProps) 
   const [selection, setSelection] = useState<Selection>(null);
   const [entityVisibility, setEntityVisibility] = useState<VisibilityState>("visible");
   const [entityNotes, setEntityNotes] = useState("");
+  const [showCoordinateDebug, setShowCoordinateDebug] = useState(true);
 
   useEffect(() => {
     if (!lobby.npcPresets.some((preset) => preset.id === selectedNpcPresetId)) {
@@ -132,6 +184,10 @@ export function PreparationCanvas({ lobby, onRunTool }: PreparationCanvasProps) 
   const currentSessionMap = useMemo(
     () => lobby.sessionMaps.find((map) => map.key === lobby.currentMapKey) ?? lobby.sessionMaps[0] ?? null,
     [lobby.currentMapKey, lobby.sessionMaps]
+  );
+  const mapBundle = useMemo(
+    () => (currentSessionMap ? getMapBackgroundBundle(currentSessionMap.mapId) : { metadata: null, backgroundAsset: null }),
+    [currentSessionMap?.mapId]
   );
   const encounterThemes = useMemo(
     () => [...new Set(lobby.encounterTemplates.map((template) => template.theme))],
@@ -304,6 +360,15 @@ export function PreparationCanvas({ lobby, onRunTool }: PreparationCanvasProps) 
           {lobby.gridWidth} x {lobby.gridHeight}
         </span>
       </div>
+      <label className="debug-toggle">
+        <input
+          type="checkbox"
+          data-testid="prep-coordinate-debug-toggle"
+          checked={showCoordinateDebug}
+          onChange={(event) => setShowCoordinateDebug(event.target.checked)}
+        />
+        <span>Coordinate overlay</span>
+      </label>
 
       <div className="prep-map-preview-grid" data-testid="prep-map-preview-grid">
         {lobby.sessionMaps.map((sessionMap) => (
@@ -501,41 +566,55 @@ export function PreparationCanvas({ lobby, onRunTool }: PreparationCanvasProps) 
       <div
         className="prep-map-shell"
         data-testid="prep-map-canvas"
-        style={{ gridTemplateColumns: `repeat(${lobby.gridWidth}, minmax(0, 1fr))` }}
+        style={{
+          aspectRatio: mapBundle.metadata ? `${mapBundle.metadata.width} / ${mapBundle.metadata.height}` : undefined
+        }}
       >
-        {Array.from({ length: tileCount }, (_, index) => {
-          const x = index % lobby.gridWidth;
-          const y = Math.floor(index / lobby.gridWidth);
-          const tileMarkers = markersByTile.get(`${x},${y}`) ?? [];
+        {mapBundle.backgroundAsset ? (
+          <img
+            className="prep-map-background"
+            data-testid="prep-map-background"
+            src={mapBundle.backgroundAsset.imagePath}
+            alt=""
+            draggable={false}
+          />
+        ) : null}
+        {showCoordinateDebug && mapBundle.metadata ? <MapCoordinateDebugOverlay metadata={mapBundle.metadata} /> : null}
+        <div className="prep-tile-grid" style={{ gridTemplateColumns: `repeat(${lobby.gridWidth}, minmax(0, 1fr))` }}>
+          {Array.from({ length: tileCount }, (_, index) => {
+            const x = index % lobby.gridWidth;
+            const y = Math.floor(index / lobby.gridWidth);
+            const tileMarkers = markersByTile.get(`${x},${y}`) ?? [];
 
-          return (
-            <div key={`${x}-${y}`} className="prep-tile" data-testid={`prep-tile-${x}-${y}`}>
-              <button
-                type="button"
-                className="prep-tile-button"
-                data-testid={`prep-place-${x}-${y}`}
-                onClick={() => placeOnTile(x, y)}
-                aria-label={`Preparation tile ${x + 1}, ${y + 1}`}
-              />
-              <span className="prep-tile-coordinates">
-                {x + 1},{y + 1}
-              </span>
-              <div className="prep-marker-stack">
-                {tileMarkers.map((marker) => (
-                  <button
-                    key={marker.key}
-                    type="button"
-                    className={`prep-marker prep-marker--${marker.variant}${marker.hidden ? " prep-marker--hidden" : ""}`}
-                    data-testid={`prep-marker-${marker.kind}-${marker.id}`}
-                    onClick={() => setSelection({ kind: marker.kind, id: marker.id })}
-                  >
-                    {marker.label}
-                  </button>
-                ))}
+            return (
+              <div key={`${x}-${y}`} className="prep-tile" data-testid={`prep-tile-${x}-${y}`}>
+                <button
+                  type="button"
+                  className="prep-tile-button"
+                  data-testid={`prep-place-${x}-${y}`}
+                  onClick={() => placeOnTile(x, y)}
+                  aria-label={`Preparation tile ${x + 1}, ${y + 1}`}
+                />
+                <span className="prep-tile-coordinates">
+                  {x + 1},{y + 1}
+                </span>
+                <div className="prep-marker-stack">
+                  {tileMarkers.map((marker) => (
+                    <button
+                      key={marker.key}
+                      type="button"
+                      className={`prep-marker prep-marker--${marker.variant}${marker.hidden ? " prep-marker--hidden" : ""}`}
+                      data-testid={`prep-marker-${marker.kind}-${marker.id}`}
+                      onClick={() => setSelection({ kind: marker.kind, id: marker.id })}
+                    >
+                      {marker.label}
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
-          );
-        })}
+            );
+          })}
+        </div>
       </div>
 
       <section className="dm-control-group prep-inspector" data-testid="prep-selection-panel">

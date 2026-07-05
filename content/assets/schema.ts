@@ -26,6 +26,17 @@ export interface Position {
   y: number;
 }
 
+export interface SpawnPoint extends Position {
+  id: "p1" | "p2" | "p3" | "p4" | "p5" | "p6";
+}
+
+export interface Bounds {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
 export interface EncounterZone {
   id: string;
   name: string;
@@ -51,8 +62,12 @@ export interface QuestMarker extends Position {
 
 export interface MapMetadata {
   mapId: string;
-  assetId: string;
-  spawnPoints: Position[];
+  name: string;
+  width: number;
+  height: number;
+  backgroundAssetId: string;
+  walkableBounds: Bounds;
+  spawnPoints: SpawnPoint[];
   encounterZones: EncounterZone[];
   npcPositions: NPCPlacement[];
   shopPositions: ShopPlacement[];

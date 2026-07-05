@@ -88,8 +88,12 @@ export type AssetDefinition = {
 
 export type MapMetadata = {
   mapId: string;
-  assetId: string;
-  spawnPoints: Array<{ x: number; y: number }>;
+  name: string;
+  width: number;
+  height: number;
+  backgroundAssetId: string;
+  walkableBounds: { x: number; y: number; width: number; height: number };
+  spawnPoints: Array<{ id: "p1" | "p2" | "p3" | "p4" | "p5" | "p6"; x: number; y: number }>;
   encounterZones: Array<{
     id: string;
     name: string;

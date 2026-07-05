@@ -1,0 +1,24 @@
+{
+  "mapId": "forgotten_crypt",
+  "name": "Forgotten Crypt",
+  "width": 1024,
+  "height": 768,
+  "backgroundAssetId": "map_forgotten_crypt_bg",
+  "walkableBounds": { "x": 120, "y": 92, "width": 784, "height": 584 },
+  "spawnPoints": [
+    { "id": "p1", "x": 280, "y": 625 },
+    { "id": "p2", "x": 325, "y": 625 },
+    { "id": "p3", "x": 370, "y": 625 },
+    { "id": "p4", "x": 415, "y": 625 },
+    { "id": "p5", "x": 305, "y": 668 },
+    { "id": "p6", "x": 395, "y": 668 }
+  ],
+  "npcPositions": [],
+  "shopPositions": [],
+  "encounterZones": [
+    { "id": "forgotten_crypt_bones", "name": "Bone Hall", "x": 360, "y": 300, "width": 310, "height": 210, "encounterId": "crypt_guardians" }
+  ],
+  "questMarkers": [
+    { "questId": "missing_pilgrims", "label": "Hidden Reliquary", "x": 300, "y": 230 }
+  ]
+}
