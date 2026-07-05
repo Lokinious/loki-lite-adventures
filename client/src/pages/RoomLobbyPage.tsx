@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { CharacterSheetPanel, DmPanel, DmWorldToolsPanel, EnemyPanel, LogPanel, PartyPanel } from "../components/GamePanels";
+import { PreparationCanvas } from "../components/PreparationCanvas";
 import { useRoomConnection } from "../game/RoomConnectionContext";
 import type { EnemyView } from "../game/types";
 
@@ -124,25 +125,95 @@ export function RoomLobbyPage() {
         </div>
       </section>
 
-      <section className="lobby-layout">
-        <div className="left-column">
-          <section className="panel">
-            <div className="section-header">
-              <h2>Current scene</h2>
-              <span data-testid="scene-title">{currentScene.title}</span>
+      {role === "dm" ? (
+        <>
+          <section className="dm-prep-layout" data-testid="dm-preparation-layout">
+            <div className="dm-prep-main">
+              <PreparationCanvas lobby={lobby} onRunTool={runDmTool} />
+              <DmWorldToolsPanel lobby={lobby} onRunTool={runDmTool} />
             </div>
-            <p className="scene-copy" data-testid="scene-description">
-              {currentScene.description}
-            </p>
-            <p className="meta-copy" data-testid="scene-objective">
-              Objective: {currentScene.objective}
-            </p>
-            <p className="meta-copy" data-testid="scene-type">
-              Type: {currentScene.sceneType}
-            </p>
-          </section>
 
-          {role === "player" ? (
+            <div className="dm-prep-side">
+              <DmPanel
+                lobby={lobby}
+                role={role}
+                sceneTarget={sceneTarget}
+                onSceneTargetChange={setSceneTarget}
+                goldAmount={goldAmount}
+                onGoldAmountChange={setGoldAmount}
+                commandDraft={commandDraft}
+                onCommandDraftChange={setCommandDraft}
+                dmCommand={dmCommand}
+                onDmCommandChange={setDmCommand}
+                onStartAdventure={() => runDmAction({ actionId: "startAdventure" })}
+                onAdvanceScene={() => runDmAction({ actionId: "advanceScene" })}
+                onPreviousScene={() => runDmAction({ actionId: "previousScene" })}
+                onRestartScene={() => runDmAction({ actionId: "restartScene" })}
+                onSetScene={(sceneId) => runDmAction({ actionId: "setScene", sceneId })}
+                onSpawnGoblin={() => runDmAction({ actionId: "spawnGoblin" })}
+                onSpawnGoblinChief={() => runDmAction({ actionId: "spawnGoblinChief" })}
+                onAwardPartyGold={(amount) => runDmAction({ actionId: "awardPartyGold", amount })}
+                onAddPublicMessage={(message) => {
+                  runDmAction({ actionId: "addPublicLogMessage", message });
+                  setCommandDraft("");
+                }}
+                onRunCommand={(command) => {
+                  runDmCommand(command);
+                  setDmCommand("");
+                }}
+              />
+              <section className="panel">
+                <div className="section-header">
+                  <h2>Current scene</h2>
+                  <span data-testid="scene-title">{currentScene.title}</span>
+                </div>
+                <p className="scene-copy" data-testid="scene-description">
+                  {currentScene.description}
+                </p>
+                <p className="meta-copy" data-testid="scene-objective">
+                  Objective: {currentScene.objective}
+                </p>
+                <p className="meta-copy" data-testid="scene-type">
+                  Type: {currentScene.sceneType}
+                </p>
+              </section>
+              <PartyPanel lobby={lobby} />
+              <LogPanel
+                title="Shared Log"
+                logs={lobby.publicLog}
+                testId="combat-log"
+                countTestId="combat-log-count"
+                entryPrefix="combat-log-entry-"
+              />
+              <LogPanel
+                title="DM Log"
+                logs={lobby.dmLog}
+                testId="dm-log"
+                countTestId="dm-log-count"
+                entryPrefix="dm-log-entry-"
+              />
+            </div>
+          </section>
+        </>
+      ) : (
+        <section className="lobby-layout">
+          <div className="left-column">
+            <section className="panel">
+              <div className="section-header">
+                <h2>Current scene</h2>
+                <span data-testid="scene-title">{currentScene.title}</span>
+              </div>
+              <p className="scene-copy" data-testid="scene-description">
+                {currentScene.description}
+              </p>
+              <p className="meta-copy" data-testid="scene-objective">
+                Objective: {currentScene.objective}
+              </p>
+              <p className="meta-copy" data-testid="scene-type">
+                Type: {currentScene.sceneType}
+              </p>
+            </section>
+
             <section className="panel">
               <div className="section-header">
                 <h2>Character creation</h2>
@@ -257,102 +328,61 @@ export function RoomLobbyPage() {
                 </span>
               </div>
             </section>
-          ) : null}
 
-          <CharacterSheetPanel player={currentPlayer} />
-          <PartyPanel lobby={lobby} />
-        </div>
+            <CharacterSheetPanel player={currentPlayer} />
+            <PartyPanel lobby={lobby} />
+          </div>
 
-        <div className="center-column">
-          <DmPanel
-            lobby={lobby}
-            role={role}
-            sceneTarget={sceneTarget}
-            onSceneTargetChange={setSceneTarget}
-            goldAmount={goldAmount}
-            onGoldAmountChange={setGoldAmount}
-            commandDraft={commandDraft}
-            onCommandDraftChange={setCommandDraft}
-            dmCommand={dmCommand}
-            onDmCommandChange={setDmCommand}
-            onStartAdventure={() => runDmAction({ actionId: "startAdventure" })}
-            onAdvanceScene={() => runDmAction({ actionId: "advanceScene" })}
-            onPreviousScene={() => runDmAction({ actionId: "previousScene" })}
-            onRestartScene={() => runDmAction({ actionId: "restartScene" })}
-            onSetScene={(sceneId) => runDmAction({ actionId: "setScene", sceneId })}
-            onSpawnGoblin={() => runDmAction({ actionId: "spawnGoblin" })}
-            onSpawnGoblinChief={() => runDmAction({ actionId: "spawnGoblinChief" })}
-            onAwardPartyGold={(amount) => runDmAction({ actionId: "awardPartyGold", amount })}
-            onAddPublicMessage={(message) => {
-              runDmAction({ actionId: "addPublicLogMessage", message });
-              setCommandDraft("");
-            }}
-            onRunCommand={(command) => {
-              runDmCommand(command);
-              setDmCommand("");
-            }}
-          />
-          {role === "dm" ? <DmWorldToolsPanel lobby={lobby} onRunTool={runDmTool} /> : null}
-
-          {playerSceneControlsVisible ? (
-            <section className="panel">
-              <div className="section-header">
-                <h2>Story choices</h2>
-              </div>
-              <div className="button-row">
-                {lobby.sceneActions.map((action) => (
-                  <button
-                    key={action.id}
-                    type="button"
-                    data-testid={`scene-action-${action.id}`}
-                    onClick={() => sceneAction(action.id)}
-                  >
-                    {action.label}
-                  </button>
-                ))}
-              </div>
-            </section>
-          ) : (
-            <section className="panel">
-              <h2>Ready to play</h2>
-              <p className="meta-copy">
-                {role === "dm"
-                  ? "Use the Dungeon Master controls to start and guide the adventure."
-                  : lobby.dmName
+          <div className="center-column">
+            {playerSceneControlsVisible ? (
+              <section className="panel">
+                <div className="section-header">
+                  <h2>Story choices</h2>
+                </div>
+                <div className="button-row">
+                  {lobby.sceneActions.map((action) => (
+                    <button
+                      key={action.id}
+                      type="button"
+                      data-testid={`scene-action-${action.id}`}
+                      onClick={() => sceneAction(action.id)}
+                    >
+                      {action.label}
+                    </button>
+                  ))}
+                </div>
+              </section>
+            ) : (
+              <section className="panel">
+                <h2>Ready to play</h2>
+                <p className="meta-copy">
+                  {lobby.dmName
                     ? "Waiting for the Dungeon Master to begin the story."
                     : "Without a DM, players can still use the story buttons once the adventure begins."}
-              </p>
-            </section>
-          )}
+                </p>
+              </section>
+            )}
 
-          <EnemyPanel
-            enemies={lobby.enemies}
-            actionLabel="Attack"
-            canTargetEnemy={canAttackEnemy}
-            getEnemyRangeMessage={getEnemyRangeMessage}
-            onTarget={attack}
-          />
-        </div>
-
-        <div className="right-column">
-          <LogPanel
-            title="Shared Log"
-            logs={lobby.publicLog}
-            testId="combat-log"
-            countTestId="combat-log-count"
-            entryPrefix="combat-log-entry-"
-          />
-          {role === "dm" ? (
-            <LogPanel
-              title="DM Log"
-              logs={lobby.dmLog}
-              testId="dm-log"
-              countTestId="dm-log-count"
-              entryPrefix="dm-log-entry-"
+            <EnemyPanel
+              enemies={lobby.enemies}
+              actionLabel="Attack"
+              canTargetEnemy={canAttackEnemy}
+              getEnemyRangeMessage={getEnemyRangeMessage}
+              onTarget={attack}
             />
-          ) : null}
-        </div>
-      </section>
+          </div>
+
+          <div className="right-column">
+            <LogPanel
+              title="Shared Log"
+              logs={lobby.publicLog}
+              testId="combat-log"
+              countTestId="combat-log-count"
+              entryPrefix="combat-log-entry-"
+            />
+          </div>
+        </section>
+      )}
     </main>
   );
 }

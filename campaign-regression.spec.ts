@@ -52,7 +52,7 @@ async function runDmTool(page: Page, message: Record<string, unknown>) {
 }
 
 async function completeRoll(page: Page) {
-  const rollButton = page.locator('[data-testid^="roll-check-"]').last();
+  const rollButton = page.locator('[data-testid^="roll-check-"]:not([disabled])').last();
   await expect(rollButton).toBeVisible();
   await rollButton.click();
 }
@@ -70,6 +70,20 @@ async function getPlayerId(page: Page, playerName: string) {
   }
 
   return testId.replace("player-card-", "");
+}
+
+function countOccurrences(text: string, needle: string) {
+  return text.split(needle).length - 1;
+}
+
+async function getBox(page: Page, testId: string) {
+  const box = await page.getByTestId(testId).boundingBox();
+
+  if (!box) {
+    throw new Error(`Missing bounding box for ${testId}.`);
+  }
+
+  return box;
 }
 
 test("reg scen 1 persists XP, gold, inventory, equipment, and level across reconnect", async ({ browser }) => {
@@ -245,6 +259,213 @@ test("reg scen 4 keeps secrets hidden on failure, reveals on success, and persis
   await waitForPlayRoute(playerPage, code);
   await expect(playerPage.getByTestId("world-entity-count")).toContainText("1");
   await expect(playerPage.getByTestId("combat-log")).toContainText("A hidden passage opens behind the stones.");
+
+  await context.close();
+});
+
+test("phase8.1 visual preparation canvas lets the DM place and inspect map assets directly", async ({ browser }) => {
+  const code = roomCode("prep-81");
+  const context = await browser.newContext();
+  const dmPage = await context.newPage();
+  const playerPage = await context.newPage();
+
+  await openParticipant(dmPage, code, "DungeonMaster", "create", "dm");
+  await openParticipant(playerPage, code, "Echo", "join", "player");
+  const echoId = await getPlayerId(dmPage, "Echo");
+
+  await dmPage.getByTestId("prep-open-map-adventure").click();
+  await expect(dmPage.getByTestId("prep-current-map-label")).toContainText("Adventure Area");
+
+  await dmPage.getByTestId("prep-tool-player_spawn").click();
+  await dmPage.getByTestId("prep-spawn-player-select").selectOption(echoId);
+  await dmPage.getByTestId("prep-place-1-1").click();
+  await expect(dmPage.getByTestId(`prep-marker-spawn-${echoId}`)).toBeVisible();
+
+  await dmPage.getByTestId("prep-tool-npc").click();
+  await dmPage.getByTestId("prep-place-2-1").click();
+  await expect(dmPage.getByTestId("prep-marker-entity-entity-1")).toBeVisible();
+
+  await dmPage.getByTestId("prep-tool-shop").click();
+  await dmPage.getByTestId("prep-place-3-1").click();
+  await expect(dmPage.getByTestId("prep-marker-entity-entity-2")).toBeVisible();
+
+  await dmPage.getByTestId("prep-tool-encounter").click();
+  await dmPage.getByTestId("prep-place-4-1").click();
+  await expect(dmPage.getByTestId("prep-marker-encounter-encounter-1")).toBeVisible();
+
+  await dmPage.getByTestId("prep-tool-secret").click();
+  await dmPage.getByTestId("prep-place-5-1").click();
+  await expect(dmPage.getByTestId("prep-marker-entity-entity-3")).toBeVisible();
+
+  await dmPage.getByTestId("prep-tool-object").click();
+  await dmPage.getByTestId("prep-place-6-1").click();
+  await expect(dmPage.getByTestId("prep-marker-entity-entity-4")).toBeVisible();
+
+  await dmPage.getByTestId("prep-marker-entity-entity-1").click();
+  await expect(dmPage.getByTestId("prep-selection-name")).toContainText("NPC 1");
+  await dmPage.getByTestId("prep-entity-notes").fill("Greets the party at the gate.");
+  await dmPage.getByTestId("prep-save-entity").click();
+  await expect(dmPage.getByTestId("dm-log")).toContainText("Updated DM notes for NPC 1.");
+
+  await expect(playerPage.getByTestId("prep-map-canvas")).toHaveCount(0);
+
+  await context.close();
+});
+
+test("phase10 fog hides entities until the DM reveals area and entity", async ({ browser }) => {
+  const code = roomCode("phase10-fog");
+  const context = await browser.newContext();
+  const dmPage = await context.newPage();
+  const playerPage = await context.newPage();
+
+  await openParticipant(dmPage, code, "DungeonMaster", "create", "dm");
+  await joinAndConfirm(playerPage, code, "Echo", "human", "ranger", "Human Ranger");
+
+  await runDmTool(dmPage, { tool: "placeEntity", entityType: "chest", x: 2, y: 2, mapKey: "starting", visibilityState: "hidden" });
+  await dmPage.getByTestId("dm-start-adventure").click();
+  await waitForPlayRoute(dmPage, code);
+  await waitForPlayRoute(playerPage, code);
+
+  await expect(playerPage.getByTestId("world-entity-count")).toContainText("0");
+  await dmPage.getByTestId("dm-world-tab-world").click();
+  await dmPage.getByTestId("dm-fog-name").fill("Inn Room");
+  await dmPage.getByTestId("dm-fog-x").fill("0");
+  await dmPage.getByTestId("dm-fog-y").fill("0");
+  await dmPage.getByTestId("dm-fog-width").fill("4");
+  await dmPage.getByTestId("dm-fog-height").fill("4");
+  await dmPage.getByTestId("dm-reveal-area").click();
+  await expect(playerPage.getByTestId("world-entity-count")).toContainText("0");
+
+  await dmPage.getByTestId("dm-world-tab-npcs").click();
+  await dmPage.locator('[data-testid^="dm-reveal-entity-"]').first().click();
+  await expect(playerPage.getByTestId("world-entity-count")).toContainText("1");
+
+  await context.close();
+});
+
+test("phase10 trigger zones fire once, spawn enemies, and update the dashboard", async ({ browser }) => {
+  const code = roomCode("phase10-trigger");
+  const context = await browser.newContext();
+  const dmPage = await context.newPage();
+  const playerPage = await context.newPage();
+
+  await openParticipant(dmPage, code, "DungeonMaster", "create", "dm");
+  await joinAndConfirm(playerPage, code, "Foxtrot", "human", "ranger", "Human Ranger");
+
+  await dmPage.getByTestId("dm-start-adventure").click();
+  await waitForPlayRoute(dmPage, code);
+  await waitForPlayRoute(playerPage, code);
+  await runDmTool(dmPage, { tool: "setMap", mapKey: "adventure" });
+  await runDmTool(dmPage, { tool: "revealAllFog", mapKey: "adventure" });
+  await runDmTool(dmPage, { tool: "createDynamicEvent", eventName: "Bridge Ambush Event", eventKind: "ambush", x: 2, y: 1, width: 1, height: 1, enemyId: "goblin", amount: 2, note: "The bushes shake violently." });
+  await runDmTool(dmPage, { tool: "createTriggerZone", name: "Bridge Ambush", triggerType: "enter_area", eventId: "event-1", mapKey: "adventure", x: 2, y: 1, width: 1, height: 1, onceOnly: true });
+
+  await dmPage.getByTestId("dm-world-tab-world").click();
+  await expect(dmPage.getByTestId("dm-dashboard-summary")).toContainText("1 active triggers");
+
+  await runDebug(playerPage, "move", 2, 1);
+  await expect(playerPage.getByTestId("combat-log")).toContainText("The bushes shake violently.");
+  await expect(dmPage.getByTestId("dm-dashboard-triggered")).toContainText("1");
+
+  const enemyCountAfterFirstTrigger = (await playerPage.getByTestId("enemy-count").textContent()) ?? "";
+  const logAfterFirstTrigger = (await playerPage.getByTestId("combat-log").textContent()) ?? "";
+  await runDebug(playerPage, "move", 1, 1);
+  await runDebug(playerPage, "move", 2, 1);
+  await expect(playerPage.getByTestId("enemy-count")).toHaveText(enemyCountAfterFirstTrigger);
+  const logAfterSecondEntry = (await playerPage.getByTestId("combat-log").textContent()) ?? "";
+  expect(countOccurrences(logAfterSecondEntry, "The bushes shake violently.")).toBe(countOccurrences(logAfterFirstTrigger, "The bushes shake violently."));
+
+  await context.close();
+});
+
+test("phase10 living world state persists secrets, environment modifiers, reputation, and journal entries", async ({ browser }) => {
+  const code = roomCode("phase10-world");
+  const context = await browser.newContext();
+  const dmPage = await context.newPage();
+  let playerPage = await context.newPage();
+
+  await openParticipant(dmPage, code, "DungeonMaster", "create", "dm");
+  await joinAndConfirm(playerPage, code, "Gamma", "human", "mystic", "Human Mystic");
+  const gammaId = await getPlayerId(dmPage, "Gamma");
+
+  await runDmTool(dmPage, { tool: "placeEntity", entityType: "chest", x: 2, y: 2, mapKey: "starting", visibilityState: "revealed" });
+  await runDmTool(dmPage, { tool: "placeEntity", entityType: "secret_passage_marker", x: 3, y: 2, mapKey: "starting", visibilityState: "hidden" });
+  await runDmTool(dmPage, { tool: "setPlayerSpawn", playerId: gammaId, mapKey: "starting", x: 2, y: 1 });
+  await runDmTool(dmPage, { tool: "createSecret", checkType: "investigation", dc: 1, description: "A hidden passage opens beside the chest.", linkedEntityId: "entity-2" });
+  await runDmTool(dmPage, { tool: "configureEntityInteraction", entityId: "entity-1", interactionTitle: "Inspect the chest", description: "Look for hidden mechanisms.", checkType: "investigation", dc: 1, visibility: "targeted", successMessage: "You find the catch.", failureMessage: "Nothing happens.", effectType: "reveal_secret", linkedSecretId: "secret-1", targetPlayerMode: "single" });
+
+  await dmPage.getByTestId("dm-start-adventure").click();
+  await waitForPlayRoute(dmPage, code);
+  await waitForPlayRoute(playerPage, code);
+  await runDmTool(dmPage, { tool: "revealAllFog", mapKey: "starting" });
+
+  await dmPage.getByTestId("dm-world-tab-world").click();
+  await dmPage.getByTestId("dm-time-select").selectOption("night");
+  await dmPage.getByTestId("dm-set-time").click();
+  await dmPage.getByTestId("dm-weather-select").selectOption("fog");
+  await dmPage.getByTestId("dm-set-weather").click();
+  await dmPage.getByTestId("dm-faction-select").selectOption("merchants_guild");
+  await dmPage.getByTestId("dm-reputation-amount").fill("10");
+  await dmPage.getByTestId("dm-adjust-reputation").click();
+  await dmPage.getByTestId("dm-journal-entry").fill("Merchants Guild offers safer roads.");
+  await dmPage.getByTestId("dm-add-journal-entry").click();
+
+  await runDmTool(dmPage, { tool: "createSkillCheck", checkType: "perception", dc: 1, title: "Night Watch", description: "Scan the camp perimeter.", target: "player", playerName: "Gamma", visibility: "dm", successMessage: "You hear distant footsteps.", failureMessage: "The darkness conceals the threat." });
+  await completeRoll(playerPage);
+  await dmPage.getByTestId("log-tab-dm").click();
+  await expect(dmPage.getByTestId("dm-log")).toContainText("- 4 environment");
+
+  await playerPage.locator('[data-testid^="entity-interact-"]').first().click();
+  await completeRoll(playerPage);
+  await expect(playerPage.getByTestId("combat-log")).toContainText("A hidden passage opens beside the chest.");
+  await expect(dmPage.getByTestId("dm-dashboard-summary")).toContainText("0 hidden secrets");
+  await expect(playerPage.getByTestId("world-status-panel")).toContainText("night");
+  await expect(playerPage.getByTestId("world-status-panel")).toContainText("fog");
+  await expect(playerPage.getByTestId("world-status-panel")).toContainText("merchants_guild: 10");
+  await expect(playerPage.getByTestId("journal-panel")).toContainText("Merchants Guild offers safer roads.");
+
+  await playerPage.close();
+  playerPage = await context.newPage();
+  await reconnectParticipant(playerPage, code, "Gamma");
+  await waitForPlayRoute(playerPage, code);
+  await expect(playerPage.getByTestId("world-status-panel")).toContainText("merchants_guild: 10");
+  await expect(playerPage.getByTestId("journal-panel")).toContainText("Merchants Guild offers safer roads.");
+  await expect(playerPage.getByTestId("combat-log")).toContainText("A hidden passage opens beside the chest.");
+
+  await context.close();
+});
+
+test("phase10 dm logs stay in a dedicated sidebar and never cover controls", async ({ browser }) => {
+  const code = roomCode("phase10-layout");
+  const context = await browser.newContext({ viewport: { width: 1600, height: 1200 } });
+  const dmPage = await context.newPage();
+  const playerPage = await context.newPage();
+
+  await openParticipant(dmPage, code, "DungeonMaster", "create", "dm");
+  await joinAndConfirm(playerPage, code, "Hotel", "human", "ranger", "Human Ranger");
+  await dmPage.getByTestId("dm-start-adventure").click();
+  await waitForPlayRoute(dmPage, code);
+  await waitForPlayRoute(playerPage, code);
+
+  await dmPage.getByTestId("dm-world-tab-world").click();
+
+  const controlsBox = await getBox(dmPage, "play-controls-column");
+  const sidebarBox = await getBox(dmPage, "play-log-sidebar");
+  const skillPanelBox = await getBox(dmPage, "dm-skill-check-panel");
+  const commandButtonBox = await getBox(dmPage, "dm-run-command");
+
+  expect(sidebarBox.x).toBeGreaterThanOrEqual(controlsBox.x + controlsBox.width - 1);
+  expect(sidebarBox.x).toBeGreaterThanOrEqual(skillPanelBox.x + skillPanelBox.width - 1);
+  expect(sidebarBox.x).toBeGreaterThanOrEqual(commandButtonBox.x + commandButtonBox.width - 1);
+
+  await dmPage.getByTestId("dm-run-command").click();
+  await dmPage.getByTestId("dm-check-preset-12").click();
+
+  await dmPage.setViewportSize({ width: 1000, height: 1200 });
+  const stackedControlsBox = await getBox(dmPage, "play-controls-column");
+  const stackedSidebarBox = await getBox(dmPage, "play-log-sidebar");
+
+  expect(stackedSidebarBox.y).toBeGreaterThanOrEqual(stackedControlsBox.y + stackedControlsBox.height - 1);
 
   await context.close();
 });

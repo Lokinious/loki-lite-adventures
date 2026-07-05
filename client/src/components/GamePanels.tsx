@@ -1,7 +1,9 @@
 import { useMemo, useState } from "react";
 import type {
   AutomationEffectType,
+  DynamicEventKind,
   EnemyView,
+  FactionId,
   InventoryItemView,
   JoinRole,
   LobbyView,
@@ -18,6 +20,8 @@ import type {
   SkillCheckType,
   SkillCheckVisibility,
   SkillCheckView,
+  TimeOfDay,
+  WeatherType,
   WorldEntityType,
   WorldEntityView
 } from "../game/types";
@@ -751,7 +755,7 @@ export function DmPanel({
 }
 
 export function DmWorldToolsPanel({ lobby, onRunTool }: DmWorldToolsPanelProps) {
-  const [activeTab, setActiveTab] = useState<"maps" | "players" | "npcs" | "objects" | "shops" | "quests" | "encounters" | "secrets" | "rewards" | "notes">("maps");
+  const [activeTab, setActiveTab] = useState<"maps" | "players" | "npcs" | "objects" | "shops" | "quests" | "encounters" | "secrets" | "rewards" | "notes" | "world">("maps");
   const [selectedMapKey, setSelectedMapKey] = useState(lobby.currentMapKey);
   const [selectedMapId, setSelectedMapId] = useState(lobby.sessionMaps.find((map) => map.key === lobby.currentMapKey)?.mapId ?? lobby.currentScene.mapId);
   const [npcName, setNpcName] = useState("Gatekeeper");
@@ -803,6 +807,23 @@ export function DmWorldToolsPanel({ lobby, onRunTool }: DmWorldToolsPanelProps) 
   const [interactionTitle, setInteractionTitle] = useState("Inspect the object");
   const [interactionDescription, setInteractionDescription] = useState("A closer look may reveal something important.");
   const [interactionNotes, setInteractionNotes] = useState("");
+  const [fogName, setFogName] = useState("Hidden Room");
+  const [fogWidth, setFogWidth] = useState("2");
+  const [fogHeight, setFogHeight] = useState("2");
+  const [triggerName, setTriggerName] = useState("Bridge Ambush");
+  const [triggerWidth, setTriggerWidth] = useState("1");
+  const [triggerHeight, setTriggerHeight] = useState("1");
+  const [triggerTargetEntityId, setTriggerTargetEntityId] = useState("");
+  const [triggerEventId, setTriggerEventId] = useState("");
+  const [eventName, setEventName] = useState("Bridge Ambush Event");
+  const [eventKind, setEventKind] = useState<DynamicEventKind>("ambush");
+  const [timeOfDay, setTimeOfDay] = useState<TimeOfDay>(lobby.timeOfDay);
+  const [weather, setWeather] = useState<WeatherType>(lobby.weather);
+  const [factionId, setFactionId] = useState<FactionId>("merchants_guild");
+  const [reputationAmount, setReputationAmount] = useState("5");
+  const [journalEntry, setJournalEntry] = useState("The world changes.");
+  const [patrolEntityId, setPatrolEntityId] = useState("");
+  const [patrolWaypoints, setPatrolWaypoints] = useState("1,1;3,1;3,3");
 
   const latestShop = lobby.shops.at(-1) ?? null;
   const latestQuest = lobby.quests.at(-1) ?? null;
@@ -978,7 +999,7 @@ export function DmWorldToolsPanel({ lobby, onRunTool }: DmWorldToolsPanelProps) 
       </section>
 
       <div className="tab-row">
-        {(["maps", "players", "npcs", "objects", "shops", "quests", "encounters", "secrets", "rewards", "notes"] as const).map((tab) => (
+        {(["maps", "players", "npcs", "objects", "shops", "quests", "encounters", "secrets", "rewards", "notes", "world"] as const).map((tab) => (
           <button
             key={tab}
             type="button"
@@ -1448,6 +1469,179 @@ export function DmWorldToolsPanel({ lobby, onRunTool }: DmWorldToolsPanelProps) 
             </div>
           </section>
           <LogPanel title="DM Notes" logs={lobby.dmLog} testId="dm-notes-log" countTestId="dm-notes-count" entryPrefix="dm-note-entry-" />
+        </div>
+      ) : null}
+
+      {activeTab === "world" ? (
+        <div className="player-list">
+          <section className="panel" data-testid="dm-dashboard-panel">
+            <div className="section-header">
+              <h2>Living World Dashboard</h2>
+              <span data-testid="dm-dashboard-summary">
+                {lobby.triggerZones.filter((zone) => zone.active).length} active triggers · {lobby.secrets.filter((secret) => !secret.revealed).length} hidden secrets
+              </span>
+            </div>
+            <div className="player-stats two-column-grid">
+              <span data-testid="dm-dashboard-time">Time: {lobby.timeOfDay}</span>
+              <span data-testid="dm-dashboard-weather">Weather: {lobby.weather}</span>
+              <span data-testid="dm-dashboard-triggered">Triggered: {lobby.triggerZones.filter((zone) => zone.triggered).length}</span>
+              <span data-testid="dm-dashboard-encounters">Encounters: {lobby.sessionMaps.reduce((total, map) => total + map.encounterCount, 0)}</span>
+            </div>
+            <div className="player-stats">
+              {lobby.factionReputation.map((entry) => <span key={entry.factionId}>{entry.factionId}: {entry.score}</span>)}
+            </div>
+          </section>
+
+          <div className="two-column-grid">
+            <label className="field">
+              <span>Fog name</span>
+              <input data-testid="dm-fog-name" value={fogName} onChange={(event) => setFogName(event.target.value)} />
+            </label>
+            <label className="field">
+              <span>Map</span>
+              <select data-testid="dm-fog-map" value={selectedMapKey} onChange={(event) => setSelectedMapKey(event.target.value as typeof selectedMapKey)}>
+                {lobby.sessionMaps.map((sessionMap) => <option key={sessionMap.key} value={sessionMap.key}>{sessionMap.label}</option>)}
+              </select>
+            </label>
+            <label className="field">
+              <span>X</span>
+              <input data-testid="dm-fog-x" value={entityX} onChange={(event) => setEntityX(event.target.value)} />
+            </label>
+            <label className="field">
+              <span>Y</span>
+              <input data-testid="dm-fog-y" value={entityY} onChange={(event) => setEntityY(event.target.value)} />
+            </label>
+            <label className="field">
+              <span>Width</span>
+              <input data-testid="dm-fog-width" value={fogWidth} onChange={(event) => setFogWidth(event.target.value)} />
+            </label>
+            <label className="field">
+              <span>Height</span>
+              <input data-testid="dm-fog-height" value={fogHeight} onChange={(event) => setFogHeight(event.target.value)} />
+            </label>
+          </div>
+          <div className="button-row">
+            <button type="button" data-testid="dm-reveal-area" onClick={() => onRunTool({ tool: "createFogArea", name: fogName, mapKey: selectedMapKey, x: Number(entityX), y: Number(entityY), width: Number(fogWidth), height: Number(fogHeight) })}>
+              Reveal Area
+            </button>
+            <button type="button" data-testid="dm-hide-latest-area" onClick={() => lobby.fogAreas.at(-1) && onRunTool({ tool: "setFogAreaVisibility", areaId: lobby.fogAreas.at(-1)?.id, visibleToPlayers: false })} disabled={!lobby.fogAreas.length}>
+              Hide Area
+            </button>
+            <button type="button" data-testid="dm-reveal-all" onClick={() => onRunTool({ tool: "revealAllFog", mapKey: selectedMapKey })}>
+              Reveal All
+            </button>
+            <button type="button" data-testid="dm-reset-fog" onClick={() => onRunTool({ tool: "resetFog", mapKey: selectedMapKey })}>
+              Reset Fog
+            </button>
+          </div>
+
+          <div className="two-column-grid">
+            <label className="field">
+              <span>Event name</span>
+              <input data-testid="dm-event-name" value={eventName} onChange={(event) => setEventName(event.target.value)} />
+            </label>
+            <label className="field">
+              <span>Event kind</span>
+              <select data-testid="dm-event-kind" value={eventKind} onChange={(event) => setEventKind(event.target.value as DynamicEventKind)}>
+                {["ambush", "trap", "discovery", "dialogue_reveal", "quest_update", "map_transition", "reward_event"].map((kind) => <option key={kind} value={kind}>{kind}</option>)}
+              </select>
+            </label>
+          </div>
+          <div className="button-row">
+            <button type="button" data-testid="dm-create-event" onClick={() => onRunTool({ tool: "createDynamicEvent", eventName, eventKind, note: effectNarration, enemyId: encounterEnemyId, amount: Number(rewardAmount), x: Number(encounterX), y: Number(encounterY), width: Number(triggerWidth), height: Number(triggerHeight), secretId: latestSecret?.id, questId: latestQuest?.id, mapKey: selectedMapKey })}>
+              Create Event
+            </button>
+            <select data-testid="dm-trigger-event" value={triggerEventId} onChange={(event) => setTriggerEventId(event.target.value)}>
+              <option value="">Latest event</option>
+              {lobby.dynamicEvents.map((entry) => <option key={entry.id} value={entry.id}>{entry.name}</option>)}
+            </select>
+          </div>
+
+          <div className="two-column-grid">
+            <label className="field">
+              <span>Trigger name</span>
+              <input data-testid="dm-trigger-name" value={triggerName} onChange={(event) => setTriggerName(event.target.value)} />
+            </label>
+            <label className="field">
+              <span>Trigger target entity</span>
+              <select data-testid="dm-trigger-entity" value={triggerTargetEntityId} onChange={(event) => setTriggerTargetEntityId(event.target.value)}>
+                <option value="">Area trigger</option>
+                {entityOptions.map((entity) => <option key={entity.id} value={entity.id}>{entity.name}</option>)}
+              </select>
+            </label>
+            <label className="field">
+              <span>Width</span>
+              <input data-testid="dm-trigger-width" value={triggerWidth} onChange={(event) => setTriggerWidth(event.target.value)} />
+            </label>
+            <label className="field">
+              <span>Height</span>
+              <input data-testid="dm-trigger-height" value={triggerHeight} onChange={(event) => setTriggerHeight(event.target.value)} />
+            </label>
+          </div>
+          <div className="button-row">
+            <button type="button" data-testid="dm-create-trigger-zone" onClick={() => onRunTool({ tool: "createTriggerZone", name: triggerName, triggerType: triggerTargetEntityId ? "interact_object" : "enter_area", entityId: triggerTargetEntityId || undefined, eventId: triggerEventId || lobby.dynamicEvents.at(-1)?.id, mapKey: selectedMapKey, x: Number(encounterX), y: Number(encounterY), width: Number(triggerWidth), height: Number(triggerHeight), onceOnly: true, visibleToPlayers: false })}>
+              Create Trigger
+            </button>
+            <button type="button" data-testid="dm-fire-latest-trigger" onClick={() => lobby.triggerZones.at(-1) && onRunTool({ tool: "fireTrigger", eventId: lobby.triggerZones.at(-1)?.id })} disabled={!lobby.triggerZones.length}>
+              Fire Latest Trigger
+            </button>
+          </div>
+
+          <div className="two-column-grid">
+            <label className="field">
+              <span>Time</span>
+              <select data-testid="dm-time-select" value={timeOfDay} onChange={(event) => setTimeOfDay(event.target.value as TimeOfDay)}>
+                {["morning", "afternoon", "evening", "night"].map((value) => <option key={value} value={value}>{value}</option>)}
+              </select>
+            </label>
+            <label className="field">
+              <span>Weather</span>
+              <select data-testid="dm-weather-select" value={weather} onChange={(event) => setWeather(event.target.value as WeatherType)}>
+                {["clear", "rain", "fog", "storm", "snow"].map((value) => <option key={value} value={value}>{value}</option>)}
+              </select>
+            </label>
+            <label className="field">
+              <span>Faction</span>
+              <select data-testid="dm-faction-select" value={factionId} onChange={(event) => setFactionId(event.target.value as FactionId)}>
+                {["town_guard", "bandits", "merchants_guild", "arcane_circle"].map((value) => <option key={value} value={value}>{value}</option>)}
+              </select>
+            </label>
+            <label className="field">
+              <span>Reputation</span>
+              <input data-testid="dm-reputation-amount" value={reputationAmount} onChange={(event) => setReputationAmount(event.target.value)} />
+            </label>
+          </div>
+          <div className="button-row">
+            <button type="button" data-testid="dm-set-time" onClick={() => onRunTool({ tool: "setTimeOfDay", timeOfDay })}>Set Time</button>
+            <button type="button" data-testid="dm-set-weather" onClick={() => onRunTool({ tool: "setWeather", weather })}>Set Weather</button>
+            <button type="button" data-testid="dm-adjust-reputation" onClick={() => onRunTool({ tool: "setReputation", factionId, amount: Number(reputationAmount) })}>Adjust Reputation</button>
+          </div>
+
+          <div className="two-column-grid">
+            <label className="field">
+              <span>Patrol entity</span>
+              <select data-testid="dm-patrol-entity" value={patrolEntityId} onChange={(event) => setPatrolEntityId(event.target.value)}>
+                <option value="">Choose entity</option>
+                {entityOptions.map((entity) => <option key={entity.id} value={entity.id}>{entity.name}</option>)}
+              </select>
+            </label>
+            <label className="field">
+              <span>Waypoints</span>
+              <input data-testid="dm-patrol-waypoints" value={patrolWaypoints} onChange={(event) => setPatrolWaypoints(event.target.value)} />
+            </label>
+          </div>
+          <div className="button-row">
+            <button type="button" data-testid="dm-create-patrol" onClick={() => onRunTool({ tool: "createPatrolRoute", entityId: patrolEntityId, waypointText: patrolWaypoints, loop: true })}>Create Patrol</button>
+            <button type="button" data-testid="dm-advance-patrols" onClick={() => onRunTool({ tool: "advancePatrols" })}>Advance Patrols</button>
+          </div>
+
+          <label className="field">
+            <span>Journal entry</span>
+            <textarea data-testid="dm-journal-entry" value={journalEntry} onChange={(event) => setJournalEntry(event.target.value)} rows={2} />
+          </label>
+          <button type="button" data-testid="dm-add-journal-entry" onClick={() => onRunTool({ tool: "addJournalEntry", note: journalEntry })}>
+            Add Journal Entry
+          </button>
         </div>
       ) : null}
 

@@ -5,6 +5,12 @@ export type CampaignDifficulty = "casual" | "hardcore" | "legendary";
 export type MapSlotKey = "starting" | "adventure" | "boss" | "camp";
 export type PlayerLifeStatus = "alive" | "downed" | "dead" | "permanentlyDead";
 export type VisibilityState = "hidden" | "visible" | "revealed" | "dm_only";
+export type TriggerType = "enter_area" | "interact_object" | "encounter_completed" | "skill_check_succeeded" | "map_changed";
+export type DynamicEventKind = "ambush" | "trap" | "discovery" | "dialogue_reveal" | "quest_update" | "map_transition" | "reward_event";
+export type TimeOfDay = "morning" | "afternoon" | "evening" | "night";
+export type WeatherType = "clear" | "rain" | "fog" | "storm" | "snow";
+export type FactionId = "town_guard" | "bandits" | "merchants_guild" | "arcane_circle";
+export type PreparationAssetType = "player_spawn" | "npc" | "shop" | "encounter" | "secret" | "object";
 
 export type WorldEntityType =
   | "npc"
@@ -190,6 +196,57 @@ export type SessionMapView = {
   spawnCount: number;
   encounterCount: number;
   entityCount: number;
+  revealedAreaCount: number;
+  revealAll: boolean;
+};
+
+export type FogAreaView = {
+  id: string;
+  name: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+};
+
+export type TriggerZoneView = {
+  id: string;
+  name: string;
+  triggerType: TriggerType;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  visibleToPlayers: boolean;
+  onceOnly: boolean;
+  active: boolean;
+  triggered: boolean;
+};
+
+export type DynamicEventView = {
+  id: string;
+  name: string;
+  kind: DynamicEventKind;
+};
+
+export type PatrolRouteView = {
+  id: string;
+  entityId: string;
+  entityName: string;
+  active: boolean;
+  loop: boolean;
+  waypointCount: number;
+  nextWaypointIndex: number;
+};
+
+export type FactionReputationView = {
+  factionId: FactionId;
+  score: number;
+};
+
+export type JournalEntryView = {
+  id: string;
+  message: string;
 };
 
 export type CharacterProfileView = {
@@ -202,6 +259,23 @@ export type CharacterProfileView = {
   gold: number;
   status: PlayerLifeStatus;
   completedAdventures: number;
+};
+
+export type PreparationSpawnView = {
+  playerId: string;
+  playerName: string;
+  x: number;
+  y: number;
+};
+
+export type PreparationEncounterView = {
+  id: string;
+  name: string;
+  x: number;
+  y: number;
+  enemyCount: number;
+  active: boolean;
+  notes: string;
 };
 
 export type SessionTemplateView = {
@@ -351,8 +425,20 @@ export type LobbyView = {
   roomPhase: RoomPhase;
   controlsLocked: boolean;
   campaignDifficulty: CampaignDifficulty;
+  timeOfDay: TimeOfDay;
+  weather: WeatherType;
   currentMapKey: MapSlotKey;
   sessionMaps: SessionMapView[];
+  preparationSpawns: PreparationSpawnView[];
+  preparationEncounters: PreparationEncounterView[];
+  fogAreas: FogAreaView[];
+  revealedTiles: Array<{ x: number; y: number }>;
+  revealAllFog: boolean;
+  triggerZones: TriggerZoneView[];
+  dynamicEvents: DynamicEventView[];
+  patrolRoutes: PatrolRouteView[];
+  factionReputation: FactionReputationView[];
+  journalEntries: JournalEntryView[];
   availableMaps: Array<{ id: string; name: string }>;
   savedTemplates: SessionTemplateView[];
   adventureStarted: boolean;

@@ -12,6 +12,7 @@ import { EnemyState, LobbyState, LogEntryState, PlayerState } from "./schema/Lob
 const { Room } = colyseus;
 
 type JoinRole = "player" | "dm";
+type PreparationAssetType = "player_spawn" | "npc" | "shop" | "encounter" | "secret" | "object";
 
 type JoinOptions = {
   roomCode?: string;
@@ -86,14 +87,28 @@ type DmToolMessage = {
   tool:
     | "setMap"
     | "setMapDefinition"
+    | "placePreparationAsset"
     | "setPlayerSpawn"
     | "setPlayerStatus"
     | "setCampaignDifficulty"
+    | "createFogArea"
+    | "setFogAreaVisibility"
+    | "revealAllFog"
+    | "resetFog"
     | "saveTemplate"
     | "loadTemplate"
     | "resetPreparation"
     | "createEncounterGroup"
     | "activateEncounterGroup"
+    | "createTriggerZone"
+    | "fireTrigger"
+    | "createDynamicEvent"
+    | "setTimeOfDay"
+    | "setWeather"
+    | "setReputation"
+    | "addJournalEntry"
+    | "createPatrolRoute"
+    | "advancePatrols"
     | "addSessionNote"
     | "createNpc"
     | "placeEntity"
@@ -113,6 +128,7 @@ type DmToolMessage = {
     | "configureEntityInteraction"
     | "setEntityNotes";
   entityType?: WorldEntityType;
+  assetType?: PreparationAssetType;
   entityId?: string;
   npcId?: string;
   shopId?: string;
@@ -139,6 +155,8 @@ type DmToolMessage = {
   dc?: number;
   x?: number;
   y?: number;
+  width?: number;
+  height?: number;
   visibleToPlayers?: boolean;
   discovered?: boolean;
   target?: "party" | "all" | "player";
@@ -162,6 +180,21 @@ type DmToolMessage = {
   enemyId?: string;
   enemyIds?: string[];
   difficulty?: CampaignDifficulty;
+  triggerType?: TriggerType;
+  triggerEffectType?: TriggerEffectType;
+  onceOnly?: boolean;
+  active?: boolean;
+  eventId?: string;
+  eventKind?: DynamicEventKind;
+  timeOfDay?: TimeOfDay;
+  weather?: WeatherType;
+  factionId?: FactionId;
+  score?: number;
+  loop?: boolean;
+  waypointText?: string;
+  areaId?: string;
+  eventName?: string;
+  questStatus?: QuestStatus;
   visibilityState?: VisibilityState;
   playerProfileId?: string;
   status?: PlayerLifeStatus;
@@ -342,10 +375,32 @@ type AutomationEffectType =
   | "trigger_event"
   | "trigger_combat"
   | "narration";
+type TriggerType = "enter_area" | "interact_object" | "encounter_completed" | "skill_check_succeeded" | "map_changed";
+type TriggerEffectType =
+  | "reveal_area"
+  | "reveal_entity"
+  | "spawn_enemy"
+  | "start_encounter"
+  | "show_narration"
+  | "give_reward"
+  | "update_quest"
+  | "transition_map"
+  | "activate_shop"
+  | "reveal_secret"
+  | "mark_discovered";
+type DynamicEventKind = "ambush" | "trap" | "discovery" | "dialogue_reveal" | "quest_update" | "map_transition" | "reward_event";
+type TimeOfDay = "morning" | "afternoon" | "evening" | "night";
+type WeatherType = "clear" | "rain" | "fog" | "storm" | "snow";
+type FactionId = "town_guard" | "bandits" | "merchants_guild" | "arcane_circle";
 
 type Point = {
   x: number;
   y: number;
+};
+
+type AreaRect = Point & {
+  width: number;
+  height: number;
 };
 
 type ActiveTurnView = {
@@ -545,6 +600,57 @@ type SessionMapView = {
   spawnCount: number;
   encounterCount: number;
   entityCount: number;
+  revealedAreaCount: number;
+  revealAll: boolean;
+};
+
+type FogAreaView = {
+  id: string;
+  name: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+};
+
+type TriggerZoneView = {
+  id: string;
+  name: string;
+  triggerType: TriggerType;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  visibleToPlayers: boolean;
+  onceOnly: boolean;
+  active: boolean;
+  triggered: boolean;
+};
+
+type DynamicEventView = {
+  id: string;
+  name: string;
+  kind: DynamicEventKind;
+};
+
+type PatrolRouteView = {
+  id: string;
+  entityId: string;
+  entityName: string;
+  active: boolean;
+  loop: boolean;
+  waypointCount: number;
+  nextWaypointIndex: number;
+};
+
+type FactionReputationView = {
+  factionId: FactionId;
+  score: number;
+};
+
+type JournalEntryView = {
+  id: string;
+  message: string;
 };
 
 type CharacterProfileView = {
@@ -562,6 +668,23 @@ type CharacterProfileView = {
 type SessionTemplateView = {
   id: string;
   name: string;
+};
+
+type PreparationSpawnView = {
+  playerId: string;
+  playerName: string;
+  x: number;
+  y: number;
+};
+
+type PreparationEncounterView = {
+  id: string;
+  name: string;
+  x: number;
+  y: number;
+  enemyCount: number;
+  active: boolean;
+  notes: string;
 };
 
 type RaceOptionView = {
@@ -707,12 +830,19 @@ type EntityInteractionRecord = {
   failureEffect: AutomationEffect;
 };
 
+type FogAreaRecord = AreaRect & {
+  id: string;
+  name: string;
+};
+
 type SessionMapRecord = {
   key: MapSlotKey;
   label: string;
   mapId: string;
   notes: string;
   spawnPoints: Record<string, Point>;
+  fogAreas: FogAreaRecord[];
+  revealAll: boolean;
 };
 
 type EncounterGroupRecord = {
@@ -723,6 +853,54 @@ type EncounterGroupRecord = {
   trigger: Point;
   active: boolean;
   notes: string;
+};
+
+type TriggerEffectRecord = {
+  type: TriggerEffectType;
+  area: AreaRect | undefined;
+  entityId: string | undefined;
+  enemyId: string | undefined;
+  enemyCount: number | undefined;
+  encounterId: string | undefined;
+  narration: string | undefined;
+  reward: RewardGrant | undefined;
+  questId: string | undefined;
+  questStatus: QuestStatus | undefined;
+  mapKey: MapSlotKey | undefined;
+  shopId: string | undefined;
+  secretId: string | undefined;
+};
+
+type DynamicEventRecord = {
+  id: string;
+  name: string;
+  kind: DynamicEventKind;
+  effects: TriggerEffectRecord[];
+  note: string;
+};
+
+type TriggerZoneRecord = AreaRect & {
+  id: string;
+  name: string;
+  mapKey: MapSlotKey;
+  visibleToPlayers: boolean;
+  triggerType: TriggerType;
+  onceOnly: boolean;
+  active: boolean;
+  triggered: boolean;
+  linkedEntityId: string | undefined;
+  linkedEventId: string | undefined;
+  effects: TriggerEffectRecord[];
+};
+
+type PatrolRouteRecord = {
+  id: string;
+  entityId: string;
+  mapKey: MapSlotKey;
+  waypoints: Point[];
+  active: boolean;
+  loop: boolean;
+  nextWaypointIndex: number;
 };
 
 type PersistentCharacterRecord = {
@@ -755,6 +933,9 @@ type SessionTemplateRecord = {
   id: string;
   name: string;
   campaignDifficulty: CampaignDifficulty;
+  timeOfDay: TimeOfDay;
+  weather: WeatherType;
+  factionReputation: Record<FactionId, number>;
   maps: SessionMapRecord[];
   worldEntities: WorldEntityRecord[];
   npcs: NpcRecord[];
@@ -762,7 +943,11 @@ type SessionTemplateRecord = {
   quests: QuestRecord[];
   secrets: SecretRecord[];
   encounterGroups: EncounterGroupRecord[];
+  triggerZones: TriggerZoneRecord[];
+  dynamicEvents: DynamicEventRecord[];
+  patrolRoutes: PatrolRouteRecord[];
   sessionNotes: RewardHistoryView[];
+  journalEntries: JournalEntryView[];
 };
 
 type SkillCheckRecord = {
@@ -793,8 +978,20 @@ type RoomSnapshot = {
   roomPhase: RoomPhase;
   controlsLocked: boolean;
   campaignDifficulty: CampaignDifficulty;
+  timeOfDay: TimeOfDay;
+  weather: WeatherType;
   currentMapKey: MapSlotKey;
   sessionMaps: SessionMapView[];
+  preparationSpawns: PreparationSpawnView[];
+  preparationEncounters: PreparationEncounterView[];
+  fogAreas: FogAreaView[];
+  revealedTiles: Point[];
+  revealAllFog: boolean;
+  triggerZones: TriggerZoneView[];
+  dynamicEvents: DynamicEventView[];
+  patrolRoutes: PatrolRouteView[];
+  factionReputation: FactionReputationView[];
+  journalEntries: JournalEntryView[];
   availableMaps: Array<{ id: string; name: string }>;
   savedTemplates: SessionTemplateView[];
   adventureStarted: boolean;
@@ -1000,6 +1197,7 @@ const availableMapSlots: Array<{ key: MapSlotKey; label: string; defaultMapId: s
   { key: "boss", label: "Boss Area", defaultMapId: "goblin_camp" },
   { key: "camp", label: "Camp", defaultMapId: "camp" }
 ];
+const factionIds: FactionId[] = ["town_guard", "bandits", "merchants_guild", "arcane_circle"];
 
 const levelThresholds = [0, 100, 250, 500, 1000];
 
@@ -1012,9 +1210,18 @@ export class LobbyRoom extends Room<LobbyState> {
   private roomPhase: RoomPhase = "preparation";
   private currentMapKey: MapSlotKey = "starting";
   private campaignDifficulty: CampaignDifficulty = "casual";
+  private timeOfDay: TimeOfDay = "morning";
+  private weather: WeatherType = "clear";
+  private factionReputation: Record<FactionId, number> = {
+    town_guard: 0,
+    bandits: 0,
+    merchants_guild: 0,
+    arcane_circle: 0
+  };
   private rewardHistory: RewardHistoryView[] = [];
   private dmNotes: RewardHistoryView[] = [];
   private sessionNotes: RewardHistoryView[] = [];
+  private journalEntries: JournalEntryView[] = [];
   private sessionMaps = new Map<MapSlotKey, SessionMapRecord>();
   private worldEntities = new Map<string, WorldEntityRecord>();
   private npcs = new Map<string, NpcRecord>();
@@ -1023,6 +1230,9 @@ export class LobbyRoom extends Room<LobbyState> {
   private secrets = new Map<string, SecretRecord>();
   private skillChecks = new Map<string, SkillCheckRecord>();
   private encounterGroups = new Map<string, EncounterGroupRecord>();
+  private triggerZones = new Map<string, TriggerZoneRecord>();
+  private dynamicEvents = new Map<string, DynamicEventRecord>();
+  private patrolRoutes = new Map<string, PatrolRouteRecord>();
   private generatorIndex = 0;
 
   override onCreate(options: JoinOptions) {
@@ -1226,7 +1436,9 @@ export class LobbyRoom extends Room<LobbyState> {
         label: slot.label,
         mapId: slot.defaultMapId,
         notes: slot.key === "camp" ? "A safe hub between adventures." : "",
-        spawnPoints: {}
+        spawnPoints: {},
+        fogAreas: [],
+        revealAll: slot.key === "starting"
       });
     }
   }
@@ -1437,6 +1649,7 @@ export class LobbyRoom extends Room<LobbyState> {
     this.addPublicLog(
       `${player.name} moved to (${message.x + 1}, ${message.y + 1}) with ${player.remainingMovement} movement left.`
     );
+    this.processTriggerZones("enter_area", { player });
     this.syncState();
     this.publishSnapshots();
   }
@@ -1934,7 +2147,8 @@ export class LobbyRoom extends Room<LobbyState> {
       return;
     }
 
-    const price = Math.max(0, stockEntry.price - Math.floor(stockEntry.price * (shop.discountPercent / 100)));
+    const effectiveDiscount = Math.max(shop.discountPercent, Math.max(0, Math.floor((this.factionReputation.merchants_guild ?? 0) / 10) * 5));
+    const price = Math.max(0, stockEntry.price - Math.floor(stockEntry.price * (effectiveDiscount / 100)));
 
     if (player.gold < price) {
       this.rejectAction(client, "You do not have enough gold.");
@@ -1986,7 +2200,9 @@ export class LobbyRoom extends Room<LobbyState> {
     }
 
     const roll = rollDie(20);
-    const modifier = getSkillModifier(player, skillCheck.checkType);
+    const baseModifier = getSkillModifier(player, skillCheck.checkType);
+    const environmentalModifier = this.getEnvironmentalSkillModifier(skillCheck.checkType);
+    const modifier = baseModifier + environmentalModifier;
     const total = roll + modifier;
     const success = total >= skillCheck.dc;
     const messageText = success ? skillCheck.successMessage : skillCheck.failureMessage;
@@ -2003,11 +2219,15 @@ export class LobbyRoom extends Room<LobbyState> {
       skillCheck.status = "completed";
     }
 
-    const resultMessage = `${player.name} rolled ${capitalizeCheckType(skillCheck.checkType)}: d20 (${roll}) + ${modifier} = ${total} vs DC ${skillCheck.dc}. ${messageText}`;
+    const resultMessage = `${player.name} rolled ${capitalizeCheckType(skillCheck.checkType)}: d20 (${roll}) + ${baseModifier}${environmentalModifier ? ` ${environmentalModifier > 0 ? "+" : "-"} ${Math.abs(environmentalModifier)} environment` : ""} = ${total} vs DC ${skillCheck.dc}. ${messageText}`;
     this.publishSkillCheckResult(skillCheck, player, resultMessage, success);
 
     if (success) {
       this.applyAutomationEffect(skillCheck.successEffect, player, skillCheck.title);
+      this.processTriggerZones(
+        "skill_check_succeeded",
+        skillCheck.sourceEntityId ? { player, entityId: skillCheck.sourceEntityId } : { player }
+      );
       if (skillCheck.linkedSecretId) {
         this.revealSecretRecord(skillCheck.linkedSecretId, `${player.name} uncovers a hidden clue.`);
       }
@@ -2050,6 +2270,9 @@ export class LobbyRoom extends Room<LobbyState> {
     }
 
     if (!entity.interaction) {
+      this.processTriggerZones("interact_object", { player, entityId: entity.id });
+      this.syncState();
+      this.publishSnapshots();
       this.rejectAction(client, "That object does not have an interaction yet.");
       return;
     }
@@ -2088,6 +2311,7 @@ export class LobbyRoom extends Room<LobbyState> {
       note: entity.interaction.successEffect.narration,
       sourceEntityId: entity.id
     } as DmToolMessage);
+    this.processTriggerZones("interact_object", { player, entityId: entity.id });
   }
 
   private handleCampService(client: Client, message: CampServiceMessage) {
@@ -2112,6 +2336,7 @@ export class LobbyRoom extends Room<LobbyState> {
       player.status = "alive";
       player.alive = true;
       this.addPublicLog(`${player.characterName || player.name} rests at camp and fully recovers.`);
+      this.addJournalEntry(`${player.characterName || player.name} recovered at camp.`);
       this.persistCharacterProfile(player);
       this.syncState();
       this.publishSnapshots();
@@ -2133,6 +2358,7 @@ export class LobbyRoom extends Room<LobbyState> {
       player.alive = true;
       player.health = Math.max(1, Math.ceil(player.maxHealth / 2));
       this.addPublicLog(`${player.characterName || player.name} returns from the camp shrine restored.`);
+      this.addJournalEntry(`${player.characterName || player.name} was revived at camp.`);
       this.persistCharacterProfile(player);
       this.syncState();
       this.publishSnapshots();
@@ -2208,6 +2434,9 @@ export class LobbyRoom extends Room<LobbyState> {
         case "setMapDefinition":
           this.setMapDefinitionFromDm(message.mapKey, message.mapId);
           return;
+        case "placePreparationAsset":
+          this.placePreparationAssetFromDm(message);
+          return;
         case "setPlayerSpawn":
           this.setPlayerSpawnFromDm(message.playerId, message.mapKey, message.x, message.y);
           return;
@@ -2216,6 +2445,18 @@ export class LobbyRoom extends Room<LobbyState> {
           return;
         case "setCampaignDifficulty":
           this.setCampaignDifficultyFromDm(message.difficulty);
+          return;
+        case "createFogArea":
+          this.createFogAreaFromDm(message);
+          return;
+        case "setFogAreaVisibility":
+          this.setFogAreaVisibilityFromDm(message.areaId, Boolean(message.visibleToPlayers));
+          return;
+        case "revealAllFog":
+          this.revealAllFogFromDm(message.mapKey);
+          return;
+        case "resetFog":
+          this.resetFogFromDm(message.mapKey);
           return;
         case "saveTemplate":
           this.saveTemplateFromDm(message.templateName);
@@ -2232,6 +2473,33 @@ export class LobbyRoom extends Room<LobbyState> {
         case "activateEncounterGroup":
           this.activateEncounterGroupFromDm(message.encounterId);
           return;
+        case "createTriggerZone":
+          this.createTriggerZoneFromDm(message);
+          return;
+        case "fireTrigger":
+          this.fireTriggerFromDm(message.eventId ?? message.areaId ?? message.name);
+          return;
+        case "createDynamicEvent":
+          this.createDynamicEventFromDm(message);
+          return;
+        case "setTimeOfDay":
+          this.setTimeOfDayFromDm(message.timeOfDay);
+          return;
+        case "setWeather":
+          this.setWeatherFromDm(message.weather);
+          return;
+        case "setReputation":
+          this.setReputationFromDm(message.factionId, message.amount ?? message.score);
+          return;
+        case "addJournalEntry":
+          this.addJournalEntryFromDm(message.note);
+          return;
+        case "createPatrolRoute":
+          this.createPatrolRouteFromDm(message);
+          return;
+        case "advancePatrols":
+          this.advancePatrolsFromDm();
+          return;
         case "addSessionNote":
           this.addSessionNoteFromDm(message.note);
           return;
@@ -2242,6 +2510,10 @@ export class LobbyRoom extends Room<LobbyState> {
           this.placeEntityFromDm(message);
           return;
         case "setEntityVisibility":
+          if (message.visibilityState) {
+            this.setEntityVisibilityStateFromDm(message.entityId, message.visibilityState);
+            return;
+          }
           this.setEntityVisibilityFromDm(message.entityId, Boolean(message.visibleToPlayers));
           return;
         case "createShop":
@@ -2434,6 +2706,26 @@ export class LobbyRoom extends Room<LobbyState> {
         }
         break;
 
+      case "time":
+        this.setTimeOfDayFromDm(commandParts[1] as TimeOfDay);
+        return;
+
+      case "weather":
+        this.setWeatherFromDm(commandParts[1] as WeatherType);
+        return;
+
+      case "reputation":
+        this.setReputationFromDm(commandParts[1] as FactionId, Number(commandParts[2]));
+        return;
+
+      case "journal":
+        this.addJournalEntryFromDm(commandParts.slice(1).join(" "));
+        return;
+
+      case "trigger":
+        this.fireTriggerFromDm(commandParts[1]);
+        return;
+
       case "check": {
         const checkType = normalizeSkillCheckType(commandParts[1]);
         const dc = Number(commandParts[2]);
@@ -2474,10 +2766,18 @@ export class LobbyRoom extends Room<LobbyState> {
         break;
 
       case "reveal":
+        if (subcommand === "area") {
+          this.setFogAreaVisibilityFromDm(commandParts[2], true);
+          return;
+        }
         this.setEntityVisibilityFromDm(commandParts[1], true);
         return;
 
       case "hide":
+        if (subcommand === "area") {
+          this.setFogAreaVisibilityFromDm(commandParts[2], false);
+          return;
+        }
         this.setEntityVisibilityFromDm(commandParts[1], false);
         return;
 
@@ -2492,7 +2792,9 @@ export class LobbyRoom extends Room<LobbyState> {
     const currentScene = this.getCurrentScene();
     appendUniqueString(this.state.completedEncounters, currentScene.id);
     this.addPublicLog(`${currentScene.title} encounter complete.`);
+    this.addJournalEntry(`${currentScene.title} encounter completed.`);
     this.restoreDownedPlayersAfterEncounter();
+    this.processTriggerZones("encounter_completed", { player: attacker });
 
     if (this.hasDungeonMaster()) {
       if (this.currentMapKey === "adventure") {
@@ -2877,6 +3179,7 @@ export class LobbyRoom extends Room<LobbyState> {
     secret.revealed = true;
     this.addPublicLog(secret.revealText);
     this.addRewardHistory(secret.revealText);
+    this.addJournalEntry(secret.revealText);
 
     if (sourceMessage) {
       this.addDmLog(sourceMessage);
@@ -3221,6 +3524,8 @@ export class LobbyRoom extends Room<LobbyState> {
       this.activateMapEncounterGroups(mapKey);
       this.ensureEncounterTurnStarted();
     }
+
+    this.processTriggerZones("map_changed");
   }
 
   private spawnConfiguredEncounter(sceneId: string) {
@@ -3577,6 +3882,7 @@ export class LobbyRoom extends Room<LobbyState> {
     this.ensureAdventureStarted();
     this.applyMapState("starting", { encounterOnEnter: false });
     this.addPublicLog("The Dungeon Master launches the session.");
+    this.addJournalEntry("The adventure begins.");
     this.syncState();
     this.publishSnapshots();
   }
@@ -3609,6 +3915,7 @@ export class LobbyRoom extends Room<LobbyState> {
 
     this.applyMapState(normalizedKey);
     this.addPublicLog(`Map transition: ${this.getSessionMap(normalizedKey).label}.`);
+    this.addJournalEntry(`The party travels to ${this.getSessionMap(normalizedKey).label}.`);
     this.syncState();
     this.publishSnapshots();
   }
@@ -3634,6 +3941,138 @@ export class LobbyRoom extends Room<LobbyState> {
     this.addDmLog(`${sessionMap.label} now uses ${mapDefinition.name}.`);
     this.syncState();
     this.publishSnapshots();
+  }
+
+  private placePreparationAssetFromDm(message: DmToolMessage) {
+    const assetType = message.assetType;
+    const mapKey = normalizeMapSlotKey(message.mapKey) ?? this.currentMapKey;
+    const x = Number(message.x);
+    const y = Number(message.y);
+
+    if (!assetType) {
+      this.addDmLog("Choose a preparation tool before placing on the map.");
+      this.syncState();
+      this.publishSnapshots();
+      return;
+    }
+
+    if (assetType !== "player_spawn" && (!isWholeNumber(x) || !isWholeNumber(y))) {
+      this.addDmLog("Choose a valid tile on the preparation map.");
+      this.syncState();
+      this.publishSnapshots();
+      return;
+    }
+
+    switch (assetType) {
+      case "player_spawn":
+        this.setPlayerSpawnFromDm(message.playerId, mapKey, x, y);
+        return;
+      case "npc": {
+        const npcName = sanitizeWorldName(message.name, `NPC ${this.npcs.size + 1}`);
+        const npcId = buildRecordId("npc", this.npcs.size + 1);
+        this.createNpcFromDm({
+          tool: "createNpc",
+          name: npcName,
+          role: message.role ?? "guide",
+          ...(message.description ? { description: message.description } : {}),
+          ...(message.publicDescription ? { publicDescription: message.publicDescription } : {})
+        });
+        this.placeEntityFromDm({
+          tool: "placeEntity",
+          mapKey,
+          x,
+          y,
+          entityType: "npc",
+          npcId,
+          name: npcName,
+          visibilityState: message.visibilityState ?? "visible",
+          ...(message.note ? { note: message.note } : {})
+        });
+        return;
+      }
+      case "shop": {
+        const shopNumber = this.shops.size + 1;
+        const shopkeeperName = sanitizeWorldName(message.name, `Shopkeeper ${this.npcs.size + 1}`);
+        const npcId = buildRecordId("npc", this.npcs.size + 1);
+        this.createNpcFromDm({
+          tool: "createNpc",
+          name: shopkeeperName,
+          role: message.role ?? "merchant",
+          ...(message.description ? { description: message.description } : {}),
+          publicDescription: message.publicDescription ?? `${shopkeeperName} keeps a careful eye on the stock.`
+        });
+        this.placeEntityFromDm({
+          tool: "placeEntity",
+          mapKey,
+          x,
+          y,
+          entityType: "shopkeeper",
+          npcId,
+          name: shopkeeperName,
+          visibilityState: message.visibilityState ?? "visible",
+          ...(message.note ? { note: message.note } : {})
+        });
+        this.createShopFromDm({
+          tool: "createShop",
+          npcId,
+          name: sanitizeWorldName(message.title, `Shop ${shopNumber}`)
+        });
+        return;
+      }
+      case "encounter":
+        this.createEncounterGroupFromDm({
+          tool: "createEncounterGroup",
+          mapKey,
+          x,
+          y,
+          enemyId: message.enemyId ?? "goblin",
+          name: sanitizeWorldName(message.name, `Encounter ${this.encounterGroups.size + 1}`),
+          description: message.description ?? "Encounter trigger."
+        });
+        return;
+      case "secret": {
+        const entityId = buildRecordId("entity", this.worldEntities.size + 1);
+        const secretNumber = this.secrets.size + 1;
+        this.placeEntityFromDm({
+          tool: "placeEntity",
+          mapKey,
+          x,
+          y,
+          entityType: message.entityType ?? "secret_marker",
+          name: sanitizeWorldName(message.name, `Secret ${secretNumber}`),
+          description: message.publicDescription ?? "A hidden clue waits here.",
+          visibilityState: message.visibilityState ?? "hidden",
+          ...(message.note ? { note: message.note } : {})
+        });
+        this.createSecretFromDm({
+          tool: "createSecret",
+          mapKey,
+          linkedEntityId: entityId,
+          checkType: message.checkType ?? "investigation",
+          dc: message.dc ?? 12,
+          description: message.description ?? `Secret ${secretNumber} is revealed.`
+        });
+        return;
+      }
+      case "object":
+        this.placeEntityFromDm({
+          tool: "placeEntity",
+          mapKey,
+          x,
+          y,
+          entityType: message.entityType ?? "chest",
+          name: sanitizeWorldName(message.name, formatEntityTypeLabel(message.entityType ?? "chest")),
+          description: message.description ?? `${formatEntityTypeLabel(message.entityType ?? "chest")} stands here.`,
+          visibilityState: message.visibilityState ?? "visible",
+          ...(message.note ? { note: message.note } : {})
+        });
+        return;
+      default:
+        this.addDmLog("That preparation tool is not available.");
+        this.syncState();
+        this.publishSnapshots();
+        return;
+    }
   }
 
   private setPlayerSpawnFromDm(playerId: string | undefined, mapKey: MapSlotKey | undefined, x: number | undefined, y: number | undefined) {
@@ -3675,6 +4114,7 @@ export class LobbyRoom extends Room<LobbyState> {
     player.alive = normalizedStatus === "alive";
     player.health = normalizedStatus === "alive" ? Math.max(1, player.health || player.maxHealth) : 0;
     this.persistCharacterProfile(player);
+    this.addJournalEntry(`${player.name} is now ${normalizedStatus}.`);
     this.addDmLog(`${player.name} is now ${normalizedStatus}.`);
     this.syncState();
     this.publishSnapshots();
@@ -3696,18 +4136,409 @@ export class LobbyRoom extends Room<LobbyState> {
     this.publishSnapshots();
   }
 
+  private createFogAreaFromDm(message: DmToolMessage) {
+    const mapKey = normalizeMapSlotKey(message.mapKey) ?? this.currentMapKey;
+    const x = Math.max(0, Math.floor(message.x ?? 0));
+    const y = Math.max(0, Math.floor(message.y ?? 0));
+    const width = Math.max(1, Math.floor(message.width ?? 1));
+    const height = Math.max(1, Math.floor(message.height ?? 1));
+    const area = {
+      id: buildRecordId("fog", this.getSessionMap(mapKey).fogAreas.length + 1),
+      name: sanitizeWorldName(message.name, `Area ${this.getSessionMap(mapKey).fogAreas.length + 1}`),
+      x,
+      y,
+      width,
+      height
+    };
+
+    this.getSessionMap(mapKey).fogAreas.push(area);
+    this.getSessionMap(mapKey).revealAll = false;
+    this.addDmLog(`Revealed ${area.name} on ${mapKey}.`);
+    this.addJournalEntry(`${area.name} was revealed on ${mapKey}.`);
+    this.syncState();
+    this.publishSnapshots();
+  }
+
+  private setFogAreaVisibilityFromDm(areaId: string | undefined, visible: boolean) {
+    for (const sessionMap of this.sessionMaps.values()) {
+      const index = sessionMap.fogAreas.findIndex((area) => area.id === areaId);
+
+      if (index === -1) {
+        continue;
+      }
+
+      if (!visible) {
+        const [area] = sessionMap.fogAreas.splice(index, 1);
+        this.addDmLog(`Hid ${area?.name ?? areaId} on ${sessionMap.key}.`);
+      }
+
+      this.syncState();
+      this.publishSnapshots();
+      return;
+    }
+
+    this.addDmLog(`Unknown fog area: ${areaId ?? ""}`);
+    this.syncState();
+    this.publishSnapshots();
+  }
+
+  private revealAllFogFromDm(mapKey: MapSlotKey | undefined) {
+    const normalizedKey = normalizeMapSlotKey(mapKey) ?? this.currentMapKey;
+    const sessionMap = this.getSessionMap(normalizedKey);
+    sessionMap.revealAll = true;
+    this.addDmLog(`Revealed the entire ${normalizedKey} map.`);
+    this.addJournalEntry(`The entire ${normalizedKey} area was revealed.`);
+    this.syncState();
+    this.publishSnapshots();
+  }
+
+  private resetFogFromDm(mapKey: MapSlotKey | undefined) {
+    const normalizedKey = normalizeMapSlotKey(mapKey) ?? this.currentMapKey;
+    const sessionMap = this.getSessionMap(normalizedKey);
+    sessionMap.fogAreas = [];
+    sessionMap.revealAll = false;
+    this.addDmLog(`Reset fog for ${normalizedKey}.`);
+    this.syncState();
+    this.publishSnapshots();
+  }
+
+  private createDynamicEventFromDm(message: DmToolMessage) {
+    const kind = normalizeDynamicEventKind(message.eventKind);
+    const effects = buildDynamicEventEffects(message, kind);
+    const entry: DynamicEventRecord = {
+      id: buildRecordId("event", this.dynamicEvents.size + 1),
+      name: sanitizeWorldName(message.eventName ?? message.name, `${capitalizeWords(kind)} Event`),
+      kind,
+      effects,
+      note: sanitizeWorldText(message.note, "")
+    };
+
+    this.dynamicEvents.set(entry.id, entry);
+    this.addDmLog(`Created ${entry.kind} event ${entry.name}.`);
+    this.syncState();
+    this.publishSnapshots();
+  }
+
+  private createTriggerZoneFromDm(message: DmToolMessage) {
+    const mapKey = normalizeMapSlotKey(message.mapKey) ?? this.currentMapKey;
+    const triggerType = normalizeTriggerType(message.triggerType);
+    const zone: TriggerZoneRecord = {
+      id: buildRecordId("trigger", this.triggerZones.size + 1),
+      name: sanitizeWorldName(message.name, `Trigger ${this.triggerZones.size + 1}`),
+      mapKey,
+      x: Math.max(0, Math.floor(message.x ?? 0)),
+      y: Math.max(0, Math.floor(message.y ?? 0)),
+      width: Math.max(1, Math.floor(message.width ?? 1)),
+      height: Math.max(1, Math.floor(message.height ?? 1)),
+      visibleToPlayers: Boolean(message.visibleToPlayers),
+      triggerType,
+      onceOnly: Boolean(message.onceOnly),
+      active: message.active ?? true,
+      triggered: false,
+      linkedEntityId: message.entityId,
+      linkedEventId: message.eventId,
+      effects: message.eventId && this.dynamicEvents.get(message.eventId)
+        ? this.dynamicEvents.get(message.eventId)!.effects.map((effect) => cloneTriggerEffect(effect))
+        : buildTriggerEffectsFromMessage(message)
+    };
+
+    this.triggerZones.set(zone.id, zone);
+    this.addDmLog(`Created trigger zone ${zone.name} (${zone.triggerType}).`);
+    this.syncState();
+    this.publishSnapshots();
+  }
+
+  private fireTriggerFromDm(triggerId: string | undefined) {
+    const zone = triggerId ? this.triggerZones.get(triggerId) : undefined;
+
+    if (!zone) {
+      this.addDmLog(`Unknown trigger: ${triggerId ?? ""}`);
+      this.syncState();
+      this.publishSnapshots();
+      return;
+    }
+
+    this.activateTriggerZone(zone);
+  }
+
+  private setTimeOfDayFromDm(timeOfDay: TimeOfDay | undefined) {
+    const normalized = normalizeTimeOfDay(timeOfDay);
+
+    if (!normalized) {
+      this.addDmLog("Choose a valid time of day.");
+      this.syncState();
+      this.publishSnapshots();
+      return;
+    }
+
+    this.timeOfDay = normalized;
+    this.addPublicLog(`Time shifts to ${capitalizeWords(normalized)}.`);
+    this.addJournalEntry(`Time changed to ${capitalizeWords(normalized)}.`);
+    this.syncState();
+    this.publishSnapshots();
+  }
+
+  private setWeatherFromDm(weather: WeatherType | undefined) {
+    const normalized = normalizeWeather(weather);
+
+    if (!normalized) {
+      this.addDmLog("Choose valid weather.");
+      this.syncState();
+      this.publishSnapshots();
+      return;
+    }
+
+    this.weather = normalized;
+    this.addPublicLog(`Weather changes to ${capitalizeWords(normalized)}.`);
+    this.addJournalEntry(`Weather changed to ${capitalizeWords(normalized)}.`);
+    this.syncState();
+    this.publishSnapshots();
+  }
+
+  private setReputationFromDm(factionId: FactionId | undefined, amount: number | undefined) {
+    const normalizedFaction = normalizeFactionId(factionId);
+    const delta = Math.floor(amount ?? 0);
+
+    if (!normalizedFaction || !Number.isFinite(delta) || delta === 0) {
+      this.addDmLog("Choose a faction and non-zero reputation adjustment.");
+      this.syncState();
+      this.publishSnapshots();
+      return;
+    }
+
+    this.factionReputation[normalizedFaction] += delta;
+    this.addDmLog(`Adjusted ${normalizedFaction} reputation by ${delta}.`);
+    this.addJournalEntry(`${formatFactionId(normalizedFaction)} reputation changed by ${delta}.`);
+    this.syncState();
+    this.publishSnapshots();
+  }
+
+  private addJournalEntry(message: string) {
+    const text = sanitizeWorldText(message, "");
+
+    if (!text) {
+      return;
+    }
+
+    this.journalEntries.push({ id: buildRecordId("journal", this.journalEntries.length + 1), message: text });
+
+    if (this.journalEntries.length > maxLogEntries * 2) {
+      this.journalEntries.shift();
+    }
+  }
+
+  private addJournalEntryFromDm(note: string | undefined) {
+    const text = sanitizeWorldText(note, "");
+
+    if (!text) {
+      this.addDmLog("Write a journal entry first.");
+      this.syncState();
+      this.publishSnapshots();
+      return;
+    }
+
+    this.addJournalEntry(text);
+    this.addDmLog("Added campaign journal entry.");
+    this.syncState();
+    this.publishSnapshots();
+  }
+
+  private createPatrolRouteFromDm(message: DmToolMessage) {
+    const entity = message.entityId ? this.worldEntities.get(message.entityId) : undefined;
+    const waypoints = parseWaypointText(message.waypointText);
+
+    if (!entity || !waypoints.length) {
+      this.addDmLog("Choose an entity and at least one waypoint.");
+      this.syncState();
+      this.publishSnapshots();
+      return;
+    }
+
+    const route: PatrolRouteRecord = {
+      id: buildRecordId("patrol", this.patrolRoutes.size + 1),
+      entityId: entity.id,
+      mapKey: entity.mapKey,
+      waypoints,
+      active: message.active ?? true,
+      loop: Boolean(message.loop),
+      nextWaypointIndex: 0
+    };
+
+    this.patrolRoutes.set(route.id, route);
+    this.addDmLog(`Created patrol route for ${entity.name}.`);
+    this.syncState();
+    this.publishSnapshots();
+  }
+
+  private advancePatrolsFromDm() {
+    for (const route of this.patrolRoutes.values()) {
+      if (!route.active || route.mapKey !== this.currentMapKey || !route.waypoints.length) {
+        continue;
+      }
+
+      const entity = this.worldEntities.get(route.entityId);
+
+      if (!entity) {
+        continue;
+      }
+
+      const waypoint = route.waypoints[route.nextWaypointIndex] ?? route.waypoints[0];
+
+      if (!waypoint) {
+        continue;
+      }
+
+      entity.x = waypoint.x;
+      entity.y = waypoint.y;
+      route.nextWaypointIndex =
+        route.nextWaypointIndex + 1 >= route.waypoints.length
+          ? route.loop
+            ? 0
+            : route.waypoints.length - 1
+          : route.nextWaypointIndex + 1;
+      entity.discovered = true;
+    }
+
+    this.addDmLog("Advanced active patrol routes.");
+    this.syncState();
+    this.publishSnapshots();
+  }
+
+  private activateTriggerZone(zone: TriggerZoneRecord, context: { player?: PlayerState } = {}) {
+    if (!zone.active || (zone.onceOnly && zone.triggered)) {
+      return;
+    }
+
+    zone.triggered = true;
+    this.addDmLog(`Triggered ${zone.name}.`);
+    this.addJournalEntry(`Trigger fired: ${zone.name}.`);
+
+    for (const effect of zone.effects) {
+      this.applyTriggerEffect(effect, context.player);
+    }
+
+    if (zone.onceOnly) {
+      zone.active = false;
+    }
+
+    this.syncState();
+    this.publishSnapshots();
+  }
+
+  private processTriggerZones(triggerType: TriggerType, context: { player?: PlayerState; entityId?: string } = {}) {
+    for (const zone of this.triggerZones.values()) {
+      if (zone.mapKey !== this.currentMapKey || zone.triggerType !== triggerType) {
+        continue;
+      }
+
+      if (triggerType === "enter_area" && context.player && isPointInArea(context.player.x, context.player.y, zone)) {
+        this.activateTriggerZone(zone, context);
+        continue;
+      }
+
+      if (triggerType === "interact_object" && context.entityId && zone.linkedEntityId === context.entityId) {
+        this.activateTriggerZone(zone, context);
+        continue;
+      }
+
+      if (triggerType === "encounter_completed" || triggerType === "map_changed" || triggerType === "skill_check_succeeded") {
+        this.activateTriggerZone(zone, context);
+      }
+    }
+  }
+
+  private applyTriggerEffect(effect: TriggerEffectRecord, player?: PlayerState) {
+    switch (effect.type) {
+      case "reveal_area":
+        if (effect.area) {
+          this.createFogAreaFromDm({
+            tool: "createFogArea",
+            mapKey: effect.mapKey ?? this.currentMapKey,
+            name: "Triggered Area",
+            x: effect.area.x,
+            y: effect.area.y,
+            width: effect.area.width,
+            height: effect.area.height
+          });
+        }
+        return;
+      case "reveal_entity":
+      case "activate_shop":
+        this.setEntityVisibilityStateFromDm(effect.entityId ?? effect.shopId, "revealed");
+        return;
+      case "spawn_enemy":
+        if (effect.enemyId && effect.area) {
+          const encounterId = buildRecordId("encounter", this.encounterGroups.size + 1);
+          this.encounterGroups.set(encounterId, {
+            id: encounterId,
+            mapKey: effect.mapKey ?? this.currentMapKey,
+            name: `${capitalizeWords(effect.enemyId)} Trigger`,
+            enemyIds: Array.from({ length: Math.max(1, effect.enemyCount ?? 1) }, () => effect.enemyId ?? "goblin"),
+            trigger: { x: effect.area.x, y: effect.area.y },
+            active: true,
+            notes: "Spawned by trigger."
+          });
+          this.activateEncounterGroupFromDm(encounterId);
+        }
+        return;
+      case "start_encounter":
+        if (effect.encounterId) {
+          this.activateEncounterGroupFromDm(effect.encounterId);
+        }
+        return;
+      case "show_narration":
+        if (effect.narration) {
+          this.addPublicLog(effect.narration);
+          this.addJournalEntry(effect.narration);
+        }
+        return;
+      case "give_reward":
+        if (effect.reward) {
+          this.applyRewardGrant(effect.reward, effect.narration ?? "A trigger grants a reward.");
+        }
+        return;
+      case "update_quest":
+        if (effect.questId && effect.questStatus) {
+          this.setQuestStatusFromDm(effect.questId, effect.questStatus);
+        }
+        return;
+      case "transition_map":
+        if (effect.mapKey) {
+          this.setMapFromDm(effect.mapKey);
+        }
+        return;
+      case "reveal_secret":
+        this.revealSecretRecord(effect.secretId);
+        return;
+      case "mark_discovered":
+        if (effect.entityId) {
+          const entity = this.worldEntities.get(effect.entityId);
+          if (entity) {
+            entity.discovered = true;
+            entity.visibilityState = "revealed";
+          }
+        }
+        return;
+    }
+  }
+
   private saveTemplateFromDm(templateName: string | undefined) {
     const name = sanitizeWorldName(templateName, `${this.state.roomCode}-template`);
     const template: SessionTemplateRecord = {
       id: buildRecordId("template", persistentSessionTemplates.size + 1),
       name,
       campaignDifficulty: this.campaignDifficulty,
+      timeOfDay: this.timeOfDay,
+      weather: this.weather,
+      factionReputation: { ...this.factionReputation },
       maps: [...this.sessionMaps.values()].map((sessionMap) => ({
         key: sessionMap.key,
         label: sessionMap.label,
         mapId: sessionMap.mapId,
         notes: sessionMap.notes,
-        spawnPoints: { ...sessionMap.spawnPoints }
+        spawnPoints: { ...sessionMap.spawnPoints },
+        fogAreas: sessionMap.fogAreas.map((area) => ({ ...area })),
+        revealAll: sessionMap.revealAll
       })),
       worldEntities: [...this.worldEntities.values()].map((entity) => ({ ...entity })),
       npcs: [...this.npcs.values()].map((npc) => ({ ...npc })),
@@ -3715,7 +4546,11 @@ export class LobbyRoom extends Room<LobbyState> {
       quests: [...this.quests.values()].map((quest) => ({ ...quest, rewardItems: [...quest.rewardItems] })),
       secrets: [...this.secrets.values()].map((secret) => ({ ...secret })),
       encounterGroups: [...this.encounterGroups.values()].map((group) => ({ ...group, enemyIds: [...group.enemyIds], trigger: { ...group.trigger } })),
-      sessionNotes: this.sessionNotes.map((note) => ({ ...note }))
+      triggerZones: [...this.triggerZones.values()].map((zone) => ({ ...zone, effects: zone.effects.map((effect) => ({ ...effect, area: effect.area ? { ...effect.area } : undefined, reward: effect.reward ? { ...effect.reward, targetPlayerIds: effect.reward.targetPlayerIds ? [...effect.reward.targetPlayerIds] : undefined } : undefined })) })),
+      dynamicEvents: [...this.dynamicEvents.values()].map((entry) => ({ ...entry, effects: entry.effects.map((effect) => ({ ...effect, area: effect.area ? { ...effect.area } : undefined, reward: effect.reward ? { ...effect.reward, targetPlayerIds: effect.reward.targetPlayerIds ? [...effect.reward.targetPlayerIds] : undefined } : undefined })) })),
+      patrolRoutes: [...this.patrolRoutes.values()].map((route) => ({ ...route, waypoints: route.waypoints.map((point) => ({ ...point })) })),
+      sessionNotes: this.sessionNotes.map((note) => ({ ...note })),
+      journalEntries: this.journalEntries.map((entry) => ({ ...entry }))
     };
 
     persistentSessionTemplates.set(name.toLowerCase(), template);
@@ -3735,6 +4570,9 @@ export class LobbyRoom extends Room<LobbyState> {
     }
 
     this.campaignDifficulty = template.campaignDifficulty;
+    this.timeOfDay = template.timeOfDay;
+    this.weather = template.weather;
+    this.factionReputation = { ...template.factionReputation };
     this.sessionMaps.clear();
     for (const sessionMap of template.maps) {
       this.sessionMaps.set(sessionMap.key, {
@@ -3742,7 +4580,9 @@ export class LobbyRoom extends Room<LobbyState> {
         label: sessionMap.label,
         mapId: sessionMap.mapId,
         notes: sessionMap.notes,
-        spawnPoints: { ...sessionMap.spawnPoints }
+        spawnPoints: { ...sessionMap.spawnPoints },
+        fogAreas: sessionMap.fogAreas.map((area) => ({ ...area })),
+        revealAll: sessionMap.revealAll
       });
     }
 
@@ -3752,7 +4592,11 @@ export class LobbyRoom extends Room<LobbyState> {
     this.quests = new Map(template.quests.map((quest) => [quest.id, { ...quest, rewardItems: [...quest.rewardItems] }]));
     this.secrets = new Map(template.secrets.map((secret) => [secret.id, { ...secret }]));
     this.encounterGroups = new Map(template.encounterGroups.map((group) => [group.id, { ...group, enemyIds: [...group.enemyIds], trigger: { ...group.trigger } }]));
+    this.triggerZones = new Map(template.triggerZones.map((zone) => [zone.id, { ...zone, effects: zone.effects.map((effect) => ({ ...effect, area: effect.area ? { ...effect.area } : undefined, reward: effect.reward ? { ...effect.reward, targetPlayerIds: effect.reward.targetPlayerIds ? [...effect.reward.targetPlayerIds] : undefined } : undefined })) }]));
+    this.dynamicEvents = new Map(template.dynamicEvents.map((entry) => [entry.id, { ...entry, effects: entry.effects.map((effect) => ({ ...effect, area: effect.area ? { ...effect.area } : undefined, reward: effect.reward ? { ...effect.reward, targetPlayerIds: effect.reward.targetPlayerIds ? [...effect.reward.targetPlayerIds] : undefined } : undefined })) }]));
+    this.patrolRoutes = new Map(template.patrolRoutes.map((route) => [route.id, { ...route, waypoints: route.waypoints.map((point) => ({ ...point })) }]));
     this.sessionNotes = template.sessionNotes.map((note) => ({ ...note }));
+    this.journalEntries = template.journalEntries.map((entry) => ({ ...entry }));
     this.applyMapState(this.currentMapKey, { encounterOnEnter: false });
     this.addDmLog(`Loaded template ${template.name}.`);
     this.syncState();
@@ -3843,6 +4687,7 @@ export class LobbyRoom extends Room<LobbyState> {
     if (this.sessionNotes.length > maxLogEntries) {
       this.sessionNotes.shift();
     }
+    this.addJournalEntry(message);
     this.addDmLog("Saved a DM session note.");
     this.syncState();
     this.publishSnapshots();
@@ -3865,6 +4710,9 @@ export class LobbyRoom extends Room<LobbyState> {
     this.secrets.clear();
     this.skillChecks.clear();
     this.encounterGroups.clear();
+    this.triggerZones.clear();
+    this.dynamicEvents.clear();
+    this.patrolRoutes.clear();
     this.rewardHistory = [];
     this.dmNotes = [];
     this.sessionNotes = [];
@@ -4404,9 +5252,54 @@ export class LobbyRoom extends Room<LobbyState> {
         notes: sessionMap.notes,
         spawnCount: Object.keys(sessionMap.spawnPoints).length,
         encounterCount: [...this.encounterGroups.values()].filter((group) => group.mapKey === slot.key).length,
-        entityCount: [...this.worldEntities.values()].filter((entity) => entity.mapKey === slot.key).length
+        entityCount: [...this.worldEntities.values()].filter((entity) => entity.mapKey === slot.key).length,
+        revealedAreaCount: sessionMap.fogAreas.length,
+        revealAll: sessionMap.revealAll
       };
     });
+  }
+
+  private buildPreparationSpawnViews(sessionId: string): PreparationSpawnView[] {
+    if (!this.isDmSession(sessionId)) {
+      return [];
+    }
+
+    const sessionMap = this.getSessionMap(this.currentMapKey);
+
+    return Object.entries(sessionMap.spawnPoints)
+      .map(([playerId, point]) => {
+        const player = this.state.players.get(playerId);
+
+        if (!player) {
+          return undefined;
+        }
+
+        return {
+          playerId,
+          playerName: player.name,
+          x: point.x,
+          y: point.y
+        };
+      })
+      .filter((entry): entry is PreparationSpawnView => entry !== undefined);
+  }
+
+  private buildPreparationEncounterViews(sessionId: string): PreparationEncounterView[] {
+    if (!this.isDmSession(sessionId)) {
+      return [];
+    }
+
+    return [...this.encounterGroups.values()]
+      .filter((group) => group.mapKey === this.currentMapKey)
+      .map((group) => ({
+        id: group.id,
+        name: group.name,
+        x: group.trigger.x,
+        y: group.trigger.y,
+        enemyCount: group.enemyIds.length,
+        active: group.active,
+        notes: group.notes
+      }));
   }
 
   private buildCharacterProfileViews(ownerName: string): CharacterProfileView[] {
@@ -4423,12 +5316,113 @@ export class LobbyRoom extends Room<LobbyState> {
     }));
   }
 
+  private isTileVisibleToSession(sessionId: string, mapKey: MapSlotKey, x: number, y: number) {
+    if (this.isDmSession(sessionId)) {
+      return true;
+    }
+
+    const sessionMap = this.getSessionMap(mapKey);
+
+    if (sessionMap.revealAll) {
+      return true;
+    }
+
+    return sessionMap.fogAreas.some((area) => isPointInArea(x, y, area));
+  }
+
+  private buildFogAreaViews(sessionId: string): FogAreaView[] {
+    const sessionMap = this.getSessionMap(this.currentMapKey);
+
+    if (!this.isDmSession(sessionId)) {
+      return [];
+    }
+
+    return sessionMap.fogAreas.map((area) => ({ ...area }));
+  }
+
+  private buildRevealedTiles(sessionId: string): Point[] {
+    const sessionMap = this.getSessionMap(this.currentMapKey);
+    const mapDefinition = mapsById.get(sessionMap.mapId) ?? defaultMapDefinition();
+    const tiles: Point[] = [];
+
+    for (let y = 0; y < mapDefinition.height; y += 1) {
+      for (let x = 0; x < mapDefinition.width; x += 1) {
+        if (this.isTileVisibleToSession(sessionId, this.currentMapKey, x, y)) {
+          tiles.push({ x, y });
+        }
+      }
+    }
+
+    return tiles;
+  }
+
+  private buildTriggerZoneViews(sessionId: string): TriggerZoneView[] {
+    const isDm = this.isDmSession(sessionId);
+
+    return [...this.triggerZones.values()]
+      .filter((zone) => zone.mapKey === this.currentMapKey)
+      .filter((zone) => isDm || zone.visibleToPlayers)
+      .map((zone) => ({
+        id: zone.id,
+        name: zone.name,
+        triggerType: zone.triggerType,
+        x: zone.x,
+        y: zone.y,
+        width: zone.width,
+        height: zone.height,
+        visibleToPlayers: zone.visibleToPlayers,
+        onceOnly: zone.onceOnly,
+        active: zone.active,
+        triggered: zone.triggered
+      }));
+  }
+
+  private buildDynamicEventViews(): DynamicEventView[] {
+    return [...this.dynamicEvents.values()].map((entry) => ({
+      id: entry.id,
+      name: entry.name,
+      kind: entry.kind
+    }));
+  }
+
+  private buildPatrolRouteViews(): PatrolRouteView[] {
+    return [...this.patrolRoutes.values()].map((route) => ({
+      id: route.id,
+      entityId: route.entityId,
+      entityName: this.worldEntities.get(route.entityId)?.name ?? route.entityId,
+      active: route.active,
+      loop: route.loop,
+      waypointCount: route.waypoints.length,
+      nextWaypointIndex: route.nextWaypointIndex
+    }));
+  }
+
+  private buildFactionReputationViews(): FactionReputationView[] {
+    return factionIds.map((factionId) => ({ factionId, score: this.factionReputation[factionId] ?? 0 }));
+  }
+
+  private getEnvironmentalSkillModifier(checkType: SkillCheckType) {
+    let modifier = 0;
+
+    if (checkType === "perception") {
+      if (this.timeOfDay === "night") {
+        modifier -= 2;
+      }
+
+      if (this.weather === "fog") {
+        modifier -= 2;
+      }
+    }
+
+    return modifier;
+  }
+
   private buildWorldEntityViews(sessionId: string): WorldEntityView[] {
     const isDm = this.isDmSession(sessionId);
 
     return [...this.worldEntities.values()]
       .filter((entity) => entity.mapKey === this.currentMapKey)
-      .filter((entity) => isDm || isEntityVisibleToPlayers(entity))
+      .filter((entity) => isDm || (isEntityVisibleToPlayers(entity) && this.isTileVisibleToSession(sessionId, entity.mapKey, entity.x, entity.y)))
       .map((entity) => ({
         id: entity.id,
         type: entity.type,
@@ -4468,7 +5462,7 @@ export class LobbyRoom extends Room<LobbyState> {
           return !entity || entity.mapKey === this.currentMapKey;
         }
 
-        return entity?.mapKey === this.currentMapKey && isEntityVisibleToPlayers(entity);
+        return entity?.mapKey === this.currentMapKey && isEntityVisibleToPlayers(entity) && this.isTileVisibleToSession(sessionId, entity.mapKey, entity.x, entity.y);
       })
       .map((npc) => {
         const entity = npc.linkedEntityId ? this.worldEntities.get(npc.linkedEntityId) : undefined;
@@ -4498,10 +5492,12 @@ export class LobbyRoom extends Room<LobbyState> {
           return !entity || entity.mapKey === this.currentMapKey;
         }
 
-        return entity?.mapKey === this.currentMapKey && isEntityVisibleToPlayers(entity);
+        return entity?.mapKey === this.currentMapKey && isEntityVisibleToPlayers(entity) && this.isTileVisibleToSession(sessionId, entity.mapKey, entity.x, entity.y);
       })
       .map((shop) => {
         const entity = shop.linkedEntityId ? this.worldEntities.get(shop.linkedEntityId) : undefined;
+        const reputationDiscount = Math.max(0, Math.floor((this.factionReputation.merchants_guild ?? 0) / 10) * 5);
+        const effectiveDiscount = Math.max(shop.discountPercent, reputationDiscount);
         const accessible = Boolean(
           isDm ||
             (player && entity && calculateDistance(player.x, player.y, entity.x, entity.y) <= 1)
@@ -4514,7 +5510,7 @@ export class LobbyRoom extends Room<LobbyState> {
           linkedEntityId: shop.linkedEntityId,
           visibleToPlayers: entity ? isEntityVisibleToPlayers(entity) : false,
           accessible,
-          discountPercent: shop.discountPercent,
+          discountPercent: effectiveDiscount,
           inventory: shop.inventory
             .map((entry) => {
               const item = itemsById.get(entry.itemId);
@@ -4527,7 +5523,7 @@ export class LobbyRoom extends Room<LobbyState> {
                 itemId: item.id,
                 name: item.name,
                 effect: item.effect,
-                price: Math.max(0, entry.price - Math.floor(entry.price * (shop.discountPercent / 100))),
+                price: Math.max(0, entry.price - Math.floor(entry.price * (effectiveDiscount / 100))),
                 stock: entry.stock
               };
             })
@@ -4703,8 +5699,20 @@ export class LobbyRoom extends Room<LobbyState> {
       roomPhase: this.roomPhase,
       controlsLocked: this.roomPhase !== "live",
       campaignDifficulty: this.campaignDifficulty,
+      timeOfDay: this.timeOfDay,
+      weather: this.weather,
       currentMapKey: this.currentMapKey,
       sessionMaps: this.buildSessionMapViews(),
+      preparationSpawns: this.buildPreparationSpawnViews(sessionId),
+      preparationEncounters: this.buildPreparationEncounterViews(sessionId),
+      fogAreas: this.buildFogAreaViews(sessionId),
+      revealedTiles: this.buildRevealedTiles(sessionId),
+      revealAllFog: this.getSessionMap(this.currentMapKey).revealAll,
+      triggerZones: this.buildTriggerZoneViews(sessionId),
+      dynamicEvents: this.isDmSession(sessionId) ? this.buildDynamicEventViews() : [],
+      patrolRoutes: this.isDmSession(sessionId) ? this.buildPatrolRouteViews() : [],
+      factionReputation: this.buildFactionReputationViews(),
+      journalEntries: this.journalEntries,
       availableMaps: availableMaps.map((map) => ({ id: map.id, name: map.name })),
       savedTemplates: [...persistentSessionTemplates.values()].map((template) => ({ id: template.id, name: template.name })),
       adventureStarted: this.isAdventureStarted(),
@@ -5190,6 +6198,10 @@ function calculateDistance(fromX: number, fromY: number, toX: number, toY: numbe
   return Math.abs(fromX - toX) + Math.abs(fromY - toY);
 }
 
+function isPointInArea(x: number, y: number, area: AreaRect) {
+  return x >= area.x && y >= area.y && x < area.x + area.width && y < area.y + area.height;
+}
+
 function rollDie(sides: number) {
   return Math.floor(Math.random() * sides) + 1;
 }
@@ -5311,6 +6323,193 @@ function buildAutomationEffect(message: DmToolMessage, branch: "success" | "fail
   };
 }
 
+function buildTriggerEffectsFromMessage(message: DmToolMessage): TriggerEffectRecord[] {
+  const effectType = normalizeTriggerEffectType(message.triggerEffectType);
+
+  if (!effectType) {
+    return [];
+  }
+
+  return [
+    {
+      type: effectType,
+      area:
+        message.x !== undefined && message.y !== undefined
+          ? {
+              x: Math.max(0, Math.floor(message.x)),
+              y: Math.max(0, Math.floor(message.y)),
+              width: Math.max(1, Math.floor(message.width ?? 1)),
+              height: Math.max(1, Math.floor(message.height ?? 1))
+            }
+          : undefined,
+      entityId: message.entityId,
+      enemyId: message.enemyId,
+      enemyCount: message.amount,
+      encounterId: message.encounterId,
+      narration: message.note,
+      reward: normalizeRewardType(message.name)
+        ? {
+            type: normalizeRewardType(message.name)!,
+            amount: message.amount,
+            itemId: message.itemId,
+            questId: message.questId,
+            targetPlayerIds: message.targetPlayerIds
+          }
+        : undefined,
+      questId: message.questId,
+      questStatus: message.questStatus ? normalizeQuestStatus(message.questStatus) : undefined,
+      mapKey: normalizeMapSlotKey(message.mapKey) ?? undefined,
+      shopId: message.shopId,
+      secretId: message.secretId ?? message.linkedSecretId
+    }
+  ];
+}
+
+function buildDynamicEventEffects(message: DmToolMessage, kind: DynamicEventKind): TriggerEffectRecord[] {
+  switch (kind) {
+    case "ambush":
+      return [
+        {
+          type: "show_narration",
+          area: undefined,
+          entityId: undefined,
+          enemyId: undefined,
+          enemyCount: undefined,
+          encounterId: undefined,
+          narration: sanitizeWorldText(message.note, "The bushes shake violently."),
+          reward: undefined,
+          questId: undefined,
+          questStatus: undefined,
+          mapKey: normalizeMapSlotKey(message.mapKey) ?? undefined,
+          shopId: undefined,
+          secretId: undefined
+        },
+        {
+          type: "spawn_enemy",
+          area: {
+            x: Math.max(0, Math.floor(message.x ?? 1)),
+            y: Math.max(0, Math.floor(message.y ?? 1)),
+            width: Math.max(1, Math.floor(message.width ?? 1)),
+            height: Math.max(1, Math.floor(message.height ?? 1))
+          },
+          entityId: undefined,
+          enemyId: message.enemyId ?? "goblin",
+          enemyCount: Math.max(1, Math.floor(message.amount ?? 2)),
+          encounterId: undefined,
+          narration: undefined,
+          reward: undefined,
+          questId: undefined,
+          questStatus: undefined,
+          mapKey: normalizeMapSlotKey(message.mapKey) ?? undefined,
+          shopId: undefined,
+          secretId: undefined
+        }
+      ];
+    case "discovery":
+      return [
+        {
+          type: "reveal_secret",
+          area: undefined,
+          entityId: undefined,
+          enemyId: undefined,
+          enemyCount: undefined,
+          encounterId: undefined,
+          narration: undefined,
+          reward: undefined,
+          questId: undefined,
+          questStatus: undefined,
+          mapKey: normalizeMapSlotKey(message.mapKey) ?? undefined,
+          shopId: undefined,
+          secretId: message.secretId ?? message.linkedSecretId
+        }
+      ];
+    case "quest_update":
+      return [
+        {
+          type: "update_quest",
+          area: undefined,
+          entityId: undefined,
+          enemyId: undefined,
+          enemyCount: undefined,
+          encounterId: undefined,
+          narration: undefined,
+          reward: undefined,
+          questId: message.questId,
+          questStatus: message.questStatus ? normalizeQuestStatus(message.questStatus) : "active",
+          mapKey: normalizeMapSlotKey(message.mapKey) ?? undefined,
+          shopId: undefined,
+          secretId: undefined
+        }
+      ];
+    case "map_transition":
+      return [
+        {
+          type: "transition_map",
+          area: undefined,
+          entityId: undefined,
+          enemyId: undefined,
+          enemyCount: undefined,
+          encounterId: undefined,
+          narration: undefined,
+          reward: undefined,
+          questId: undefined,
+          questStatus: undefined,
+          mapKey: normalizeMapSlotKey(message.mapKey) ?? undefined,
+          shopId: undefined,
+          secretId: undefined
+        }
+      ];
+    case "reward_event":
+      return [
+        {
+          type: "give_reward",
+          area: undefined,
+          entityId: undefined,
+          enemyId: undefined,
+          enemyCount: undefined,
+          encounterId: undefined,
+          narration: sanitizeWorldText(message.note, "The party receives a reward."),
+          reward: normalizeRewardType(message.name)
+            ? {
+                type: normalizeRewardType(message.name)!,
+                amount: message.amount,
+                itemId: message.itemId,
+                questId: message.questId,
+                targetPlayerIds: message.targetPlayerIds
+              }
+            : {
+                type: "gold",
+                amount: 5,
+                itemId: undefined,
+                questId: undefined,
+                targetPlayerIds: undefined
+              },
+          questId: undefined,
+          questStatus: undefined,
+          mapKey: normalizeMapSlotKey(message.mapKey) ?? undefined,
+          shopId: undefined,
+          secretId: undefined
+        }
+      ];
+    case "dialogue_reveal":
+    case "trap":
+    default:
+      return buildTriggerEffectsFromMessage({
+        ...message,
+        triggerEffectType: message.triggerEffectType ?? "show_narration",
+        note: message.note ?? "A world event unfolds."
+      });
+  }
+}
+
+function cloneTriggerEffect(effect: TriggerEffectRecord): TriggerEffectRecord {
+  return {
+    ...effect,
+    area: effect.area ? { ...effect.area } : undefined,
+    reward: effect.reward ? { ...effect.reward, targetPlayerIds: effect.reward.targetPlayerIds ? [...effect.reward.targetPlayerIds] : undefined } : undefined
+  };
+}
+
 function normalizeQuestStatus(value: string | undefined): QuestStatus {
   const normalized = value?.trim().toLowerCase();
 
@@ -5336,6 +6535,90 @@ function normalizeCampaignDifficulty(value: string | undefined): CampaignDifficu
       return normalized;
     default:
       return null;
+  }
+}
+
+function normalizeTimeOfDay(value: string | undefined): TimeOfDay | null {
+  switch (value?.trim().toLowerCase()) {
+    case "morning":
+    case "afternoon":
+    case "evening":
+    case "night":
+      return value.trim().toLowerCase() as TimeOfDay;
+    default:
+      return null;
+  }
+}
+
+function normalizeWeather(value: string | undefined): WeatherType | null {
+  switch (value?.trim().toLowerCase()) {
+    case "clear":
+    case "rain":
+    case "fog":
+    case "storm":
+    case "snow":
+      return value.trim().toLowerCase() as WeatherType;
+    default:
+      return null;
+  }
+}
+
+function normalizeFactionId(value: string | undefined): FactionId | null {
+  switch (value?.trim().toLowerCase()) {
+    case "town_guard":
+    case "bandits":
+    case "merchants_guild":
+    case "arcane_circle":
+      return value.trim().toLowerCase() as FactionId;
+    default:
+      return null;
+  }
+}
+
+function normalizeTriggerType(value: string | undefined): TriggerType {
+  switch (value?.trim().toLowerCase()) {
+    case "interact_object":
+    case "encounter_completed":
+    case "skill_check_succeeded":
+    case "map_changed":
+    case "enter_area":
+      return value.trim().toLowerCase() as TriggerType;
+    default:
+      return "enter_area";
+  }
+}
+
+function normalizeTriggerEffectType(value: string | undefined): TriggerEffectType | null {
+  switch (value?.trim().toLowerCase()) {
+    case "reveal_area":
+    case "reveal_entity":
+    case "spawn_enemy":
+    case "start_encounter":
+    case "show_narration":
+    case "give_reward":
+    case "update_quest":
+    case "transition_map":
+    case "activate_shop":
+    case "reveal_secret":
+    case "mark_discovered":
+      return value.trim().toLowerCase() as TriggerEffectType;
+    default:
+      return null;
+  }
+}
+
+function normalizeDynamicEventKind(value: string | undefined): DynamicEventKind {
+  switch (value?.trim().toLowerCase()) {
+    case "ambush":
+    case "trap":
+    case "discovery":
+    case "dialogue_reveal":
+    case "quest_update":
+    case "map_transition":
+    case "reward_event":
+      return value.trim().toLowerCase() as DynamicEventKind;
+    default:
+      return "discovery";
   }
 }
 
@@ -5432,8 +6715,16 @@ function capitalizeCheckType(value: string) {
   return value.slice(0, 1).toUpperCase() + value.slice(1);
 }
 
+function capitalizeWords(value: string) {
+  return value.replace(/_/g, " ").replace(/\b\w/g, (character) => character.toUpperCase());
+}
+
 function formatEntityTypeLabel(type: WorldEntityType) {
   return type.replace(/_/g, " ").replace(/\b\w/g, (character) => character.toUpperCase());
+}
+
+function formatFactionId(factionId: FactionId) {
+  return capitalizeWords(factionId);
 }
 
 function tokenizeCommand(commandBody: string) {
@@ -5496,6 +6787,16 @@ function getSkillModifier(player: PlayerState, checkType: SkillCheckType) {
   }
 }
 
+function parseWaypointText(waypointText: string | undefined) {
+  return (waypointText ?? "")
+    .split(";")
+    .map((segment) => segment.trim())
+    .filter(Boolean)
+    .map((segment) => segment.split(",").map((value) => Number(value.trim())))
+    .filter((pair) => pair.length === 2 && pair.every((value) => Number.isFinite(value)))
+    .map(([x, y]) => ({ x: Math.max(0, Math.floor(x ?? 0)), y: Math.max(0, Math.floor(y ?? 0)) }));
+}
+
 type ColyseusMapLike<T> = {
   values(): IterableIterator<T>;
 };
@@ -5542,7 +6843,9 @@ function defaultSessionMapRecord(mapKey: MapSlotKey): SessionMapRecord {
     label: slot?.label ?? "Session Map",
     mapId: slot?.defaultMapId ?? "forest",
     notes: "",
-    spawnPoints: {}
+    spawnPoints: {},
+    fogAreas: [],
+    revealAll: mapKey === "starting"
   };
 }
 

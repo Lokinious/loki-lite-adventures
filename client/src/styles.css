@@ -80,6 +80,7 @@ textarea {
 .landing-card,
 .panel,
 .status-card {
+  min-width: 0;
   padding: 20px;
   border: 1px solid rgba(148, 163, 184, 0.18);
   border-radius: 18px;
@@ -185,6 +186,7 @@ textarea {
 
 .tab-row {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   margin-bottom: 12px;
 }
@@ -204,17 +206,28 @@ textarea {
   align-items: start;
 }
 
+.dm-prep-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.7fr) minmax(320px, 0.8fr);
+  gap: 20px;
+  align-items: start;
+}
+
 .left-column,
 .center-column,
 .right-column,
-.play-side {
+.dm-prep-main,
+.dm-prep-side,
+.play-side,
+.play-log-side {
   display: grid;
   gap: 20px;
+  min-width: 0;
 }
 
 .play-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1.6fr) minmax(320px, 0.9fr);
+  grid-template-columns: minmax(0, 1.5fr) minmax(320px, 0.85fr) minmax(320px, 0.8fr);
   gap: 20px;
   align-items: start;
 }
@@ -222,15 +235,130 @@ textarea {
 .play-main {
   display: grid;
   gap: 20px;
+  min-width: 0;
 }
 
 .play-map-panel {
   min-height: 640px;
 }
 
-.play-side {
-  position: sticky;
-  top: 16px;
+.prep-canvas-panel {
+  display: grid;
+  gap: 16px;
+}
+
+.prep-map-preview-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.prep-map-card {
+  display: grid;
+  gap: 8px;
+  padding: 14px;
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  border-radius: 14px;
+  background: rgba(2, 6, 23, 0.48);
+}
+
+.prep-map-card--active {
+  outline: 2px solid #38bdf8;
+}
+
+.prep-map-shell {
+  display: grid;
+  gap: 6px;
+  padding: 14px;
+  border-radius: 16px;
+  background: rgba(2, 6, 23, 0.72);
+}
+
+.prep-tile {
+  position: relative;
+  min-height: 76px;
+  border: 1px solid rgba(59, 130, 246, 0.18);
+  border-radius: 12px;
+  background: linear-gradient(180deg, rgba(30, 41, 59, 0.88), rgba(15, 23, 42, 0.96));
+  overflow: hidden;
+}
+
+.prep-tile-button {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  padding: 0;
+  border-radius: 12px;
+  background: transparent;
+}
+
+.prep-tile-button:hover {
+  background: rgba(56, 189, 248, 0.08);
+}
+
+.prep-tile-coordinates {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 2;
+  color: #94a3b8;
+  font-size: 0.72rem;
+}
+
+.prep-marker-stack {
+  position: relative;
+  z-index: 3;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: end;
+  justify-content: center;
+  min-height: 100%;
+  padding: 24px 6px 8px;
+  pointer-events: none;
+}
+
+.prep-marker {
+  min-width: 0;
+  padding: 6px 8px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  line-height: 1;
+  pointer-events: auto;
+}
+
+.prep-marker--spawn {
+  background: #2563eb;
+}
+
+.prep-marker--encounter {
+  background: #dc2626;
+}
+
+.prep-marker--character {
+  background: #16a34a;
+}
+
+.prep-marker--secret {
+  background: #7c3aed;
+}
+
+.prep-marker--object {
+  background: #475569;
+}
+
+.prep-marker--hidden {
+  opacity: 0.78;
+  box-shadow: inset 0 0 0 1px rgba(226, 232, 240, 0.35);
+}
+
+.prep-toolbox,
+.prep-inspector {
+  margin-top: 0;
+}
+
+.play-side,
+.play-log-side {
   align-self: start;
 }
 
@@ -350,6 +478,18 @@ textarea {
   overflow-y: auto;
 }
 
+.play-log-side .panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.play-log-side .combat-log {
+  flex: 1 1 auto;
+  min-height: 240px;
+  max-height: min(60vh, 720px);
+}
+
 .combat-log p {
   margin: 0;
   padding: 12px;
@@ -406,19 +546,23 @@ textarea {
 }
 
 @media (max-width: 1200px) {
+  .dm-prep-layout,
   .lobby-layout,
-  .play-layout,
   .page-header,
   .play-header {
     grid-template-columns: 1fr;
   }
 
-  .play-side {
-    position: static;
+  .play-layout {
+    grid-template-columns: 1fr;
   }
 }
 
 @media (max-width: 720px) {
+  .prep-map-preview-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .landing-shell,
   .app-shell,
   .play-shell {

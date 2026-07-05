@@ -3,13 +3,19 @@ import { Client, Room } from "colyseus.js";
 import type {
   AutomationEffectType,
   CampaignDifficulty,
+  DynamicEventKind,
+  FactionId,
   JoinMode,
   JoinRole,
   LobbyView,
   MapSlotKey,
+  PreparationAssetType,
   SkillCheckType,
   SkillCheckVisibility,
+  TimeOfDay,
+  TriggerType,
   VisibilityState,
+  WeatherType,
   WorldEntityType
 } from "./types";
 
@@ -43,14 +49,28 @@ type DmToolMessage = {
   tool:
     | "setMap"
     | "setMapDefinition"
+    | "placePreparationAsset"
     | "setPlayerSpawn"
     | "setPlayerStatus"
     | "setCampaignDifficulty"
+    | "createFogArea"
+    | "setFogAreaVisibility"
+    | "revealAllFog"
+    | "resetFog"
     | "saveTemplate"
     | "loadTemplate"
     | "resetPreparation"
     | "createEncounterGroup"
     | "activateEncounterGroup"
+    | "createTriggerZone"
+    | "fireTrigger"
+    | "createDynamicEvent"
+    | "setTimeOfDay"
+    | "setWeather"
+    | "setReputation"
+    | "addJournalEntry"
+    | "createPatrolRoute"
+    | "advancePatrols"
     | "addSessionNote"
     | "configureEntityInteraction"
     | "setEntityNotes"
@@ -70,6 +90,7 @@ type DmToolMessage = {
     | "generateShop"
     | "generateSecret";
   entityType?: WorldEntityType;
+  assetType?: PreparationAssetType;
   entityId?: string;
   npcId?: string;
   shopId?: string;
@@ -101,8 +122,35 @@ type DmToolMessage = {
   dc?: number;
   x?: number;
   y?: number;
+  width?: number;
+  height?: number;
   visibleToPlayers?: boolean;
   visibilityState?: VisibilityState;
+  triggerType?: TriggerType;
+  onceOnly?: boolean;
+  eventId?: string;
+  eventKind?: DynamicEventKind;
+  timeOfDay?: TimeOfDay;
+  weather?: WeatherType;
+  factionId?: FactionId;
+  score?: number;
+  loop?: boolean;
+  waypointText?: string;
+  areaId?: string;
+  eventName?: string;
+  questStatus?: "hidden" | "offered" | "active" | "completed" | "failed";
+  triggerEffectType?:
+    | "reveal_area"
+    | "reveal_entity"
+    | "spawn_enemy"
+    | "start_encounter"
+    | "show_narration"
+    | "give_reward"
+    | "update_quest"
+    | "transition_map"
+    | "activate_shop"
+    | "reveal_secret"
+    | "mark_discovered";
   target?: "party" | "all" | "player";
   visibility?: SkillCheckVisibility;
   successMessage?: string;

@@ -202,7 +202,9 @@ export function HomePage() {
             isActiveTurn: activeTurn.type === "enemy" && activeTurn.id === enemy.id,
             isSelf: false
           }))
-      ]
+      ],
+      revealedTiles: [],
+      showFullMap: true
     };
   }, [activeTurn, lobby, sessionId]);
 
@@ -213,7 +215,9 @@ export function HomePage() {
         sceneTitle: currentScene?.title ?? "Tavern",
         width: 10,
         height: 8,
-        tokens: []
+        tokens: [],
+        revealedTiles: [],
+        showFullMap: true
       }
     );
   }, [currentScene?.title, tacticalSnapshot]);

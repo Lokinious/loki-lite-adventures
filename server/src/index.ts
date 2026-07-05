@@ -1,4 +1,5 @@
 import http from "node:http";
+import { WebSocketTransport } from "@colyseus/ws-transport";
 import cors from "cors";
 import express from "express";
 import colyseus from "colyseus";
@@ -15,12 +16,27 @@ app.get("/health", (_request, response) => {
 });
 
 const httpServer = http.createServer(app);
-const gameServer = new Server({ server: httpServer });
+const gameServer = new Server({
+  transport: new WebSocketTransport({
+    server: httpServer
+  })
+});
 
 gameServer.define("lobby", LobbyRoom).filterBy(["roomCode"]);
 
 const port = Number(process.env.PORT ?? 2567);
 
-gameServer.listen(port);
+httpServer.once("error", (error) => {
+  if ("code" in error && error.code === "EADDRINUSE") {
+    console.error(`Port ${port} is already in use. Stop the existing server or set PORT to a different value.`);
+    process.exitCode = 1;
+    return;
+  }
 
-console.log(`Loki Lite Adventures server listening on port ${port}`);
+  console.error(error);
+  process.exitCode = 1;
+});
+
+httpServer.listen(port, () => {
+  console.log(`Loki Lite Adventures server listening on port ${port}`);
+});

@@ -19,6 +19,8 @@ export type TacticalSnapshot = {
   width: number;
   height: number;
   tokens: TacticalToken[];
+  revealedTiles: Array<{ x: number; y: number }>;
+  showFullMap: boolean;
 };
 
 export type TacticalContextRequest = {
@@ -60,9 +62,12 @@ class TacticalScene extends Phaser.Scene {
     sceneTitle: "Tavern",
     width: 10,
     height: 8,
-    tokens: []
+    tokens: [],
+    revealedTiles: [],
+    showFullMap: true
   };
   private grid?: Phaser.GameObjects.Graphics;
+  private fog?: Phaser.GameObjects.Graphics;
   private isReady = false;
   private sceneLabel?: Phaser.GameObjects.Text;
 
@@ -77,6 +82,7 @@ class TacticalScene extends Phaser.Scene {
     this.isReady = true;
     this.cameras.main.setBackgroundColor(getMapBackground(this.snapshot.mapId));
     this.grid = this.add.graphics();
+    this.fog = this.add.graphics();
     this.sceneLabel = this.add.text(10, 10, this.snapshot.sceneTitle, {
       color: "#e2e8f0",
       fontFamily: "Arial",
@@ -114,6 +120,8 @@ class TacticalScene extends Phaser.Scene {
     this.snapshot.width = snapshot.width;
     this.snapshot.height = snapshot.height;
     this.snapshot.tokens = snapshot.tokens;
+    this.snapshot.revealedTiles = snapshot.revealedTiles;
+    this.snapshot.showFullMap = snapshot.showFullMap;
 
     if (this.isReady) {
       this.renderSnapshot();
@@ -125,6 +133,7 @@ class TacticalScene extends Phaser.Scene {
     this.scale.resize(this.snapshot.width * tileSize, this.snapshot.height * tileSize);
     this.sceneLabel?.setText(this.snapshot.sceneTitle);
     this.drawGrid();
+    this.drawFog();
 
     const visibleTokenIds = new Set(this.snapshot.tokens.map((token) => token.id));
 
@@ -194,6 +203,30 @@ class TacticalScene extends Phaser.Scene {
     for (let row = 0; row <= this.snapshot.height; row += 1) {
       const y = row * tileSize;
       this.grid.lineBetween(0, y, this.snapshot.width * tileSize, y);
+    }
+  }
+
+  private drawFog() {
+    if (!this.fog) {
+      return;
+    }
+
+    this.fog.clear();
+
+    if (this.snapshot.showFullMap) {
+      return;
+    }
+
+    const visibleTiles = new Set(this.snapshot.revealedTiles.map((tile) => `${tile.x},${tile.y}`));
+
+    this.fog.fillStyle(0x020617, 0.82);
+
+    for (let y = 0; y < this.snapshot.height; y += 1) {
+      for (let x = 0; x < this.snapshot.width; x += 1) {
+        if (!visibleTiles.has(`${x},${y}`)) {
+          this.fog.fillRect(x * tileSize, y * tileSize, tileSize, tileSize);
+        }
+      }
     }
   }
 }

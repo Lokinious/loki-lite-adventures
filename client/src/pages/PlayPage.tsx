@@ -83,6 +83,11 @@ export function PlayPage() {
       return null;
     }
 
+    const revealedTiles = lobby.revealedTiles;
+    const revealedSet = new Set(revealedTiles.map((tile) => `${tile.x},${tile.y}`));
+    const showFullMap = role === "dm" || lobby.revealAllFog;
+    const canSeeTile = (x: number, y: number, isSelf = false) => showFullMap || isSelf || revealedSet.has(`${x},${y}`);
+
     return {
       mapId: lobby.currentScene.mapId,
       sceneTitle: lobby.currentScene.title,
@@ -91,6 +96,7 @@ export function PlayPage() {
       tokens: [
         ...lobby.players
           .filter((player) => player.alive)
+          .filter((player) => canSeeTile(player.x, player.y, player.id === sessionId))
           .map((player) => ({
             id: player.id,
             name: player.name,
@@ -104,6 +110,7 @@ export function PlayPage() {
           })),
         ...lobby.enemies
           .filter((enemy) => enemy.alive)
+          .filter((enemy) => canSeeTile(enemy.x, enemy.y))
           .map((enemy) => ({
             id: enemy.id,
             name: enemy.name,
@@ -115,7 +122,9 @@ export function PlayPage() {
             isActiveTurn: activeTurn.type === "enemy" && activeTurn.id === enemy.id,
             isSelf: false
           })),
-        ...lobby.worldEntities.map((entity) => ({
+        ...lobby.worldEntities
+          .filter((entity) => canSeeTile(entity.x, entity.y))
+          .map((entity) => ({
             id: entity.id,
             name: entity.name,
             classId: `entity-${entity.type}`,
@@ -126,9 +135,11 @@ export function PlayPage() {
             isActiveTurn: false,
             isSelf: false
           }))
-      ]
+      ],
+      revealedTiles,
+      showFullMap
     };
-  }, [activeTurn, lobby, sessionId]);
+  }, [activeTurn, lobby, role, sessionId]);
 
   useEffect(() => {
     if (!isConnected || !lobby || roomCode !== routeRoomCode) {
@@ -166,10 +177,12 @@ export function PlayPage() {
         sceneTitle: lobby.currentScene.title,
         width: lobby.gridWidth,
         height: lobby.gridHeight,
-        tokens: []
+        tokens: [],
+        revealedTiles: lobby.revealedTiles,
+        showFullMap: role === "dm" || lobby.revealAllFog
       }
     );
-  }, [lobby, tacticalSnapshot]);
+  }, [lobby, role, tacticalSnapshot]);
 
   if (!isConnected || !lobby || roomCode !== routeRoomCode) {
     return (
@@ -518,6 +531,30 @@ export function PlayPage() {
 
           <WorldEntityPanel entities={lobby.worldEntities} onInteract={interactEntity} canInteract={canInteractWithEntity} />
 
+          <section className="panel" data-testid="world-status-panel">
+            <div className="section-header">
+              <h2>Living World</h2>
+              <span data-testid="world-status-summary">{lobby.timeOfDay} · {lobby.weather}</span>
+            </div>
+            <div className="player-stats two-column-grid">
+              {lobby.factionReputation.map((entry) => (
+                <span key={entry.factionId} data-testid={`reputation-${entry.factionId}`}>
+                  {entry.factionId}: {entry.score}
+                </span>
+              ))}
+            </div>
+          </section>
+
+          <section className="panel" data-testid="journal-panel">
+            <div className="section-header">
+              <h2>Adventure Journal</h2>
+              <span data-testid="journal-count">{lobby.journalEntries.length} entries</span>
+            </div>
+            <div className="combat-log">
+              {lobby.journalEntries.length ? lobby.journalEntries.map((entry) => <p key={entry.id}>{entry.message}</p>) : <p className="meta-copy">No journal entries yet.</p>}
+            </div>
+          </section>
+
           <QuestPanel quests={lobby.quests} />
 
           <PlayerSkillChecksPanel checks={lobby.playerSkillChecks} onRoll={rollSkillCheck} />
@@ -610,7 +647,7 @@ export function PlayPage() {
           ) : null}
         </div>
 
-        <div className="play-side">
+        <div className="play-side" data-testid="play-controls-column">
           {role === "dm" ? (
             <>
               <DmPanel
@@ -704,15 +741,15 @@ export function PlayPage() {
             getEnemyRangeMessage={getEnemyRangeMessage}
             onTarget={handleEnemyTarget}
           />
+        </div>
+        <div className="play-log-side" data-testid="play-log-sidebar">
           {role === "dm" ? (
-            <>
-              <DmLogTabsPanel
-                publicLogs={lobby.publicLog}
-                dmLogs={lobby.dmLog}
-                activeTab={activeLogTab}
-                onTabChange={setActiveLogTab}
-              />
-            </>
+            <DmLogTabsPanel
+              publicLogs={lobby.publicLog}
+              dmLogs={lobby.dmLog}
+              activeTab={activeLogTab}
+              onTabChange={setActiveLogTab}
+            />
           ) : (
             <LogPanel
               title="Shared Log"
